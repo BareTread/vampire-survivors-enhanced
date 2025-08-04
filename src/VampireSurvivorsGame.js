@@ -28,7 +28,8 @@ import { PlayerInputSystem } from './systems/PlayerInputSystem.js';
 import { EnemyAISystem } from './systems/EnemyAISystem.js';
 import { WeaponSystem } from './systems/WeaponSystem.js';
 import { ExperienceSystem } from './systems/ExperienceSystem.js';
-import { ParticleSystem } from './systems/ParticleSystem.js';
+import { ParticleSystemECSAdapter } from './systems/ParticleSystemECSAdapter.js';
+import { ComboSystem } from './systems/ComboSystem.js';
 import { UISystem } from './systems/UISystem.js';
 import { AudioSystem } from './systems/AudioSystem.js';
 
@@ -78,10 +79,13 @@ export class VampireSurvivorsGame extends GameEngine {
     /**
      * Initialize game-specific components
      */
-    onInit() {
+    async onInit() {
         super.onInit();
         
         try {
+            // Load external configuration files
+            await this.loadExternalConfigs();
+            
             // Create entity factory
             this.entityFactory = EntityFactoryPresets.createPerformanceOptimized(this.world);
             
@@ -102,6 +106,25 @@ export class VampireSurvivorsGame extends GameEngine {
         } catch (error) {
             Logger.error('Failed to initialize Vampire Survivors Game', { error: error.message });
             throw error;
+        }
+    }
+
+    /**
+     * Load external configuration files
+     * @private
+     */
+    async loadExternalConfigs() {
+        const configFiles = [
+            'configs/enemies.json',
+            'configs/weapons.json', 
+            'configs/player.json'
+        ];
+        
+        try {
+            await Config.loadExternalConfigs(configFiles);
+            Logger.info('External configuration files loaded successfully');
+        } catch (error) {
+            Logger.warn('Some configuration files failed to load, using defaults', { error: error.message });
         }
     }
 
@@ -144,8 +167,13 @@ export class VampireSurvivorsGame extends GameEngine {
             enabled: true
         });
 
+        this.registerSystem('combo', new ComboSystem(this.world, 'combo'), {
+            priority: 4,
+            enabled: true
+        });
+
         // Visual systems (lower priority)
-        this.registerSystem('particle', new ParticleSystem(this.world, 'particle'), {
+        this.registerSystem('particle', new ParticleSystemECSAdapter(this.world, 'particle'), {
             priority: 8,
             enabled: true
         });

@@ -2,9 +2,10 @@ import { Player } from '../entities/Player.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { ExperienceSystem } from '../systems/ExperienceSystem.js';
-import { ParticleSystemOptimized } from '../systems/ParticleSystemOptimized.js';
+import { ParticleSystemCore } from '../systems/ParticleSystemCore.js';
 import { StatusEffectSystem } from '../systems/StatusEffectSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
+// import { ComboSystem } from '../systems/ComboSystem.js';
 import { Camera } from './Camera.js';
 import { Renderer } from './Renderer.js';
 import { GraphicsUpgrade } from './GraphicsUpgrade.js';
@@ -47,8 +48,9 @@ export class VampireSurvivorsGame {
             enemy: new EnemySystem(this),
             projectile: new ProjectileSystem(this),
             experience: new ExperienceSystem(this),
-            particle: new ParticleSystemOptimized(this),
+            particle: new ParticleSystemCore(this),
             statusEffect: new StatusEffectSystem(this),
+            // combo: new ComboSystem(this),
         };
         
         // Game entities
@@ -835,6 +837,9 @@ export class VampireSurvivorsGame {
             // 5. Status effects (depend on updated entity states)
             this.systems.statusEffect.update(dt);
             
+            // 5.5. Combo system (tracks player actions)
+            // this.systems.combo.update(dt);
+            
             // 6. Power-ups (benefit from all position updates)
             this.updatePowerUpDrops(dt);
             
@@ -910,6 +915,9 @@ export class VampireSurvivorsGame {
         
         // Restore camera transform
         this.ctx.restore();
+        
+        // 7. Combo UI (screen-space, render after camera restore)
+        // this.systems.combo.render(this.renderer);
         
         // OPTIMIZED: Batch UI and effects with minimal state changes
         this.ctx.globalAlpha = 1;

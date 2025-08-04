@@ -1,5 +1,5 @@
 // OPTIMIZED: High-performance particle system for 200+ entities at 60+ FPS
-export class ParticleSystemOptimized {
+export class ParticleSystemCore {
     constructor(game) {
         this.game = game;
         
@@ -369,17 +369,32 @@ export class ParticleSystemOptimized {
             const scale = damage.critical ? (1.0 + 0.3 * Math.sin(performance.now() * 0.01)) : 1.0;
             const fontSize = Math.floor(damage.size * scale);
             
-            renderer.drawEnhancedText(damage.text, damage.x, damage.y, {
-                color: damage.color,
-                font: `bold ${fontSize}px Arial`,
-                align: 'center',
-                outline: true,
-                outlineColor: '#000000',
-                outlineWidth: 2,
-                glow: damage.critical,
-                glowColor: damage.color,
-                glowIntensity: 8
-            });
+            // Defensive rendering - check if enhanced text method exists
+            if (typeof renderer.drawEnhancedText === 'function') {
+                renderer.drawEnhancedText(damage.text, damage.x, damage.y, {
+                    color: damage.color,
+                    font: `bold ${fontSize}px Arial`,
+                    align: 'center',
+                    outline: true,
+                    outlineColor: '#000000',
+                    outlineWidth: 2,
+                    glow: damage.critical,
+                    glowColor: damage.color,
+                    glowIntensity: 8
+                });
+            } else {
+                // Fallback to basic text rendering
+                renderer.ctx.save();
+                renderer.ctx.font = `bold ${fontSize}px Arial`;
+                renderer.ctx.textAlign = 'center';
+                renderer.ctx.textBaseline = 'middle';
+                renderer.ctx.fillStyle = damage.color;
+                renderer.ctx.strokeStyle = '#000000';
+                renderer.ctx.lineWidth = 2;
+                renderer.ctx.strokeText(damage.text, damage.x, damage.y);
+                renderer.ctx.fillText(damage.text, damage.x, damage.y);
+                renderer.ctx.restore();
+            }
             
             renderer.restore();
         }

@@ -6,7 +6,7 @@
  */
 
 import { BaseSystem } from './BaseSystem.js';
-import { ParticleSystemOptimized } from './ParticleSystemCore.js';
+import { ParticleSystemCore } from './ParticleSystemCore.js';
 import { Logger } from '../core/ErrorHandler.js';
 
 export class ParticleSystemECSAdapter extends BaseSystem {
@@ -15,7 +15,7 @@ export class ParticleSystemECSAdapter extends BaseSystem {
         
         // Create the optimized particle system
         // Note: We pass a mock game object that provides what ParticleSystemOptimized needs
-        this.particleSystem = new ParticleSystemOptimized({
+        this.particleSystem = new ParticleSystemCore({
             canvas: this.world.game?.canvas,
             ctx: this.world.game?.ctx || this.world.game?.canvas?.getContext('2d'),
             camera: this.world.game?.camera

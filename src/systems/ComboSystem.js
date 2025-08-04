@@ -71,7 +71,6 @@ export class ComboSystem extends BaseSystem {
      * Initialize combo UI elements
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.UI)
     initializeComboUI() {
         // Find or create combo UI container
         let comboContainer = document.getElementById('combo-display');
