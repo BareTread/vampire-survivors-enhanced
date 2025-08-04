@@ -1,0 +1,64 @@
+{
+  "weaponTypes": {
+    "magicMissile": {
+      "name": "Magic Missile",
+      "description": "Auto-targeting magical projectile",
+      "baseDamage": 25,
+      "cooldown": 1.0,
+      "range": 200,
+      "projectileSpeed": 300,
+      "maxLevel": 8,
+      "color": "#9B59B6",
+      "size": 4,
+      "pierce": false,
+      "homing": true
+    },
+    "whip": {
+      "name": "Whip",
+      "description": "Close-range melee weapon with area damage",
+      "baseDamage": 30,
+      "cooldown": 0.8,
+      "range": 60,
+      "maxLevel": 8,
+      "color": "#D2B48C",
+      "areaSize": 45,
+      "knockback": 80,
+      "pierce": true
+    },
+    "throwingKnife": {
+      "name": "Throwing Knife",
+      "description": "Fast projectile that pierces through enemies",
+      "baseDamage": 20,
+      "cooldown": 0.6,
+      "range": 180,
+      "projectileSpeed": 400,
+      "maxLevel": 8,
+      "color": "#C0C0C0",
+      "size": 3,
+      "pierce": true,
+      "pierceCount": 3,
+      "homing": false
+    }
+  },
+  "upgradeProgression": {
+    "damageIncrease": 0.2,
+    "cooldownReduction": 0.1,
+    "rangeIncrease": 0.15,
+    "areaIncrease": 0.15,
+    "pierceIncrease": 1
+  },
+  "projectileSettings": {
+    "lifetime": 3.0,
+    "fadeTime": 0.2,
+    "trailLength": 5,
+    "collisionRadius": 8,
+    "homingStrength": 200,
+    "maxTurnRate": 5.0
+  },
+  "effectSettings": {
+    "muzzleFlashDuration": 0.1,
+    "hitEffectDuration": 0.3,
+    "criticalEffectScale": 1.5,
+    "screenShakeIntensity": 2
+  }
+}

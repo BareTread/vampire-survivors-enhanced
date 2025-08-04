@@ -1,0 +1,180 @@
+{
+  "enemyTypes": {
+    "basic": {
+      "maxHealth": 20,
+      "speed": 40,
+      "damage": 10,
+      "size": 8,
+      "color": "#FF0000",
+      "expReward": 5,
+      "attackRange": 20,
+      "attackCooldown": 1.0
+    },
+    "fast": {
+      "maxHealth": 10,
+      "speed": 80,
+      "damage": 8,
+      "size": 6,
+      "color": "#00FF00",
+      "expReward": 8,
+      "attackRange": 15,
+      "attackCooldown": 0.8
+    },
+    "heavy": {
+      "maxHealth": 60,
+      "speed": 20,
+      "damage": 25,
+      "size": 14,
+      "color": "#0000FF",
+      "expReward": 15,
+      "attackRange": 25,
+      "attackCooldown": 2.0
+    },
+    "ranged": {
+      "maxHealth": 15,
+      "speed": 30,
+      "damage": 8,
+      "size": 7,
+      "color": "#FF00FF",
+      "expReward": 10,
+      "attackRange": 100,
+      "attackCooldown": 2.0
+    },
+    "elite": {
+      "maxHealth": 100,
+      "speed": 35,
+      "damage": 30,
+      "size": 16,
+      "color": "#FFD700", 
+      "expReward": 25,
+      "attackRange": 30,
+      "attackCooldown": 1.2
+    },
+    "berserker": {
+      "maxHealth": 80,
+      "speed": 45,
+      "damage": 25,
+      "size": 14,
+      "color": "#FF4500",
+      "expReward": 35,
+      "attackRange": 25,
+      "attackCooldown": 0.8,
+      "rageThreshold": 0.5
+    },
+    "summoner": {
+      "maxHealth": 60,
+      "speed": 25,
+      "damage": 15,
+      "size": 12,
+      "color": "#800080",
+      "expReward": 40,
+      "attackRange": 150,
+      "attackCooldown": 3.0,
+      "summonRate": 4.0
+    },
+    "boss": {
+      "maxHealth": 200,
+      "speed": 15,
+      "damage": 40,
+      "size": 20,
+      "color": "#000000",
+      "expReward": 60,
+      "attackRange": 35,
+      "attackCooldown": 2.5,
+      "shockwaveRange": 80
+    }
+  },
+  "variants": {
+    "champion": {
+      "namePrefix": "Champion",
+      "color": "#FFD700",
+      "healthMultiplier": 1.2,
+      "damageMultiplier": 1.15,
+      "expMultiplier": 1.3
+    },
+    "swift": {
+      "namePrefix": "Swift",
+      "color": "#00FFFF",
+      "speedMultiplier": 1.3,
+      "healthMultiplier": 0.8,
+      "expMultiplier": 1.2
+    },
+    "shadow": {
+      "namePrefix": "Shadow",
+      "color": "#333333",
+      "speedMultiplier": 1.4,
+      "damageMultiplier": 0.8,
+      "sizeMultiplier": 0.9,
+      "expMultiplier": 1.4
+    },
+    "burning": {
+      "namePrefix": "Burning",
+      "color": "#FF4500",
+      "speedMultiplier": 1.3,
+      "damageMultiplier": 1.1,
+      "expMultiplier": 1.3
+    },
+    "armored": {
+      "namePrefix": "Armored",
+      "color": "#708090",
+      "speedMultiplier": 0.9,
+      "healthMultiplier": 1.4,
+      "expMultiplier": 1.2
+    },
+    "crystal": {
+      "namePrefix": "Crystal",
+      "color": "#666666",
+      "healthMultiplier": 1.4,
+      "speedMultiplier": 0.8,
+      "expMultiplier": 1.5
+    },
+    "volatile": {
+      "namePrefix": "Volatile",
+      "color": "#FF6B6B",
+      "damageMultiplier": 1.3,
+      "healthMultiplier": 1.1,
+      "expMultiplier": 1.4
+    },
+    "arctic": {
+      "namePrefix": "Arctic",
+      "color": "#B0E0E6",
+      "attackRangeMultiplier": 1.3,
+      "damageMultiplier": 1.2,
+      "attackCooldownMultiplier": 1.2,
+      "expMultiplier": 1.4
+    },
+    "toxic": {
+      "namePrefix": "Toxic",
+      "color": "#32CD32",
+      "damageMultiplier": 0.8,
+      "attackCooldownMultiplier": 0.8,
+      "expMultiplier": 1.3
+    }
+  },
+  "spawnSettings": {
+    "variantChance": 0.15,
+    "spawnTime": 0.3,
+    "maxVelocityMultiplier": 2.0,
+    "separationRadius": 3.0,
+    "separationStrength": 50,
+    "knockbackStrength": {
+      "normal": 100,
+      "critical": 150
+    }
+  },
+  "scalingSettings": {
+    "timeScalingInterval": 30,
+    "timeScalingAmount": 0.05,
+    "maxTimeMultiplier": 3.0,
+    "baseMultiplier": 1.0
+  },
+  "combatSettings": {
+    "flashDuration": {
+      "normal": 0.1,
+      "critical": 0.2
+    },
+    "damageNumberLifetime": 1.0,
+    "damageNumberSpeed": 30,
+    "minDamage": 1
+  }
+}

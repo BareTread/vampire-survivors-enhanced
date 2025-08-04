@@ -797,3 +797,248 @@ export class WeaponComponent extends Component {
         return false;
     }
 }
+
+/**
+ * Combo Component - Combat combo system data
+ */
+export class ComboComponent extends Component {
+    constructor() {
+        super('combo');
+        
+        // Combo state
+        this.count = 0;
+        this.multiplier = 1.0;
+        this.timeWindow = 2.0; // Time window to extend combo
+        this.currentTime = 0;
+        this.active = false;
+        
+        // Combo thresholds and bonuses
+        this.thresholds = [5, 10, 20, 50, 100]; // Combo milestones
+        this.bonusMultipliers = [1.2, 1.5, 2.0, 3.0, 5.0]; // Multipliers at each threshold
+        this.baseMultiplier = 1.0;
+        this.maxMultiplier = 5.0;
+        this.decayRate = 0.5; // How fast combo decays when inactive
+        
+        // Combo effects
+        this.lastComboTime = 0;
+        this.comboEffectsActive = false;
+        this.streakEffects = {
+            screenShake: false,
+            timeSlowdown: false,
+            damageBoost: false
+        };
+        
+        // Combo tracking
+        this.totalCombos = 0;
+        this.highestCombo = 0;
+        this.combosThisLevel = 0;
+    }
+
+    reset() {
+        super.reset();
+        this.count = 0;
+        this.multiplier = 1.0;
+        this.currentTime = 0;
+        this.active = false;
+        this.lastComboTime = 0;
+        this.comboEffectsActive = false;
+        this.streakEffects.screenShake = false;
+        this.streakEffects.timeSlowdown = false;
+        this.streakEffects.damageBoost = false;
+        // Don't reset totals and highest - those persist across games
+    }
+
+    /**
+     * Add to combo count
+     * @param {number} amount - Amount to add (default 1)
+     * @param {number} currentTime - Current game time
+     */
+    addCombo(amount = 1, currentTime = 0) {
+        this.count += amount;
+        this.currentTime = this.timeWindow;
+        this.active = true;
+        this.lastComboTime = currentTime;
+        
+        // Update highest combo
+        if (this.count > this.highestCombo) {
+            this.highestCombo = this.count;
+        }
+        
+        // Update multiplier based on current combo
+        this.updateMultiplier();
+        
+        // Check for combo effects
+        this.checkComboEffects();
+    }
+
+    /**
+     * Update combo multiplier based on current count
+     * @private
+     */
+    updateMultiplier() {
+        let newMultiplier = this.baseMultiplier;
+        
+        // Find the appropriate threshold
+        for (let i = 0; i < this.thresholds.length; i++) {
+            if (this.count >= this.thresholds[i]) {
+                newMultiplier = this.bonusMultipliers[i];
+            } else {
+                break;
+            }
+        }
+        
+        // Cap at maximum multiplier
+        this.multiplier = Math.min(newMultiplier, this.maxMultiplier);
+    }
+
+    /**
+     * Check and activate combo effects based on current combo
+     * @private
+     */
+    checkComboEffects() {
+        // Reset effects
+        this.streakEffects.screenShake = false;
+        this.streakEffects.timeSlowdown = false;
+        this.streakEffects.damageBoost = false;
+        
+        if (this.count >= 10) {
+            this.streakEffects.screenShake = true;
+        }
+        
+        if (this.count >= 25) {
+            this.streakEffects.timeSlowdown = true;
+        }
+        
+        if (this.count >= 50) {
+            this.streakEffects.damageBoost = true;
+        }
+        
+        this.comboEffectsActive = Object.values(this.streakEffects).some(effect => effect);
+    }
+
+    /**
+     * Update combo timer and decay
+     * @param {number} deltaTime - Time elapsed
+     */
+    update(deltaTime) {
+        if (this.active) {
+            this.currentTime -= deltaTime;
+            
+            if (this.currentTime <= 0) {
+                // Combo expired - reset
+                this.endCombo();
+            }
+        }
+    }
+
+    /**
+     * End the current combo
+     */
+    endCombo() {
+        if (this.count > 0) {
+            this.totalCombos++;
+            this.combosThisLevel++;
+        }
+        
+        this.count = 0;
+        this.multiplier = this.baseMultiplier;
+        this.currentTime = 0;
+        this.active = false;
+        this.comboEffectsActive = false;
+        
+        // Reset all effects
+        Object.keys(this.streakEffects).forEach(key => {
+            this.streakEffects[key] = false;
+        });
+    }
+
+    /**
+     * Force reset combo (for death, level change, etc.)
+     */
+    forceReset() {
+        this.endCombo();
+    }
+
+    /**
+     * Get combo rank based on current count
+     * @returns {string} Combo rank name
+     */
+    getComboRank() {
+        if (this.count >= 100) return 'LEGENDARY';
+        if (this.count >= 50) return 'EPIC';
+        if (this.count >= 20) return 'RARE';
+        if (this.count >= 10) return 'UNCOMMON';
+        if (this.count >= 5) return 'COMMON';
+        return 'NONE';
+    }
+
+    /**
+     * Get combo color for UI display
+     * @returns {string} Color hex code
+     */
+    getComboColor() {
+        if (this.count >= 100) return '#FF6B35'; // Legendary orange
+        if (this.count >= 50) return '#9B5DE5';  // Epic purple
+        if (this.count >= 20) return '#00BBF9';  // Rare blue
+        if (this.count >= 10) return '#00F5FF';  // Uncommon cyan
+        if (this.count >= 5) return '#FEE75C';   // Common yellow
+        return '#FFFFFF'; // Default white
+    }
+
+    /**
+     * Get percentage until next combo threshold
+     * @returns {number} Percentage (0-1)
+     */
+    getProgressToNextThreshold() {
+        for (let i = 0; i < this.thresholds.length; i++) {
+            if (this.count < this.thresholds[i]) {
+                const prevThreshold = i > 0 ? this.thresholds[i - 1] : 0;
+                const progress = (this.count - prevThreshold) / (this.thresholds[i] - prevThreshold);
+                return Math.max(0, Math.min(1, progress));
+            }
+        }
+        return 1.0; // At max threshold
+    }
+
+    /**
+     * Get next threshold combo count
+     * @returns {number} Next threshold or -1 if at max
+     */
+    getNextThreshold() {
+        for (let i = 0; i < this.thresholds.length; i++) {
+            if (this.count < this.thresholds[i]) {
+                return this.thresholds[i];
+            }
+        }
+        return -1; // At max threshold
+    }
+
+    /**
+     * Check if combo is active and valid
+     * @returns {boolean} True if combo is active
+     */
+    isActive() {
+        return this.active && this.count > 0;
+    }
+
+    /**
+     * Get combo statistics
+     * @returns {object} Combo stats
+     */
+    getStats() {
+        return {
+            current: this.count,
+            multiplier: this.multiplier,
+            highest: this.highestCombo,
+            total: this.totalCombos,
+            thisLevel: this.combosThisLevel,
+            rank: this.getComboRank(),
+            color: this.getComboColor(),
+            timeRemaining: this.currentTime,
+            progressToNext: this.getProgressToNextThreshold(),
+            nextThreshold: this.getNextThreshold(),
+            effectsActive: this.comboEffectsActive,
+            effects: { ...this.streakEffects }
+        };
+    }
+}

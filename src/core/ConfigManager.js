@@ -411,6 +411,78 @@ export class ConfigManager {
     }
 
     /**
+     * Load configuration from external JSON files
+     * @param {string[]} configFiles - Array of config file paths to load
+     * @returns {Promise<void>} Promise that resolves when all configs are loaded
+     */
+    async loadExternalConfigs(configFiles = []) {
+        const loadPromises = configFiles.map(async (filePath) => {
+            try {
+                const response = await fetch(filePath);
+                if (!response.ok) {
+                    console.warn(`Failed to load config file: ${filePath}`);
+                    return;
+                }
+                
+                const configData = await response.json();
+                const fileName = filePath.split('/').pop().replace('.json', '');
+                
+                // Merge the loaded config into the appropriate section
+                this.mergeExternalConfig(fileName, configData);
+                
+            } catch (error) {
+                console.error(`Error loading config file ${filePath}:`, error);
+            }
+        });
+        
+        await Promise.all(loadPromises);
+        this.notifyListeners('*', this.config);
+    }
+
+    /**
+     * Merge external configuration data into the main config
+     * @param {string} configType - Type of configuration (enemies, weapons, player)
+     * @param {object} configData - Configuration data to merge
+     * @private
+     */
+    mergeExternalConfig(configType, configData) {
+        switch (configType) {
+            case 'enemies':
+                this.config.enemies = this.config.enemies || {};
+                this.config.enemies.types = configData.enemyTypes;
+                this.config.enemies.variants = configData.variants;
+                this.config.enemies.spawnSettings = configData.spawnSettings;
+                this.config.enemies.scalingSettings = configData.scalingSettings;
+                this.config.enemies.combatSettings = configData.combatSettings;
+                break;
+                
+            case 'weapons':
+                this.config.weapons = this.config.weapons || {};
+                Object.assign(this.config.weapons, configData.weaponTypes);
+                this.config.weapons.upgradeProgression = configData.upgradeProgression;
+                this.config.weapons.projectileSettings = configData.projectileSettings;
+                this.config.weapons.effectSettings = configData.effectSettings;
+                break;
+                
+            case 'player':
+                this.config.player = this.config.player || {};
+                Object.assign(this.config.player, configData.baseStats);
+                this.config.player.levelProgression = configData.levelProgression;
+                this.config.player.upgrades = configData.upgrades;
+                this.config.player.combo = configData.combo;
+                this.config.player.magnetRange = configData.magnetRange;
+                this.config.player.invulnerabilityTime = { value: configData.invulnerabilityTime };
+                this.config.player.criticalHitChance = { value: configData.criticalHitChance };
+                this.config.player.criticalHitMultiplier = { value: configData.criticalHitMultiplier };
+                break;
+                
+            default:
+                console.warn(`Unknown config type: ${configType}`);
+                break;
+        }
+    }
+
+    /**
      * Export current configuration as JSON
      * @returns {string} JSON configuration
      */

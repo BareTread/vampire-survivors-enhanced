@@ -1,0 +1,57 @@
+{
+  "baseStats": {
+    "maxHealth": 100,
+    "health": 100,
+    "speed": 120,
+    "size": 8,
+    "color": "#4A90E2",
+    "experienceToLevel": 100,
+    "maxWeapons": 6
+  },
+  "levelProgression": {
+    "experienceMultiplier": 1.2,
+    "experienceBase": 100,
+    "healthGainPerLevel": 10,
+    "speedGainPerLevel": 2
+  },
+  "upgrades": {
+    "damage": {
+      "name": "Damage +20%",
+      "description": "Increase weapon damage",
+      "multiplier": 1.2
+    },
+    "speed": {
+      "name": "Speed +15%", 
+      "description": "Move faster",
+      "multiplier": 1.15
+    },
+    "health": {
+      "name": "Max Health +25%",
+      "description": "Increase maximum health",
+      "multiplier": 1.25
+    },
+    "area": {
+      "name": "Area +15%",
+      "description": "Increase weapon area",
+      "multiplier": 1.15
+    },
+    "cooldown": {
+      "name": "Cooldown -10%",
+      "description": "Weapons fire faster",
+      "multiplier": 0.9
+    }
+  },
+  "combo": {
+    "baseMultiplier": 1.0,
+    "maxMultiplier": 3.0,
+    "decayRate": 0.5,
+    "timeWindow": 2.0
+  },
+  "magnetRange": {
+    "base": 50,
+    "boosted": 150
+  },
+  "invulnerabilityTime": 0.5,
+  "criticalHitChance": 0.1,
+  "criticalHitMultiplier": 2.0
+}
