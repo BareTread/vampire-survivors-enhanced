@@ -18,7 +18,7 @@
 import { BaseSystem } from './BaseSystem.js';
 import { TransformComponent, VelocityComponent, CollisionComponent } from '../core/Components.js';
 import { Config } from '../core/ConfigManager.js';
-import { Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
 
 /**
  * Movement System for handling entity movement and basic physics
@@ -107,7 +107,6 @@ export class MovementSystem extends BaseSystem {
      * Main movement update
      * @param {number} deltaTime - Time elapsed since last update
      */
-    @ErrorHandling.timed('movementUpdate')
     onUpdate(deltaTime) {
         // Reset stats
         this.movementStats.entitiesProcessed = 0;

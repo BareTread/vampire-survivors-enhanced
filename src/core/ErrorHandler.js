@@ -792,9 +792,9 @@ export class ErrorHandler {
 export const GlobalErrorHandler = new ErrorHandler();
 
 /**
- * Global logger instance
+ * Default Logger instance for convenience
  */
-export const Logger = GlobalErrorHandler.getLogger();
+export const LoggerInstance = new Logger();
 
 /**
  * Utility decorators for error handling
@@ -835,7 +835,7 @@ export const ErrorHandling = {
             const method = descriptor.value;
             descriptor.value = function(...args) {
                 const markName = name || `${target.constructor.name}.${propertyName}`;
-                Logger.startPerformanceMark(markName);
+                LoggerInstance.startPerformanceMark(markName);
                 
                 try {
                     const result = method.apply(this, args);
@@ -843,14 +843,14 @@ export const ErrorHandling = {
                     // Handle async methods
                     if (result && typeof result.then === 'function') {
                         return result.finally(() => {
-                            Logger.endPerformanceMark(markName);
+                            LoggerInstance.endPerformanceMark(markName);
                         });
                     }
                     
-                    Logger.endPerformanceMark(markName);
+                    LoggerInstance.endPerformanceMark(markName);
                     return result;
                 } catch (error) {
-                    Logger.endPerformanceMark(markName);
+                    LoggerInstance.endPerformanceMark(markName);
                     throw error;
                 }
             };

@@ -17,7 +17,7 @@
 
 import { GameEngine, GameState, GameEvents, EngineFactory } from './core/GameEngine.js';
 import { Config } from './core/ConfigManager.js';
-import { Logger, ErrorHandling, ErrorCategory } from './core/ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from './core/ErrorHandler.js';
 import { EntityFactory, EntityFactoryPresets } from './core/EntityFactory.js';
 
 // Import game systems
@@ -228,7 +228,6 @@ export class VampireSurvivorsGame extends GameEngine {
      * Initialize game-specific UI
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     initializeGameUI() {
         // Create UI container
         this.createUIContainer();
@@ -542,7 +541,6 @@ export class VampireSurvivorsGame extends GameEngine {
     /**
      * Start a new game
      */
-    @ErrorHandling.safe(ErrorCategory.GAMEPLAY)
     startGame() {
         Logger.info('Starting new game');
         

@@ -1,3 +1,5 @@
+import { managedSetTimeout } from '../core/TimerManager.js';
+
 export class ExperienceGem {
     constructor(game, x, y, value = 5) {
         this.game = game;
@@ -286,13 +288,13 @@ export class ExperienceGem {
         });
         
         // Single secondary explosion only
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
                 color: '#FFD700',
                 count: 6, // Reduced from 20
                 spread: 60 // Reduced spread
             });
-        }, 100);
+        }, 100, this);
         
         // Screen flash for lucky gems
         if (this.game.camera) {
@@ -320,13 +322,13 @@ export class ExperienceGem {
         });
         
         // Single secondary explosion
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
                 color: this.glowColor,
                 count: 4, // Reduced from 15
                 spread: 50
             });
-        }, 100);
+        }, 100, this);
         
         // Screen flash for rare gems
         if (this.game.camera) {
@@ -376,7 +378,7 @@ export class ExperienceGem {
             const x = this.x + dx * t;
             const y = this.y + dy * t;
             
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.game.systems.particle.create(x, y, {
                     vx: (Math.random() - 0.5) * 50,
                     vy: (Math.random() - 0.5) * 50,
@@ -386,7 +388,7 @@ export class ExperienceGem {
                     glow: true,
                     fadeOut: true
                 });
-            }, i * 30);
+            }, i * 30, this);
         }
     }
     
@@ -397,12 +399,12 @@ export class ExperienceGem {
         if (this.isLucky) {
             // Multiple layered sounds for lucky gems
             this.game.audioManager.playVampireSound('experienceGain', 0.9, 1.5);
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.game.audioManager.playVampireSound('levelUp', 0.4, 2.0);
-            }, 100);
-            setTimeout(() => {
+            }, 100, this);
+            managedSetTimeout(() => {
                 this.game.audioManager.playVampireSound('criticalHit', 0.3, 1.8);
-            }, 200);
+            }, 200, this);
             return;
         }
         
@@ -416,9 +418,9 @@ export class ExperienceGem {
                 pitch = 1.3;
                 this.game.audioManager.playVampireSound('experienceGain', volume, pitch);
                 // Add bonus sound
-                setTimeout(() => {
+                managedSetTimeout(() => {
                     this.game.audioManager.playVampireSound('levelUp', 0.3, 1.8);
-                }, 100);
+                }, 100, this);
                 break;
             case 'uncommon':
                 volume = 0.6;
@@ -442,7 +444,7 @@ export class ExperienceGem {
                 size = 24;
                 intensity = 3.0;
                 // Show "LUCKY!" text above the number
-                setTimeout(() => {
+                managedSetTimeout(() => {
                     this.game.systems.particle.createEnhancedDamageNumber(
                         this.x, this.y - 20, 
                         'LUCKY!', 
@@ -451,7 +453,7 @@ export class ExperienceGem {
                         18, 
                         2.0
                     );
-                }, 200);
+                }, 200, this);
             } else {
                 color = this.type === 'rare' ? '#FF00FF' : 
                        this.type === 'uncommon' ? '#00AAFF' : '#FFFF00';

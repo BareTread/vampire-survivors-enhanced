@@ -1,3 +1,5 @@
+import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+
 export class Player {
     constructor(game, x, y) {
         this.game = game;
@@ -52,7 +54,7 @@ export class Player {
         };
         
         // Visual effects
-        this.damageNumbers = [];
+        // Note: Damage numbers now handled by globalDamageNumberPool
         this.levelUpEffect = false;
         this.levelUpEffectTime = 0;
         
@@ -221,8 +223,7 @@ export class Player {
         // Update movement
         this.updateMovement(dt);
         
-        // Update damage numbers
-        this.updateDamageNumbers(dt);
+        // Note: Damage numbers now updated by globalDamageNumberPool
         
         // Update level up effect
         if (this.levelUpEffect) {
@@ -325,17 +326,7 @@ export class Player {
         }
     }
     
-    updateDamageNumbers(dt) {
-        for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
-            const dmgNum = this.damageNumbers[i];
-            dmgNum.y -= 50 * dt; // Float upward
-            dmgNum.opacity -= dt * 2; // Fade out
-            
-            if (dmgNum.opacity <= 0) {
-                this.damageNumbers.splice(i, 1);
-            }
-        }
-    }
+    // updateDamageNumbers removed - now handled by globalDamageNumberPool
     
     takeDamage(amount) {
         // Use the enhanced damage system for addictive mechanics
@@ -448,8 +439,10 @@ export class Player {
         this.experience -= this.experienceToNext;
         this.level++;
         
-        // Increase experience requirement (exponential growth)
-        this.experienceToNext = Math.floor(100 * Math.pow(1.15, this.level - 1));
+        // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
+        // Old: 1.15^level growth was too steep with reduced XP income
+        // New: 1.12^level growth for more reasonable progression
+        this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
         
         // Full heal on level up
         this.health = this.maxHealth;
@@ -600,14 +593,16 @@ export class Player {
             return;
         }
         
-        this.damageNumbers.push({
-            x: this.x + (Math.random() - 0.5) * 20,
-            y: this.y - 10,
-            amount: amount,
-            color: color,
-            prefix: prefix,
-            opacity: 1
-        });
+        // Use centralized damage number pool
+        const isCritical = color === '#FF0000' || color === '#FF69B4' || prefix === 'CRITICAL';
+        const displayText = prefix ? `${prefix} ${amount}` : amount;
+        return globalDamageNumberPool.get(
+            this.x + (Math.random() - 0.5) * 20,
+            this.y - 10,
+            displayText,
+            color,
+            isCritical
+        );
     }
     
     die() {
@@ -624,7 +619,7 @@ export class Player {
         
         // Always render UI elements
         this.renderHealthBar(renderer.ctx);
-        this.renderDamageNumbers(renderer.ctx);
+        // Note: Damage numbers now rendered by globalDamageNumberPool
         this.renderManualAiming(renderer);
     }
     
@@ -802,24 +797,7 @@ export class Player {
         ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
     
-    renderDamageNumbers(ctx) {
-        ctx.save();
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        
-        for (const dmgNum of this.damageNumbers) {
-            ctx.globalAlpha = dmgNum.opacity;
-            ctx.fillStyle = dmgNum.color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2;
-            
-            const text = dmgNum.prefix ? `${dmgNum.prefix} +${dmgNum.amount}` : dmgNum.amount.toString();
-            ctx.strokeText(text, dmgNum.x, dmgNum.y);
-            ctx.fillText(text, dmgNum.x, dmgNum.y);
-        }
-        
-        ctx.restore();
-    }
+    // renderDamageNumbers removed - now handled by globalDamageNumberPool
     
     // Helper methods
     lerp(start, end, factor) {
@@ -856,8 +834,11 @@ export class Player {
             }
         }
         
-        // Update combo multiplier (exponential growth for addictive feel)
-        this.combo.multiplier = 1.0 + (this.combo.count * 0.1) + Math.pow(this.combo.count / 50, 1.5);
+        // REBALANCED: Much more conservative combo multiplier to prevent exponential XP inflation
+        // Old: 1.0 + (count * 0.1) + Math.pow(count / 50, 1.5) could reach 5x+ easily
+        // New: Logarithmic scaling with hard cap to maintain progression balance
+        const rawMultiplier = 1.0 + (this.combo.count * 0.02) + Math.log10(Math.max(1, this.combo.count)) * 0.15;
+        this.combo.multiplier = Math.min(rawMultiplier, 2.5); // Hard cap at 2.5x multiplier
     }
     
     addKillToCombo() {
@@ -1376,9 +1357,61 @@ export class Player {
         
         this.addDamageNumber(expGain, color, prefix);
         
-        // Check for level up
+        // FIXED: Process level-ups ONE AT A TIME with proper queuing
+        // Initialize level-up queue if it doesn't exist
+        if (!this.levelUpQueue) {
+            this.levelUpQueue = [];
+        }
+        
+        // Check for level-ups and queue them
         while (this.experience >= this.experienceToNext) {
-            this.levelUp();
+            this.experience -= this.experienceToNext;
+            this.level++;
+            
+            // Queue this level-up for processing
+            this.levelUpQueue.push({
+                level: this.level,
+                oldLevel: this.level - 1
+            });
+            
+            // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
+            this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
+            
+            // Full heal on level up
+            this.health = this.maxHealth;
+        }
+        
+        // Process the first queued level-up (if any) and not already in level-up UI
+        if (this.levelUpQueue.length > 0 && !this.game.levelUpActive) {
+            this.processNextLevelUp();
+        }
+    }
+
+    processNextLevelUp() {
+        if (!this.levelUpQueue || this.levelUpQueue.length === 0) return;
+        if (this.game.levelUpActive) return; // Already showing level-up UI
+        
+        // Get the next level-up from queue
+        const levelUpData = this.levelUpQueue.shift();
+        
+        // Create level-up effects for this specific level
+        this.createLevelUpEffects();
+        
+        // Show level-up message
+        this.addDamageNumber(`LEVEL ${levelUpData.level}!`, '#FFD700', 'LEVEL UP');
+        
+        // Show the level-up UI for this specific level
+        this.game.showLevelUpUI();
+    }
+    
+    completeLevelUpSelection() {
+        // Called when player makes a selection in the level-up UI
+        // Check if there are more level-ups queued
+        if (this.levelUpQueue && this.levelUpQueue.length > 0) {
+            // Process the next level-up after a short delay
+            setTimeout(() => {
+                this.processNextLevelUp();
+            }, 500); // Half second delay between level-ups
         }
     }
     
@@ -1446,6 +1479,36 @@ export class Player {
         
         // Calculate accuracy based on nearest enemy
         this.calculateAimingAccuracy();
+    }
+
+    updateLevelUpEffects(dt) {
+        // FIXED: Separate method for updating only visual effects during level-up pause
+        // This prevents gameplay mechanics from updating while keeping UI smooth
+        
+        // Update invulnerability visual effects
+        if (this.invulnerable) {
+            this.invulnerabilityTime -= dt;
+            if (this.invulnerabilityTime <= 0) {
+                this.invulnerable = false;
+            }
+        }
+        
+        // Update level up effect
+        if (this.levelUpEffect) {
+            this.levelUpEffectTime -= dt;
+            if (this.levelUpEffectTime <= 0) {
+                this.levelUpEffect = false;
+            }
+        }
+        
+        // Update power-up visual effects only (no gameplay effects)
+        for (const [name, powerUp] of Object.entries(this.powerUps)) {
+            if (powerUp.active) {
+                // Don't decrease timers during pause, just maintain visual state
+            }
+        }
+        
+        // Note: No movement, combat, or gameplay updates during pause
     }
     
     calculateAimingAccuracy() {

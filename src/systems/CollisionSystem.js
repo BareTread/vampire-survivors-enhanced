@@ -9,7 +9,8 @@
  */
 
 import { BaseSystem } from './BaseSystem.js';
-import { Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
+import { MathUtils } from '../utils/MathUtils.js';
 
 /**
  * Collision System for handling collision detection and response
@@ -180,14 +181,15 @@ export class CollisionSystem extends BaseSystem {
 
         if (!transformA || !collisionA || !transformB || !collisionB) return false;
 
-        // Circle-circle collision (simplified)
+        // Circle-circle collision (simplified) - using squared distance for performance
         if (collisionA.type === 'circle' && collisionB.type === 'circle') {
-            const dx = transformA.x - transformB.x;
-            const dy = transformA.y - transformB.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            const distanceSquared = MathUtils.distanceSquared(
+                transformA.x, transformA.y, transformB.x, transformB.y
+            );
             const minDistance = collisionA.radius + collisionB.radius;
+            const minDistanceSquared = minDistance * minDistance;
             
-            return distance < minDistance;
+            return distanceSquared < minDistanceSquared;
         }
 
         // Add more collision types as needed
@@ -228,6 +230,103 @@ export class CollisionSystem extends BaseSystem {
                 }
             }
         }
+    }
+
+    /**
+     * Get entities within a radius of a position
+     * Primary interface for spatial queries - replaces individual system spatial grids
+     * @param {number} x - Center X position
+     * @param {number} y - Center Y position
+     * @param {number} radius - Search radius
+     * @param {function} filterFn - Optional filter function
+     * @returns {Array} Entities within radius
+     */
+    getEntitiesInRadius(x, y, radius, filterFn = null) {
+        const radiusSquared = radius * radius;
+        const results = [];
+        
+        // Calculate grid bounds for search
+        const gridRadius = Math.ceil(radius / this.collisionConfig.spatialGridSize);
+        const centerGridX = Math.floor(x / this.collisionConfig.spatialGridSize);
+        const centerGridY = Math.floor(y / this.collisionConfig.spatialGridSize);
+        
+        // Search spatial grid cells
+        for (let gx = centerGridX - gridRadius; gx <= centerGridX + gridRadius; gx++) {
+            for (let gy = centerGridY - gridRadius; gy <= centerGridY + gridRadius; gy++) {
+                const key = `${gx},${gy}`;
+                const gridEntities = this.spatialGrid.get(key);
+                
+                if (gridEntities) {
+                    for (const entity of gridEntities) {
+                        const transform = entity.getComponent('transform');
+                        if (!transform) continue;
+                        
+                        // Check distance using MathUtils for consistency
+                        const distanceSquared = MathUtils.distanceSquared(
+                            transform.x, transform.y, x, y
+                        );
+                        
+                        if (distanceSquared <= radiusSquared) {
+                            // Apply optional filter
+                            if (!filterFn || filterFn(entity)) {
+                                results.push(entity);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return results;
+    }
+
+    /**
+     * Get entities with specific components within radius
+     * @param {number} x - Center X position
+     * @param {number} y - Center Y position
+     * @param {number} radius - Search radius
+     * @param {...string} componentTypes - Required component types
+     * @returns {Array} Filtered entities within radius
+     */
+    getEntitiesWithComponentsInRadius(x, y, radius, ...componentTypes) {
+        return this.getEntitiesInRadius(x, y, radius, entity => {
+            return entity.hasComponents(...componentTypes);
+        });
+    }
+
+    /**
+     * Get nearest entity to a position with optional filter
+     * @param {number} x - Center X position
+     * @param {number} y - Center Y position
+     * @param {number} maxRadius - Maximum search radius
+     * @param {function} filterFn - Optional filter function
+     * @returns {Object|null} {entity, distance} or null if none found
+     */
+    getNearestEntity(x, y, maxRadius = Infinity, filterFn = null) {
+        let nearestEntity = null;
+        let nearestDistanceSquared = maxRadius * maxRadius;
+        
+        const entities = this.getEntitiesInRadius(x, y, maxRadius, filterFn);
+        
+        for (const entity of entities) {
+            const transform = entity.getComponent('transform');
+            if (!transform) continue;
+            
+            const distanceSquared = MathUtils.distanceSquared(
+                transform.x, transform.y, x, y
+            );
+            
+            if (distanceSquared < nearestDistanceSquared) {
+                nearestDistanceSquared = distanceSquared;
+                nearestEntity = entity;
+            }
+        }
+        
+        return nearestEntity ? {
+            entity: nearestEntity,
+            distance: Math.sqrt(nearestDistanceSquared),
+            distanceSquared: nearestDistanceSquared
+        } : null;
     }
 
     getDebugInfo() {

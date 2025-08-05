@@ -1,0 +1,12 @@
+{
+  "enableVSync": true,
+  "lowQualityThreshold": 30,
+  "particleLimit": 200,
+  "backgroundComplexity": "medium",
+  "camera": {
+    "followSmoothness": 0.1,
+    "shakeDecay": 0.9,
+    "maxShake": 20,
+    "flashDecay": 0.95
+  }
+}

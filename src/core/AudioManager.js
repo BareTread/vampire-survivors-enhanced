@@ -1,3 +1,5 @@
+import { managedSetTimeout, managedSetInterval } from '../core/TimerManager.js';
+
 export class AudioManager {
     constructor() {
         this.sounds = {};
@@ -254,77 +256,77 @@ export class AudioManager {
     
     // Enhanced vampire-themed audio methods
     initializeVampireSounds() {
-        // Define all the vampire-themed sounds we want
+        // ENHANCED: Define pleasant, engaging vampire-themed sounds
         this.vampireSoundMap = {
-            // Combat sounds - base hits
-            'vampireBite': { type: 'aggressive', pitch: 0.8, reverb: 0.3 },
-            'bloodSplash': { type: 'wet', pitch: 1.0, reverb: 0.2 },
-            'magicMissile': { type: 'magical', pitch: 1.2, reverb: 0.4 },
-            'whipCrack': { type: 'impact', pitch: 0.9, reverb: 0.1 },
-            'knifeThrowing': { type: 'sharp', pitch: 1.1, reverb: 0.1 },
-            'criticalHit': { type: 'impact', pitch: 0.7, reverb: 0.3 },
-            'enemyDeath': { type: 'death', pitch: 0.8, reverb: 0.5 },
+            // Combat sounds - more musical and pleasant
+            'vampireBite': { type: 'aggressive', pitch: 1.0, reverb: 0.2 },
+            'bloodSplash': { type: 'wet', pitch: 1.1, reverb: 0.1 },
+            'magicMissile': { type: 'magical', pitch: 1.0, reverb: 0.3 },
+            'whipCrack': { type: 'sharp', pitch: 1.1, reverb: 0.15 },
+            'knifeThrowing': { type: 'sharp', pitch: 1.3, reverb: 0.1 },
+            'criticalHit': { type: 'positive', pitch: 1.0, reverb: 0.4 },
+            'enemyDeath': { type: 'death', pitch: 0.9, reverb: 0.3 },
             
-            // Enhanced weapon-specific sounds
-            'magicHit': { type: 'magical', pitch: 1.0, reverb: 0.3 },
-            'magicCharge': { type: 'magical', pitch: 0.9, reverb: 0.5 },
-            'arcaneWhisper': { type: 'magical', pitch: 1.4, reverb: 0.7 },
-            'whipHit': { type: 'impact', pitch: 0.8, reverb: 0.2 },
-            'whipSwoosh': { type: 'impact', pitch: 1.1, reverb: 0.1 },
-            'bladeHit': { type: 'sharp', pitch: 1.2, reverb: 0.1 },
-            'bladeWhoosh': { type: 'sharp', pitch: 1.3, reverb: 0.1 },
-            'metalGlint': { type: 'sharp', pitch: 1.5, reverb: 0.2 },
+            // Enhanced weapon-specific sounds - more melodic
+            'magicHit': { type: 'magical', pitch: 1.2, reverb: 0.3 },
+            'magicCharge': { type: 'magical', pitch: 0.8, reverb: 0.4 },
+            'arcaneWhisper': { type: 'magical', pitch: 1.5, reverb: 0.6 },
+            'whipHit': { type: 'impact', pitch: 1.0, reverb: 0.2 },
+            'whipSwoosh': { type: 'sharp', pitch: 1.2, reverb: 0.1 },
+            'bladeHit': { type: 'sharp', pitch: 1.1, reverb: 0.1 },
+            'bladeWhoosh': { type: 'sharp', pitch: 1.4, reverb: 0.1 },
+            'metalGlint': { type: 'sharp', pitch: 1.6, reverb: 0.2 },
             'bulletHit': { type: 'impact', pitch: 1.0, reverb: 0.1 },
             'gunshot': { type: 'impact', pitch: 1.0, reverb: 0.2 },
-            'shellDrop': { type: 'impact', pitch: 0.7, reverb: 0.1 },
+            'shellDrop': { type: 'impact', pitch: 0.8, reverb: 0.1 },
             
-            // Layered combat feedback
-            'criticalBoom': { type: 'impact', pitch: 0.6, reverb: 0.8 },
-            'metalRing': { type: 'sharp', pitch: 1.8, reverb: 0.4 },
-            'comboChime': { type: 'positive', pitch: 1.4, reverb: 0.3 },
-            'massiveImpact': { type: 'impact', pitch: 0.5, reverb: 0.9 },
-            'deathSatisfaction': { type: 'positive', pitch: 1.1, reverb: 0.2 },
+            // Pleasant combat feedback - more musical
+            'criticalBoom': { type: 'positive', pitch: 0.8, reverb: 0.5 },
+            'metalRing': { type: 'positive', pitch: 1.5, reverb: 0.3 },
+            'comboChime': { type: 'positive', pitch: 1.2, reverb: 0.3 },
+            'massiveImpact': { type: 'positive', pitch: 0.7, reverb: 0.6 },
+            'deathSatisfaction': { type: 'positive', pitch: 1.0, reverb: 0.2 },
             
-            // Enemy-specific death sounds
-            'boneBreak': { type: 'death', pitch: 0.9, reverb: 0.3 },
-            'fleshTear': { type: 'death', pitch: 0.7, reverb: 0.4 },
-            'vampireScream': { type: 'death', pitch: 1.0, reverb: 0.6 },
-            'ghostWail': { type: 'death', pitch: 1.3, reverb: 0.8 },
-            'demonRoar': { type: 'death', pitch: 0.6, reverb: 0.7 },
-            'eliteDeath': { type: 'death', pitch: 0.8, reverb: 0.5 },
-            'bossDefeat': { type: 'death', pitch: 0.5, reverb: 1.0 },
+            // Pleasant enemy death sounds - dramatic but not jarring
+            'boneBreak': { type: 'death', pitch: 1.0, reverb: 0.3 },
+            'fleshTear': { type: 'death', pitch: 0.8, reverb: 0.4 },
+            'vampireScream': { type: 'death', pitch: 1.1, reverb: 0.5 },
+            'ghostWail': { type: 'death', pitch: 1.4, reverb: 0.7 },
+            'demonRoar': { type: 'death', pitch: 0.7, reverb: 0.6 },
+            'eliteDeath': { type: 'death', pitch: 0.9, reverb: 0.5 },
+            'bossDefeat': { type: 'dramatic', pitch: 0.6, reverb: 0.8 },
             
-            // Progression sounds
-            'levelUp': { type: 'positive', pitch: 1.0, reverb: 0.6 },
-            'experienceGain': { type: 'collect', pitch: 1.3, reverb: 0.2 },
-            'weaponUpgrade': { type: 'magical', pitch: 0.9, reverb: 0.7 },
-            'levelUpFanfare': { type: 'positive', pitch: 1.0, reverb: 0.8 },
-            'upgradeChime': { type: 'positive', pitch: 1.2, reverb: 0.5 },
+            // Uplifting progression sounds
+            'levelUp': { type: 'positive', pitch: 1.0, reverb: 0.5 },
+            'experienceGain': { type: 'collect', pitch: 1.1, reverb: 0.2 },
+            'weaponUpgrade': { type: 'positive', pitch: 1.0, reverb: 0.6 },
+            'levelUpFanfare': { type: 'positive', pitch: 1.0, reverb: 0.7 },
+            'upgradeChime': { type: 'positive', pitch: 1.3, reverb: 0.4 },
             
-            // Challenge and achievement sounds
-            'challengeBell': { type: 'ui', pitch: 1.1, reverb: 0.4 },
+            // Pleasant achievement sounds
+            'challengeBell': { type: 'positive', pitch: 1.0, reverb: 0.4 },
             'challengeComplete': { type: 'positive', pitch: 1.0, reverb: 0.6 },
-            'challengeFail': { type: 'ui', pitch: 0.8, reverb: 0.3 },
-            'victoryFanfare': { type: 'positive', pitch: 1.0, reverb: 0.9 },
-            'achievementUnlock': { type: 'positive', pitch: 1.1, reverb: 0.7 },
+            'challengeFail': { type: 'ui', pitch: 0.9, reverb: 0.2 },
+            'victoryFanfare': { type: 'positive', pitch: 1.0, reverb: 0.8 },
+            'achievementUnlock': { type: 'positive', pitch: 1.2, reverb: 0.6 },
             
-            // Atmospheric sounds
-            'heartbeat': { type: 'ambient', pitch: 1.0, reverb: 0.8, loop: true },
-            'windHowl': { type: 'ambient', pitch: 0.8, reverb: 0.9, loop: true },
+            // Soothing atmospheric sounds
+            'heartbeat': { type: 'ambient', pitch: 1.0, reverb: 0.6, loop: true },
+            'windHowl': { type: 'ambient', pitch: 0.9, reverb: 0.7, loop: true },
             'gothicOrgan': { type: 'musical', pitch: 1.0, reverb: 0.8, loop: true },
             
-            // UI sounds
-            'uiHover': { type: 'ui', pitch: 1.1, reverb: 0.1 },
+            // Pleasant UI sounds
+            'uiHover': { type: 'ui', pitch: 1.2, reverb: 0.1 },
             'uiSelect': { type: 'ui', pitch: 1.0, reverb: 0.2 },
-            'menuHover': { type: 'ui', pitch: 1.1, reverb: 0.1 },
-            'menuSelect': { type: 'ui', pitch: 0.9, reverb: 0.2 },
-            'errorBuzz': { type: 'ui', pitch: 0.8, reverb: 0.1 },
-            'gameOver': { type: 'dramatic', pitch: 0.6, reverb: 1.0 },
+            'menuHover': { type: 'ui', pitch: 1.2, reverb: 0.1 },
+            'menuSelect': { type: 'ui', pitch: 1.0, reverb: 0.2 },
+            'errorBuzz': { type: 'ui', pitch: 0.9, reverb: 0.1 },
+            'gameOver': { type: 'dramatic', pitch: 0.7, reverb: 0.8 },
             
-            // Power-ups and special effects
-            'powerUpCollect': { type: 'positive', pitch: 1.2, reverb: 0.4 },
-            'weaponEvolution': { type: 'magical', pitch: 0.8, reverb: 0.9 },
-            'skillShot': { type: 'positive', pitch: 1.3, reverb: 0.3 }
+            // Rewarding power-up sounds
+            'powerUpCollect': { type: 'positive', pitch: 1.3, reverb: 0.4 },
+            'weaponEvolution': { type: 'positive', pitch: 0.9, reverb: 0.7 },
+            'skillShot': { type: 'positive', pitch: 1.4, reverb: 0.3 }
         };
     }
     
@@ -416,35 +418,101 @@ export class AudioManager {
             const oscillator = this.audioContext.createOscillator();
             const gainNode = this.audioContext.createGain();
             
-            // Configure based on vampire sound type
+            // ENHANCED: More pleasant and musical sound synthesis
             switch (type) {
                 case 'aggressive':
+                    // Softer sawtooth with smoother attack
                     oscillator.type = 'sawtooth';
-                    oscillator.frequency.setValueAtTime(150 * pitch, this.audioContext.currentTime);
+                    oscillator.frequency.setValueAtTime(120 * pitch, this.audioContext.currentTime);
+                    // Add subtle frequency sweep for more interesting sound
+                    oscillator.frequency.exponentialRampToValueAtTime(100 * pitch, this.audioContext.currentTime + 0.2);
                     break;
                 case 'magical':
+                    // More ethereal sine waves with harmonic overtones
                     oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(440 * pitch, this.audioContext.currentTime);
-                    oscillator.frequency.exponentialRampToValueAtTime(880 * pitch, this.audioContext.currentTime + 0.3);
+                    oscillator.frequency.setValueAtTime(523 * pitch, this.audioContext.currentTime); // C5 note
+                    oscillator.frequency.exponentialRampToValueAtTime(698 * pitch, this.audioContext.currentTime + 0.2); // F5 note
                     break;
                 case 'impact':
-                    oscillator.type = 'square';
-                    oscillator.frequency.setValueAtTime(80 * pitch, this.audioContext.currentTime);
+                    // Softer square wave with smoother edges
+                    oscillator.type = 'triangle'; // Triangle is softer than square
+                    oscillator.frequency.setValueAtTime(65 * pitch, this.audioContext.currentTime); // Low C
+                    oscillator.frequency.exponentialRampToValueAtTime(82 * pitch, this.audioContext.currentTime + 0.1); // Low E
                     break;
                 case 'collect':
+                    // Pleasant ascending chime-like sounds
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(659 * pitch, this.audioContext.currentTime); // E5
+                    oscillator.frequency.exponentialRampToValueAtTime(1047 * pitch, this.audioContext.currentTime + 0.2); // C6
+                    break;
+                case 'positive':
+                    // Uplifting major chord progression
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(523 * pitch, this.audioContext.currentTime); // C5
+                    oscillator.frequency.exponentialRampToValueAtTime(659 * pitch, this.audioContext.currentTime + 0.15); // E5
+                    break;
+                case 'ui':
+                    // Subtle, professional UI sounds
                     oscillator.type = 'sine';
                     oscillator.frequency.setValueAtTime(800 * pitch, this.audioContext.currentTime);
-                    oscillator.frequency.exponentialRampToValueAtTime(1600 * pitch, this.audioContext.currentTime + 0.1);
+                    oscillator.frequency.exponentialRampToValueAtTime(900 * pitch, this.audioContext.currentTime + 0.05);
+                    break;
+                case 'death':
+                    // Dramatic but not jarring death sounds
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(220 * pitch, this.audioContext.currentTime); // A3
+                    oscillator.frequency.exponentialRampToValueAtTime(110 * pitch, this.audioContext.currentTime + 0.4); // A2
+                    break;
+                case 'sharp':
+                    // Crisp but pleasant blade sounds
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(1047 * pitch, this.audioContext.currentTime); // C6
+                    oscillator.frequency.exponentialRampToValueAtTime(1319 * pitch, this.audioContext.currentTime + 0.1); // E6
+                    break;
+                case 'wet':
+                    // Subtle liquid-like sounds
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(200 * pitch, this.audioContext.currentTime);
+                    oscillator.frequency.linearRampToValueAtTime(180 * pitch, this.audioContext.currentTime + 0.3);
+                    break;
+                case 'dramatic':
+                    // Epic but not overwhelming dramatic sounds
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(130 * pitch, this.audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(65 * pitch, this.audioContext.currentTime + 0.8);
+                    break;
+                case 'musical':
+                    // Pleasant background musical tones
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(261 * pitch, this.audioContext.currentTime); // C4
+                    oscillator.frequency.exponentialRampToValueAtTime(329 * pitch, this.audioContext.currentTime + 0.5); // E4
+                    break;
+                case 'ambient':
+                    // Soft atmospheric sounds
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(440 * pitch, this.audioContext.currentTime); // A4
+                    oscillator.frequency.linearRampToValueAtTime(466 * pitch, this.audioContext.currentTime + 2.0); // Bb4
                     break;
                 default:
+                    // Pleasant default sound
                     oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(220 * pitch, this.audioContext.currentTime);
+                    oscillator.frequency.setValueAtTime(440 * pitch, this.audioContext.currentTime); // A4
             }
             
-            // Apply volume envelope
+            // ENHANCED: More pleasant volume envelopes with smooth attack/decay
+            const maxVolume = Math.min(0.15, volume * 0.2); // Reduced maximum volume for pleasant listening
             gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-            gainNode.gain.linearRampToValueAtTime(volume * 0.3, this.audioContext.currentTime + 0.01);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.3);
+            
+            // Smoother attack curve
+            gainNode.gain.exponentialRampToValueAtTime(maxVolume, this.audioContext.currentTime + 0.02);
+            
+            // Sustain phase for certain sound types
+            const sustainTime = type === 'ambient' || type === 'musical' ? 0.5 : 0.1;
+            gainNode.gain.setValueAtTime(maxVolume * 0.7, this.audioContext.currentTime + 0.02 + sustainTime);
+            
+            // Smoother decay
+            const decayTime = type === 'ambient' ? 2.0 : type === 'dramatic' ? 0.8 : 0.3;
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.02 + sustainTime + decayTime);
             
             // Connect audio nodes
             oscillator.connect(gainNode);
@@ -452,8 +520,8 @@ export class AudioManager {
                 const dryGain = this.audioContext.createGain();
                 const wetGain = this.audioContext.createGain();
                 
-                dryGain.gain.value = 1 - config.reverb;
-                wetGain.gain.value = config.reverb;
+                dryGain.gain.value = 1 - config.reverb * 0.7; // Reduced reverb intensity
+                wetGain.gain.value = config.reverb * 0.7;
                 
                 gainNode.connect(dryGain);
                 gainNode.connect(this.reverb);
@@ -465,9 +533,10 @@ export class AudioManager {
                 gainNode.connect(this.audioContext.destination);
             }
             
-            // Play the sound
+            // Play the sound with appropriate duration
+            const totalDuration = 0.02 + sustainTime + decayTime;
             oscillator.start(this.audioContext.currentTime);
-            oscillator.stop(this.audioContext.currentTime + 0.3);
+            oscillator.stop(this.audioContext.currentTime + totalDuration);
             
         } catch (error) {
             console.warn('Failed to synthesize vampire sound:', error);
@@ -477,17 +546,31 @@ export class AudioManager {
     getIntensityMultiplier(type) {
         if (!this.dynamicMixing) return 1;
         
-        // Adjust volume based on game intensity and sound type
+        // ENHANCED: More pleasant dynamic mixing that doesn't overwhelm
         switch (type) {
             case 'aggressive':
             case 'impact':
-                return 0.7 + (this.gameIntensity * 0.5); // Louder during intense moments
+                return 0.5 + (this.gameIntensity * 0.3); // Much more restrained volume changes
             case 'ambient':
-                return 1.2 - (this.gameIntensity * 0.4); // Quieter during intense moments
+                return 0.8 - (this.gameIntensity * 0.2); // Gentle ambient volume changes
             case 'magical':
-                return 0.8 + (this.gameIntensity * 0.3);
+                return 0.7 + (this.gameIntensity * 0.2); // Subtle magical sound enhancement
+            case 'positive':
+                return 0.8 + (this.gameIntensity * 0.3); // Reward sounds become more prominent during action
+            case 'ui':
+                return 0.6; // Consistent UI volume regardless of game intensity
+            case 'collect':
+                return 0.7 + (this.gameIntensity * 0.2); // Collection sounds slightly enhanced during action
+            case 'death':
+                return 0.6 + (this.gameIntensity * 0.2); // Death sounds are pleasant but noticeable
+            case 'sharp':
+                return 0.5 + (this.gameIntensity * 0.25); // Sharp sounds are clear but not harsh
+            case 'dramatic':
+                return 0.7 + (this.gameIntensity * 0.4); // Dramatic moments get enhanced but not overwhelming
+            case 'musical':
+                return 0.9 - (this.gameIntensity * 0.1); // Musical elements stay prominent but adjust slightly
             default:
-                return 1;
+                return 0.7; // Pleasant default volume
         }
     }
     
@@ -561,9 +644,9 @@ export class AudioManager {
         this.playVampireSound('windHowl', 0.1);
         
         // Gradually increase ambient intensity
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.setGameIntensity(0.2);
-        }, 2000);
+        }, 2000, this);
     }
     
     stopVampireAmbient() {
@@ -582,21 +665,21 @@ export class AudioManager {
         
         // Layer additional effects based on damage and combo
         if (critical) {
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.playCriticalHitLayer(intensity);
-            }, 50);
+            }, 50, this);
         }
         
         if (combo > 5) {
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.playComboLayer(combo, intensity);
-            }, 100);
+            }, 100, this);
         }
         
         if (baseDamage > 100) {
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.playMassiveDamageLayer(intensity);
-            }, 75);
+            }, 75, this);
         }
     }
     
@@ -620,9 +703,9 @@ export class AudioManager {
         this.playVampireSound('criticalBoom', 0.8 * intensity, 0.8);
         
         // Add metallic ring for emphasis
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('metalRing', 0.4 * intensity, 1.3);
-        }, 100);
+        }, 100, this);
     }
     
     playComboLayer(combo, intensity) {
@@ -667,14 +750,14 @@ export class AudioManager {
         this.playVampireSound('magicCharge', 0.4 * intensity, 1.0 + pitchBonus);
         
         // Main missile launch
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('magicMissile', 0.7 * intensity, 1.1 + pitchBonus);
-        }, 80);
+        }, 80, this);
         
         // Arcane whisper layer
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('arcaneWhisper', 0.3 * intensity, 1.3 + pitchBonus);
-        }, 150);
+        }, 150, this);
     }
     
     playWhipFireSound(intensity, pitchBonus) {
@@ -682,9 +765,9 @@ export class AudioManager {
         this.playVampireSound('whipSwoosh', 0.6 * intensity, 0.9 + pitchBonus);
         
         // Crack sound
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('whipCrack', 0.8 * intensity, 1.0 + pitchBonus);
-        }, 120);
+        }, 120, this);
     }
     
     playKnifeFireSound(intensity, pitchBonus) {
@@ -692,9 +775,9 @@ export class AudioManager {
         this.playVampireSound('bladeWhoosh', 0.5 * intensity, 1.2 + pitchBonus);
         
         // Metal glint
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('metalGlint', 0.3 * intensity, 1.4 + pitchBonus);
-        }, 60);
+        }, 60, this);
     }
     
     playFirearmSound(intensity, pitchBonus) {
@@ -702,9 +785,9 @@ export class AudioManager {
         this.playVampireSound('gunshot', 0.8 * intensity, 1.0 + pitchBonus);
         
         // Shell casing drop
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('shellDrop', 0.3 * intensity, 0.8 + Math.random() * 0.4);
-        }, 200 + Math.random() * 300);
+        }, 200 + Math.random() * 300, this);
     }
     
     // Dynamic music system based on game intensity
@@ -796,9 +879,9 @@ export class AudioManager {
         this.playVampireSound(config.sound, volume, pitch);
         
         // Add satisfying death layer
-        setTimeout(() => {
+        managedSetTimeout(() => {
             this.playVampireSound('deathSatisfaction', 0.4, 1.0 + Math.random() * 0.2);
-        }, 100);
+        }, 100, this);
     }
     
     // Enhanced UI feedback sounds

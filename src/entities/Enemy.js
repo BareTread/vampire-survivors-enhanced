@@ -1,3 +1,5 @@
+import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+
 export class Enemy {
     constructor(game, x, y, type = 'basic') {
         this.game = game;
@@ -27,7 +29,7 @@ export class Enemy {
         this.attackCooldown = 0;
         
         // Visual effects
-        this.damageNumbers = [];
+        // Note: Damage numbers now handled by globalDamageNumberPool
         this.deathEffect = false;
         this.flashTime = 0;
         
@@ -53,7 +55,7 @@ export class Enemy {
                 damage: 10,
                 size: 8,
                 color: '#FF6B6B',
-                expReward: 5,
+                expReward: 3, // REBALANCED: Reduced from 5 to 3
                 attackRange: 20,
                 attackCooldown: 1.0
             },
@@ -63,7 +65,7 @@ export class Enemy {
                 damage: 8,
                 size: 6,
                 color: '#4ECDC4',
-                expReward: 8,
+                expReward: 5, // REBALANCED: Reduced from 8 to 5
                 attackRange: 15,
                 attackCooldown: 0.8
             },
@@ -73,7 +75,7 @@ export class Enemy {
                 damage: 25,
                 size: 14,
                 color: '#45B7D1',
-                expReward: 15,
+                expReward: 8, // REBALANCED: Reduced from 15 to 8
                 attackRange: 25,
                 attackCooldown: 2.0
             },
@@ -83,7 +85,7 @@ export class Enemy {
                 damage: 8, // Reduced from 12 to 8 for balance
                 size: 7,
                 color: '#F39C12',
-                expReward: 10,
+                expReward: 6, // REBALANCED: Reduced from 10 to 6
                 attackRange: 100, // Reduced from 120 to 100 to keep enemies closer
                 attackCooldown: 2.0 // Increased from 1.5 to 2.0 seconds
             },
@@ -93,7 +95,7 @@ export class Enemy {
                 damage: 30,
                 size: 16,
                 color: '#9B59B6',
-                expReward: 25,
+                expReward: 12, // REBALANCED: Reduced from 25 to 12
                 attackRange: 30,
                 attackCooldown: 1.2
             },
@@ -103,7 +105,7 @@ export class Enemy {
                 damage: 25,
                 size: 14,
                 color: '#FF4500',
-                expReward: 35,
+                expReward: 15, // REBALANCED: Reduced from 35 to 15
                 attackRange: 25,
                 attackCooldown: 0.8,
                 rageThreshold: 0.5 // Goes berserk at 50% health
@@ -114,7 +116,7 @@ export class Enemy {
                 damage: 15,
                 size: 12,
                 color: '#8A2BE2',
-                expReward: 40,
+                expReward: 18, // REBALANCED: Reduced from 40 to 18
                 attackRange: 150,
                 attackCooldown: 3.0,
                 summonRate: 4.0 // Summons every 4 seconds
@@ -125,7 +127,7 @@ export class Enemy {
                 damage: 40,
                 size: 20,
                 color: '#2F4F4F',
-                expReward: 60,
+                expReward: 25, // REBALANCED: Reduced from 60 to 25
                 attackRange: 35,
                 attackCooldown: 2.5,
                 shockwaveRange: 80
@@ -156,7 +158,10 @@ export class Enemy {
         this.damage = Math.floor(stats.damage * finalDamageMultiplier);
         this.size = stats.size;
         this.color = stats.color;
-        this.expReward = Math.floor(stats.expReward * difficultyMultiplier);
+        // REBALANCED: Drastically reduce XP scaling to maintain progression balance
+        // With exponential enemy health scaling, XP should scale much more slowly
+        const xpScalingFactor = Math.min(2.0, 1.0 + Math.log10(difficultyMultiplier) * 0.3); // Logarithmic scaling, max 2x
+        this.expReward = Math.floor(stats.expReward * xpScalingFactor);
         this.attackRange = stats.attackRange;
         this.baseAttackCooldown = stats.attackCooldown;
     }
@@ -258,7 +263,7 @@ export class Enemy {
     }
     
     getDifficultyMultiplier() {
-        // Increase difficulty over time
+        // REBALANCED: Exponential enemy scaling for challenging long-term gameplay
         if (!this.game || typeof this.game.gameTime !== 'number') {
             return 1.0; // Default multiplier during initialization
         }
@@ -266,12 +271,26 @@ export class Enemy {
         const gameTime = this.game.gameTime;
         const baseMultiplier = 1.0;
         
-        // FIXED: Linear scaling instead of exponential to prevent instant death at 4 minutes
-        // Old exponential: Math.pow(1.1, Math.floor(gameTime / 30)) would be 2.14x at 4 min
-        // New linear: 5% increase every 30 seconds, capped at 3x
-        const timeMultiplier = Math.min(3.0, 1.0 + (Math.floor(gameTime / 30) * 0.05));
+        // REBALANCED: Exponential health scaling to match weapon power growth
+        // Every 2 minutes, enemies get significantly tougher to maintain challenge
+        const timeMinutes = gameTime / 120; // Scale every 2 minutes (was 30 seconds)
+        const exponentialScaling = Math.pow(1.6, timeMinutes); // 60% increase every 2 minutes (was 5% every 30s)
         
-        return baseMultiplier * timeMultiplier;
+        // Additional wave-based scaling for continuous challenge
+        const currentWave = this.game.systems?.enemy?.currentWave || 1;
+        const waveScaling = Math.pow(1.08, currentWave - 1); // 8% per wave
+        
+        const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling;
+        
+        // Much higher cap to allow proper scaling (was 3.0)
+        const cappedMultiplier = Math.min(finalMultiplier, 50.0);
+        
+        // Debug logging for balance verification
+        if (gameTime > 240 && Math.random() < 0.01) { // Log occasionally after 4 minutes
+            console.log(`ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`);
+        }
+        
+        return cappedMultiplier;
     }
     
     update(dt) {
@@ -293,8 +312,7 @@ export class Enemy {
             this.flashTime -= dt;
         }
         
-        // Update damage numbers
-        this.updateDamageNumbers(dt);
+        // Note: Damage numbers now updated by globalDamageNumberPool
         
         // AI behavior
         this.updateAI(dt);
@@ -557,11 +575,38 @@ export class Enemy {
     die() {
         if (!this.active) return;
         
-        this.active = false;
+        // CRITICAL FIX: Create all visual effects BEFORE marking inactive
+        // This ensures particles have proper context and timing
         
         // ADDICTION MECHANICS: Trigger combo system and psychological rewards
         const finalDamage = this.lastDamageAmount || this.maxHealth;
         const wasCritical = this.lastDamageWasCritical || false;
+        
+        // Enhanced experience rewards based on combo
+        let expReward = this.expReward;
+        if (this.game.player && this.game.player.combo) {
+            expReward = Math.floor(expReward * this.game.player.combo.multiplier);
+        }
+        
+        // Death particle effect with enhanced feedback for combos - CREATE FIRST
+        const comboLevel = this.game.player ? Math.min(this.game.player.combo.count / 10, 3.0) : 1.0;
+        this.game.systems.particle.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
+        
+        // Escalating screen shake based on combo
+        const shakeIntensity = Math.min(5, 2 + comboLevel);
+        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
+            this.game.camera.shake(shakeIntensity, 0.1 + comboLevel * 0.05);
+        }
+        
+        // Drop experience gem with combo bonus
+        this.game.systems.experience.createGem(
+            this.x + (Math.random() - 0.5) * 20,
+            this.y + (Math.random() - 0.5) * 20,
+            expReward
+        );
+        
+        // NOW mark as inactive after all effects are created
+        this.active = false;
         
         // Update player's combo count and kill streak
         if (this.game.player) {
@@ -591,34 +636,11 @@ export class Enemy {
             }
         }
         
-        // Enhanced experience rewards based on combo
-        let expReward = this.expReward;
-        if (this.game.player && this.game.player.combo) {
-            expReward = Math.floor(expReward * this.game.player.combo.multiplier);
-        }
-        
-        // Drop experience gem with combo bonus
-        this.game.systems.experience.createGem(
-            this.x + (Math.random() - 0.5) * 20,
-            this.y + (Math.random() - 0.5) * 20,
-            expReward
-        );
-        
         // Chance for power-up drop on elite kills
         if (this.type === 'elite' || (this.game.player && this.game.player.combo.count >= 20)) {
             if (Math.random() < 0.3) { // 30% chance
                 this.game.spawnPowerUpDrop(this.x, this.y);
             }
-        }
-        
-        // Death particle effect with enhanced feedback for combos
-        const comboLevel = this.game.player ? Math.min(this.game.player.combo.count / 10, 3.0) : 1.0;
-        this.game.systems.particle.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
-        
-        // Escalating screen shake based on combo
-        const shakeIntensity = Math.min(5, 2 + comboLevel);
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(shakeIntensity, 0.1 + comboLevel * 0.05);
         }
         
         // Update game score
@@ -631,28 +653,18 @@ export class Enemy {
             return;
         }
         
-        this.damageNumbers.push({
-            x: this.x + (Math.random() - 0.5) * 10,
-            y: this.y - 5,
-            amount: amount,
-            color: color,
-            opacity: 1,
-            lifetime: 1.0
-        });
+        // Use centralized damage number pool
+        const isCritical = color === '#FF0000' || color === '#FF69B4';
+        return globalDamageNumberPool.get(
+            this.x + (Math.random() - 0.5) * 10,
+            this.y - 5,
+            amount,
+            color,
+            isCritical
+        );
     }
     
-    updateDamageNumbers(dt) {
-        for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
-            const dmgNum = this.damageNumbers[i];
-            dmgNum.y -= 30 * dt; // Float upward
-            dmgNum.lifetime -= dt;
-            dmgNum.opacity = dmgNum.lifetime;
-            
-            if (dmgNum.lifetime <= 0) {
-                this.damageNumbers.splice(i, 1);
-            }
-        }
-    }
+    // updateDamageNumbers removed - now handled by globalDamageNumberPool
     
     render(renderer) {
         if (!this.active) return;
@@ -689,8 +701,7 @@ export class Enemy {
         
         ctx.restore();
         
-        // Render damage numbers
-        this.renderDamageNumbers(ctx);
+        // Note: Damage numbers now rendered by globalDamageNumberPool
     }
     
     renderTypeDetails(ctx) {
@@ -945,23 +956,7 @@ export class Enemy {
         }
     }
     
-    renderDamageNumbers(ctx) {
-        ctx.save();
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        
-        for (const dmgNum of this.damageNumbers) {
-            ctx.globalAlpha = dmgNum.opacity;
-            ctx.fillStyle = dmgNum.color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            
-            ctx.strokeText(dmgNum.amount.toString(), dmgNum.x, dmgNum.y);
-            ctx.fillText(dmgNum.amount.toString(), dmgNum.x, dmgNum.y);
-        }
-        
-        ctx.restore();
-    }
+    // renderDamageNumbers removed - now handled by globalDamageNumberPool
     
     // Helper methods
     getBounds() {
@@ -991,7 +986,7 @@ export class Enemy {
         this.attackCooldown = 0;
         this.flashTime = 0;
         this.currentSpawnTime = this.spawnTime;
-        this.damageNumbers = [];
+        // Note: Damage numbers now managed by globalDamageNumberPool
         this.active = true;
         
         this.initializeType(type);

@@ -7,7 +7,7 @@
 
 import { BaseSystem } from './BaseSystem.js';
 import { ParticleSystemCore } from './ParticleSystemCore.js';
-import { Logger } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger } from '../core/ErrorHandler.js';
 
 export class ParticleSystemECSAdapter extends BaseSystem {
     constructor(world, name, config = {}) {

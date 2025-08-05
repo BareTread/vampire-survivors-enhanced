@@ -45,154 +45,18 @@ const ConfigSchema = {
 };
 
 /**
- * Default game configuration
- * All magic numbers should be defined here for easy tuning
+ * Configuration file paths - JSON files are the single source of truth
  */
-const DEFAULT_CONFIG = {
-    // Game Settings
-    game: {
-        targetFPS: { value: 60, type: 'number', min: 30, max: 120 },
-        debugMode: { value: false, type: 'boolean' },
-        showPerformanceStats: { value: false, type: 'boolean' },
-        maxEntities: { value: 500, type: 'number', min: 100, max: 2000 },
-        worldBounds: {
-            value: { width: 4000, height: 4000 },
-            type: 'object'
-        }
-    },
-
-    // Player Configuration
-    player: {
-        health: { value: 100, type: 'number', min: 1, max: 1000 },
-        speed: { value: 100, type: 'number', min: 10, max: 500 },
-        size: { value: 12, type: 'number', min: 5, max: 50 },
-        invulnerabilityTime: { value: 1.0, type: 'number', min: 0.1, max: 5.0 },
-        maxWeapons: { value: 6, type: 'number', min: 1, max: 10 },
-        
-        // Experience system
-        baseExperienceRequired: { value: 100, type: 'number', min: 10, max: 1000 },
-        experienceGrowthRate: { value: 1.15, type: 'number', min: 1.0, max: 2.0 },
-        
-        // Combo system
-        comboTimeWindow: { value: 3.0, type: 'number', min: 1.0, max: 10.0 },
-        comboMultiplierBase: { value: 0.1, type: 'number', min: 0.01, max: 1.0 },
-        
-        // Near-death mechanics
-        nearDeathThreshold: { value: 0.25, type: 'number', min: 0.1, max: 0.5 },
-        nearDeathDamageReduction: { value: 0.3, type: 'number', min: 0.0, max: 0.8 },
-        nearDeathExpMultiplier: { value: 3.0, type: 'number', min: 1.0, max: 10.0 }
-    },
-
-    // Enemy Configuration
-    enemies: {
-        maxActive: { value: 150, type: 'number', min: 10, max: 500 },
-        spawnDistance: { value: 400, type: 'number', min: 200, max: 800 },
-        despawnDistance: { value: 600, type: 'number', min: 300, max: 1000 },
-        baseSpawnRate: { value: 2.0, type: 'number', min: 0.1, max: 10.0 },
-        
-        // Difficulty scaling
-        difficultyGrowthRate: { value: 0.01, type: 'number', min: 0.001, max: 0.1 },
-        waveMultiplier: { value: 0.08, type: 'number', min: 0.01, max: 0.5 },
-        maxDifficultyMultiplier: { value: 100.0, type: 'number', min: 1.0, max: 1000.0 },
-        
-        // Elite spawning
-        baseEliteChance: { value: 0.05, type: 'number', min: 0.0, max: 1.0 },
-        maxEliteChance: { value: 0.35, type: 'number', min: 0.0, max: 1.0 },
-        
-        // Wave system
-        waveDuration: { value: 60, type: 'number', min: 10, max: 300 },
-        bossWaveInterval: { value: 5, type: 'number', min: 1, max: 20 }
-    },
-
-    // Weapon Configuration
-    weapons: {
-        // Magic Missile
-        magicMissile: {
-            damage: { value: 25, type: 'number', min: 1, max: 1000 },
-            speed: { value: 200, type: 'number', min: 50, max: 1000 },
-            range: { value: 300, type: 'number', min: 100, max: 800 },
-            cooldown: { value: 1.5, type: 'number', min: 0.1, max: 10.0 },
-            maxLevel: { value: 8, type: 'number', min: 1, max: 20 }
-        },
-        
-        // Whip
-        whip: {
-            damage: { value: 35, type: 'number', min: 1, max: 1000 },
-            range: { value: 80, type: 'number', min: 20, max: 200 },
-            cooldown: { value: 2.0, type: 'number', min: 0.1, max: 10.0 },
-            duration: { value: 0.3, type: 'number', min: 0.1, max: 2.0 },
-            maxLevel: { value: 8, type: 'number', min: 1, max: 20 }
-        },
-        
-        // Throwing Knife
-        throwingKnife: {
-            damage: { value: 20, type: 'number', min: 1, max: 1000 },
-            speed: { value: 300, type: 'number', min: 50, max: 1000 },
-            piercing: { value: 2, type: 'number', min: 1, max: 10 },
-            cooldown: { value: 1.2, type: 'number', min: 0.1, max: 10.0 },
-            maxLevel: { value: 8, type: 'number', min: 1, max: 20 }
-        }
-    },
-
-    // Rendering Configuration
-    rendering: {
-        enableVSync: { value: true, type: 'boolean' },
-        lowQualityThreshold: { value: 30, type: 'number', min: 10, max: 60 },
-        particleLimit: { value: 200, type: 'number', min: 10, max: 1000 },
-        backgroundComplexity: { 
-            value: 'medium', 
-            type: 'string', 
-            enum: ['low', 'medium', 'high'] 
-        },
-        
-        // Camera settings
-        camera: {
-            followSmoothness: { value: 0.1, type: 'number', min: 0.01, max: 1.0 },
-            shakeDecay: { value: 0.9, type: 'number', min: 0.1, max: 1.0 },
-            maxShake: { value: 20, type: 'number', min: 1, max: 100 },
-            flashDecay: { value: 0.95, type: 'number', min: 0.5, max: 1.0 }
-        }
-    },
-
-    // Audio Configuration
-    audio: {
-        masterVolume: { value: 0.7, type: 'number', min: 0.0, max: 1.0 },
-        sfxVolume: { value: 0.8, type: 'number', min: 0.0, max: 1.0 },
-        musicVolume: { value: 0.5, type: 'number', min: 0.0, max: 1.0 },
-        enableAudio: { value: true, type: 'boolean' },
-        maxSimultaneousSounds: { value: 10, type: 'number', min: 1, max: 50 }
-    },
-
-    // Performance Configuration
-    performance: {
-        // Update rates for different systems
-        uiUpdateRate: { value: 12, type: 'number', min: 1, max: 60 },
-        spatialGridUpdateRate: { value: 3, type: 'number', min: 1, max: 30 },
-        performanceReportInterval: { value: 5000, type: 'number', min: 1000, max: 30000 },
-        
-        // Thresholds for performance scaling
-        highEntityThreshold: { value: 100, type: 'number', min: 10, max: 500 },
-        criticalEntityThreshold: { value: 200, type: 'number', min: 50, max: 1000 },
-        
-        // Object pooling sizes
-        entityPoolSize: { value: 100, type: 'number', min: 10, max: 500 },
-        projectilePoolSize: { value: 200, type: 'number', min: 50, max: 1000 },
-        particlePoolSize: { value: 500, type: 'number', min: 100, max: 2000 }
-    },
-
-    // Development Tools
-    debug: {
-        showBounds: { value: false, type: 'boolean' },
-        showSpatialGrid: { value: false, type: 'boolean' },
-        showPerformanceMetrics: { value: false, type: 'boolean' },
-        enableConsoleCommands: { value: true, type: 'boolean' },
-        logLevel: { 
-            value: 'warn', 
-            type: 'string', 
-            enum: ['error', 'warn', 'info', 'debug'] 
-        }
-    }
-};
+const CONFIG_FILES = [
+    'configs/game.json',
+    'configs/player.json', 
+    'configs/enemies.json',
+    'configs/weapons.json',
+    'configs/rendering.json',
+    'configs/audio.json',
+    'configs/performance.json',
+    'configs/debug.json'
+];
 
 /**
  * Configuration Manager class
@@ -203,12 +67,10 @@ export class ConfigManager {
         this.config = {};
         this.listeners = new Map();
         this.environment = this.detectEnvironment();
+        this.configLoaded = false;
         
-        // Load default configuration
-        this.loadDefaults();
-        
-        // Load environment-specific overrides
-        this.loadEnvironmentConfig();
+        // Load configuration from JSON files
+        this.loadConfigurationFiles();
     }
 
     /**
@@ -232,10 +94,60 @@ export class ConfigManager {
     }
 
     /**
-     * Load default configuration values
+     * Load configuration from JSON files
      */
-    loadDefaults() {
-        this.config = this.deepClone(DEFAULT_CONFIG);
+    async loadConfigurationFiles() {
+        try {
+            // Load all configuration files
+            for (const filePath of CONFIG_FILES) {
+                try {
+                    const response = await fetch(filePath);
+                    if (!response.ok) {
+                        console.warn(`Failed to load config file: ${filePath}`);
+                        continue;
+                    }
+                    
+                    const configData = await response.json();
+                    const fileName = filePath.split('/').pop().replace('.json', '');
+                    
+                    // Store configuration section
+                    this.config[fileName] = configData;
+                    
+                } catch (error) {
+                    console.error(`Error loading config file ${filePath}:`, error);
+                }
+            }
+            
+            this.configLoaded = true;
+            
+            // Load environment-specific overrides
+            this.loadEnvironmentConfig();
+            
+            // Notify listeners that config is loaded
+            this.notifyListeners('*', this.config);
+            
+        } catch (error) {
+            console.error('Failed to load configuration files:', error);
+            // Fall back to minimal config
+            this.loadFallbackConfig();
+        }
+    }
+
+    /**
+     * Load fallback configuration if JSON files fail
+     */
+    loadFallbackConfig() {
+        this.config = {
+            game: { targetFPS: 60, debugMode: false },
+            player: { health: 100, speed: 120 },
+            enemies: { maxActive: 150, spawnRate: 2.0 },
+            weapons: {},
+            rendering: { particleLimit: 200 },
+            audio: { masterVolume: 0.7 },
+            performance: { entityPoolSize: 100 },
+            debug: { logLevel: 'warn' }
+        };
+        this.configLoaded = true;
     }
 
     /**
@@ -245,24 +157,24 @@ export class ConfigManager {
         const overrides = {
             development: {
                 debug: {
-                    showPerformanceMetrics: { value: true },
-                    logLevel: { value: 'debug' }
+                    showPerformanceMetrics: true,
+                    logLevel: 'debug'
                 },
                 game: {
-                    debugMode: { value: true }
+                    debugMode: true
                 }
             },
             
             debug: {
                 debug: {
-                    showBounds: { value: true },
-                    showSpatialGrid: { value: true },
-                    showPerformanceMetrics: { value: true },
-                    logLevel: { value: 'debug' }
+                    showBounds: true,
+                    showSpatialGrid: true,
+                    showPerformanceMetrics: true,
+                    logLevel: 'debug'
                 },
                 game: {
-                    debugMode: { value: true },
-                    showPerformanceStats: { value: true }
+                    debugMode: true,
+                    showPerformanceStats: true
                 }
             }
         };
@@ -275,10 +187,15 @@ export class ConfigManager {
 
     /**
      * Get a configuration value by path
-     * @param {string} path - Configuration path (e.g., 'player.health.value')
+     * @param {string} path - Configuration path (e.g., 'player.baseStats.health')
      * @returns {*} Configuration value
      */
     get(path) {
+        if (!this.configLoaded) {
+            console.warn('Configuration not yet loaded, returning undefined for:', path);
+            return undefined;
+        }
+        
         const parts = path.split('.');
         let current = this.config;
         
@@ -290,10 +207,7 @@ export class ConfigManager {
             current = current[part];
         }
         
-        // Return the actual value if it's a config object
-        return current && typeof current === 'object' && 'value' in current 
-            ? current.value 
-            : current;
+        return current;
     }
 
     /**
@@ -303,6 +217,11 @@ export class ConfigManager {
      * @returns {boolean} True if set successfully
      */
     set(path, value) {
+        if (!this.configLoaded) {
+            console.warn('Configuration not yet loaded, cannot set:', path);
+            return false;
+        }
+        
         const parts = path.split('.');
         const configPath = parts.slice(0, -1);
         const key = parts[parts.length - 1];
@@ -317,16 +236,8 @@ export class ConfigManager {
             current = current[part];
         }
         
-        // Validate the new value if schema exists
-        const configObj = current[key];
-        if (configObj && typeof configObj === 'object' && 'value' in configObj) {
-            if (!ConfigSchema.validate(value, configObj)) {
-                return false;
-            }
-            configObj.value = value;
-        } else {
-            current[key] = { value: value };
-        }
+        // Set the value directly (JSON structure is simple)
+        current[key] = value;
         
         // Notify listeners
         this.notifyListeners(path, value);
@@ -340,23 +251,19 @@ export class ConfigManager {
      * @returns {object} Configuration section object
      */
     getSection(section) {
+        if (!this.configLoaded) {
+            console.warn('Configuration not yet loaded, returning empty section for:', section);
+            return {};
+        }
+        
         const sectionConfig = this.config[section];
         if (!sectionConfig) {
             console.warn(`Configuration section '${section}' not found`);
             return {};
         }
         
-        // Convert config objects to simple values
-        const result = {};
-        for (const [key, value] of Object.entries(sectionConfig)) {
-            if (typeof value === 'object' && 'value' in value) {
-                result[key] = value.value;
-            } else {
-                result[key] = value;
-            }
-        }
-        
-        return result;
+        // Return the section directly (JSON structure is already simple)
+        return { ...sectionConfig };
     }
 
     /**
@@ -487,31 +394,21 @@ export class ConfigManager {
      * @returns {string} JSON configuration
      */
     exportJSON() {
-        const exportConfig = {};
+        if (!this.configLoaded) {
+            console.warn('Configuration not yet loaded, returning empty export');
+            return '{}';
+        }
         
-        const processObject = (source, target) => {
-            for (const [key, value] of Object.entries(source)) {
-                if (typeof value === 'object' && 'value' in value) {
-                    target[key] = value.value;
-                } else if (typeof value === 'object' && value !== null) {
-                    target[key] = {};
-                    processObject(value, target[key]);
-                } else {
-                    target[key] = value;
-                }
-            }
-        };
-        
-        processObject(this.config, exportConfig);
-        return JSON.stringify(exportConfig, null, 2);
+        return JSON.stringify(this.config, null, 2);
     }
 
     /**
-     * Reset configuration to defaults
+     * Reset configuration to defaults (reload from JSON files)
      */
-    reset() {
-        this.loadDefaults();
-        this.loadEnvironmentConfig();
+    async reset() {
+        this.config = {};
+        this.configLoaded = false;
+        await this.loadConfigurationFiles();
         this.notifyListeners('*', this.config);
     }
 
@@ -638,6 +535,7 @@ export class ConfigManager {
 
 /**
  * Global configuration manager instance
+ * Configuration loading is async, check Config.configLoaded before using
  */
 export const Config = new ConfigManager();
 

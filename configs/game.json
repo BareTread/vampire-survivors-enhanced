@@ -1,0 +1,10 @@
+{
+  "targetFPS": 60,
+  "debugMode": false,
+  "showPerformanceStats": false,
+  "maxEntities": 500,
+  "worldBounds": {
+    "width": 4000,
+    "height": 4000
+  }
+}

@@ -1,3 +1,5 @@
+import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+
 // OPTIMIZED: High-performance particle system for 200+ entities at 60+ FPS
 export class ParticleSystemCore {
     constructor(game) {
@@ -5,12 +7,12 @@ export class ParticleSystemCore {
         
         // OPTIMIZED: Separate pools for different particle types
         this.effectParticles = [];
-        this.damageNumbers = [];
+        // Note: Damage numbers now handled by globalDamageNumberPool
         this.bloodSplatters = [];
         
         // OPTIMIZED: Dramatically reduced limits for better visibility
         this.maxEffectParticles = 50;   // Much lower for visual clarity
-        this.maxDamageNumbers = 8;      // Fewer damage numbers
+        // Note: Damage numbers now managed by globalDamageNumberPool
         this.maxBloodSplatters = 15;    // Much fewer blood effects
         
         // OPTIMIZED: Performance-based quality scaling
@@ -21,7 +23,7 @@ export class ParticleSystemCore {
         
         // OPTIMIZED: Object pools for zero-allocation updates
         this.particlePool = [];
-        this.damagePool = [];
+        // Note: Damage pool now managed by globalDamageNumberPool
         this.splatterPool = [];
         this.initializePools();
         
@@ -45,9 +47,7 @@ export class ParticleSystemCore {
             this.particlePool.push(this.createParticleObject());
         }
         
-        for (let i = 0; i < 50; i++) {
-            this.damagePool.push(this.createDamageObject());
-        }
+        // Note: Damage objects now managed by globalDamageNumberPool
         
         for (let i = 0; i < 100; i++) {
             this.splatterPool.push(this.createSplatterObject());
@@ -64,14 +64,7 @@ export class ParticleSystemCore {
         };
     }
     
-    createDamageObject() {
-        return {
-            x: 0, y: 0, vx: 0, vy: -50,
-            life: 0, maxLife: 1.5, text: '0',
-            color: '#FFFFFF', alpha: 1, active: false,
-            size: 16, critical: false
-        };
-    }
+    // createDamageObject removed - now handled by globalDamageNumberPool
     
     createSplatterObject() {
         return {
@@ -114,45 +107,32 @@ export class ParticleSystemCore {
     }
     
     createDamageNumber(x, y, damage, critical = false) {
-        if (this.damageNumbers.length >= this.maxDamageNumbers) {
-            // Remove oldest damage number
-            const oldest = this.damageNumbers.shift();
-            this.returnDamageToPool(oldest);
-        }
-        
-        const damageObj = this.getDamageFromPool();
-        if (!damageObj) return null;
-        
-        damageObj.x = x + (Math.random() - 0.5) * 20;
-        damageObj.y = y;
-        damageObj.vx = (Math.random() - 0.5) * 30;
-        damageObj.vy = critical ? -80 : -50;
-        damageObj.life = critical ? 2.0 : 1.5;
-        damageObj.maxLife = damageObj.life;
-        damageObj.text = Math.floor(damage).toString();
-        damageObj.color = critical ? '#FF69B4' : '#FFFF00'; // Pink for critical, yellow for normal
-        damageObj.size = critical ? 20 : 16;
-        damageObj.critical = critical;
-        damageObj.alpha = 1;
-        damageObj.active = true;
-        
-        this.damageNumbers.push(damageObj);
-        return damageObj;
+        // Use centralized damage number pool
+        const color = critical ? '#FF69B4' : '#FFFF00'; // Pink for critical, yellow for normal
+        return globalDamageNumberPool.get(
+            x + (Math.random() - 0.5) * 20,
+            y,
+            Math.floor(damage),
+            color,
+            critical
+        );
     }
     
     // OPTIMIZED: Batch effect creation for common scenarios
     createHitEffect(x, y, intensity = 1.0) {
-        const count = Math.floor(3 * intensity * this.particleReduction);
+        // IMPROVED: More visible hit effects with better duration
+        const count = Math.floor(5 * intensity * this.particleReduction); // Increased from 3
         const color = intensity > 1.5 ? '#FF69B4' : '#FFFF00'; // Pink for critical
         
         for (let i = 0; i < count; i++) {
             this.createEffectParticle(x, y, {
-                vx: (Math.random() - 0.5) * 150 * intensity,
-                vy: (Math.random() - 0.5) * 150 * intensity,
-                life: 0.5 + Math.random() * 0.3,
-                size: 2 + Math.random() * 2,
+                vx: (Math.random() - 0.5) * 120 * intensity,
+                vy: (Math.random() - 0.5) * 120 * intensity,
+                life: 0.8 + Math.random() * 0.4, // Longer life - was 0.5 + 0.3
+                size: 3 + Math.random() * 2, // Bigger particles
                 color: color,
-                glow: intensity > 1.2
+                glow: intensity > 1.2,
+                fadeOut: true
             });
         }
     }
@@ -203,7 +183,7 @@ export class ParticleSystemCore {
         
         // OPTIMIZED: Batch update all particle types
         this.updateEffectParticles(dt);
-        this.updateDamageNumbers(dt);
+        // Note: Damage numbers now updated by globalDamageNumberPool
         this.updateBloodSplatters(dt);
         
         // OPTIMIZED: Adaptive performance monitoring
@@ -255,40 +235,7 @@ export class ParticleSystemCore {
         this.effectParticles.length = writeIndex;
     }
     
-    updateDamageNumbers(dt) {
-        let writeIndex = 0;
-        
-        for (let i = 0; i < this.damageNumbers.length; i++) {
-            const damage = this.damageNumbers[i];
-            
-            if (!damage.active) {
-                this.returnDamageToPool(damage);
-                continue;
-            }
-            
-            damage.life -= dt;
-            if (damage.life <= 0) {
-                damage.active = false;
-                this.returnDamageToPool(damage);
-                continue;
-            }
-            
-            // Update position
-            damage.x += damage.vx * dt;
-            damage.y += damage.vy * dt;
-            damage.vy += 100 * dt; // Gravity
-            
-            // Fade out
-            damage.alpha = damage.life / damage.maxLife;
-            
-            if (writeIndex !== i) {
-                this.damageNumbers[writeIndex] = damage;
-            }
-            writeIndex++;
-        }
-        
-        this.damageNumbers.length = writeIndex;
-    }
+    // updateDamageNumbers removed - now handled by globalDamageNumberPool
     
     updateBloodSplatters(dt) {
         let writeIndex = 0;
@@ -328,7 +275,7 @@ export class ParticleSystemCore {
         // OPTIMIZED: Render in batches to minimize state changes
         this.renderBloodSplatters(renderer);
         this.renderEffectParticles(renderer);
-        this.renderDamageNumbers(renderer);
+        // Note: Damage numbers now rendered by globalDamageNumberPool
     }
     
     renderEffectParticles(renderer) {
@@ -354,51 +301,7 @@ export class ParticleSystemCore {
         }
     }
     
-    renderDamageNumbers(renderer) {
-        for (const damage of this.damageNumbers) {
-            if (!damage.active) continue;
-            
-            if (!this.isDamageVisible(damage)) {
-                this.culledParticles++;
-                continue;
-            }
-            
-            renderer.save();
-            renderer.setAlpha(damage.alpha);
-            
-            const scale = damage.critical ? (1.0 + 0.3 * Math.sin(performance.now() * 0.01)) : 1.0;
-            const fontSize = Math.floor(damage.size * scale);
-            
-            // Defensive rendering - check if enhanced text method exists
-            if (typeof renderer.drawEnhancedText === 'function') {
-                renderer.drawEnhancedText(damage.text, damage.x, damage.y, {
-                    color: damage.color,
-                    font: `bold ${fontSize}px Arial`,
-                    align: 'center',
-                    outline: true,
-                    outlineColor: '#000000',
-                    outlineWidth: 2,
-                    glow: damage.critical,
-                    glowColor: damage.color,
-                    glowIntensity: 8
-                });
-            } else {
-                // Fallback to basic text rendering
-                renderer.ctx.save();
-                renderer.ctx.font = `bold ${fontSize}px Arial`;
-                renderer.ctx.textAlign = 'center';
-                renderer.ctx.textBaseline = 'middle';
-                renderer.ctx.fillStyle = damage.color;
-                renderer.ctx.strokeStyle = '#000000';
-                renderer.ctx.lineWidth = 2;
-                renderer.ctx.strokeText(damage.text, damage.x, damage.y);
-                renderer.ctx.fillText(damage.text, damage.x, damage.y);
-                renderer.ctx.restore();
-            }
-            
-            renderer.restore();
-        }
-    }
+    // renderDamageNumbers removed - now handled by globalDamageNumberPool
     
     renderBloodSplatters(renderer) {
         for (const splatter of this.bloodSplatters) {
@@ -431,16 +334,7 @@ export class ParticleSystemCore {
         }
     }
     
-    getDamageFromPool() {
-        return this.damagePool.length > 0 ? this.damagePool.pop() : this.createDamageObject();
-    }
-    
-    returnDamageToPool(damage) {
-        if (this.damagePool.length < 50) {
-            damage.active = false;
-            this.damagePool.push(damage);
-        }
-    }
+    // getDamageFromPool and returnDamageToPool removed - now handled by globalDamageNumberPool
     
     getSplatterFromPool() {
         return this.splatterPool.length > 0 ? this.splatterPool.pop() : this.createSplatterObject();
@@ -573,28 +467,49 @@ export class ParticleSystemCore {
     }
     
     createEnhancedDeathEffect(x, y, color = '#FF4444', size = 1.0) {
-        // VISIBILITY FIX: Much smaller death effect
-        const particleCount = Math.floor(3 * size); // Reduced to 3 particles max
+        // IMPROVED: More visible death effect with better timing
+        const particleCount = Math.floor(6 * size); // Increased to 6 particles for better visibility
         for (let i = 0; i < particleCount; i++) {
             this.createEffectParticle(x, y, {
-                vx: (Math.random() - 0.5) * 100 * size, // Reduced spread
-                vy: (Math.random() - 0.5) * 100 * size,
+                vx: (Math.random() - 0.5) * 150 * size, // Increased spread for visibility
+                vy: (Math.random() - 0.5) * 150 * size,
                 color: color,
-                life: 0.6 * size, // Shorter life
-                size: (2 + Math.random() * 2) * size, // Smaller size
-                glow: true
+                life: 1.2 * size, // MUCH longer life - was 0.6, now 1.2 seconds
+                size: (3 + Math.random() * 3) * size, // Bigger particles
+                glow: true,
+                fadeOut: true
             });
         }
         
-        // Single central burst particle only
+        // Enhanced central burst particle
         this.createEffectParticle(x, y, {
             vx: 0,
             vy: 0,
             color: '#FFFFFF',
-            life: 0.4,
-            size: 3 * size, // Smaller size
-            glow: true
+            life: 0.8, // Longer central flash - was 0.4
+            size: 8 * size, // Much bigger central effect
+            glow: true,
+            fadeOut: true
         });
+        
+        // Add secondary ring of sparks for better visibility
+        for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const distance = 20 + Math.random() * 10;
+            this.createEffectParticle(
+                x + Math.cos(angle) * distance, 
+                y + Math.sin(angle) * distance, 
+                {
+                    vx: Math.cos(angle) * 80,
+                    vy: Math.sin(angle) * 80,
+                    color: '#FFAA00', // Orange sparks for contrast
+                    life: 0.9,
+                    size: 2,
+                    glow: true,
+                    fadeOut: true
+                }
+            );
+        }
     }
     
     // Additional missing methods for compatibility
@@ -724,27 +639,15 @@ export class ParticleSystemCore {
     }
     
     createDamageNumber(x, y, text, color = '#FFFFFF') {
-        if (this.damageNumbers.length >= this.maxDamageNumbers) {
-            return; // Skip if at limit
-        }
-        
-        const damageNumber = this.getDamageFromPool();
-        if (!damageNumber) return;
-        
-        damageNumber.x = x + (Math.random() - 0.5) * 20;
-        damageNumber.y = y - 10;
-        damageNumber.vx = (Math.random() - 0.5) * 40;
-        damageNumber.vy = -50 - Math.random() * 30;
-        damageNumber.life = 1.5;
-        damageNumber.maxLife = 1.5;
-        damageNumber.text = text;
-        damageNumber.color = color;
-        damageNumber.alpha = 1;
-        damageNumber.active = true;
-        damageNumber.critical = color === '#FF0000';
-        damageNumber.size = damageNumber.critical ? 20 : 16;
-        
-        this.damageNumbers.push(damageNumber);
+        // Use centralized damage number pool
+        const isCritical = color === '#FF0000';
+        return globalDamageNumberPool.get(
+            x + (Math.random() - 0.5) * 20,
+            y - 10,
+            text,
+            color,
+            isCritical
+        );
     }
     
     createComboExplosion(x, y, count) {
@@ -946,13 +849,7 @@ export class ParticleSystemCore {
                 particle.y - margin > this.viewBounds.bottom);
     }
     
-    isDamageVisible(damage) {
-        const margin = 30;
-        return !(damage.x + margin < this.viewBounds.left ||
-                damage.x - margin > this.viewBounds.right ||
-                damage.y + margin < this.viewBounds.top ||
-                damage.y - margin > this.viewBounds.bottom);
-    }
+    // isDamageVisible removed - culling now handled by globalDamageNumberPool
     
     isSplatterVisible(splatter) {
         const margin = splatter.size + 20;
@@ -964,7 +861,8 @@ export class ParticleSystemCore {
     
     // OPTIMIZED: Adaptive performance management
     adaptParticleLimits() {
-        const totalParticles = this.effectParticles.length + this.damageNumbers.length + this.bloodSplatters.length;
+        const damageNumberCount = globalDamageNumberPool.getStats().inUse;
+        const totalParticles = this.effectParticles.length + damageNumberCount + this.bloodSplatters.length;
         const fps = this.game.performanceStats?.fps || 60;
         
         if (fps < 45 && totalParticles > 100) {
@@ -987,34 +885,37 @@ export class ParticleSystemCore {
         for (const particle of this.effectParticles) {
             this.returnParticleToPool(particle);
         }
-        for (const damage of this.damageNumbers) {
-            this.returnDamageToPool(damage);
-        }
+        // Note: Damage numbers now cleared by globalDamageNumberPool.clear()
         for (const splatter of this.bloodSplatters) {
             this.returnSplatterToPool(splatter);
         }
         
         this.effectParticles.length = 0;
-        this.damageNumbers.length = 0;
+        // Note: damage numbers cleared separately
         this.bloodSplatters.length = 0;
         this.culledParticles = 0;
+        
+        // Clear damage numbers from pool
+        globalDamageNumberPool.clear();
     }
     
     // Performance and debug info
     getPerformanceInfo() {
+        const damagePoolStats = globalDamageNumberPool.getStats();
         return {
             effectParticles: this.effectParticles.length,
-            damageNumbers: this.damageNumbers.length,
+            damageNumbers: damagePoolStats.inUse, // Get from pool
             bloodSplatters: this.bloodSplatters.length,
             maxEffectParticles: this.maxEffectParticles,
-            maxDamageNumbers: this.maxDamageNumbers,  
+            maxDamageNumbers: damagePoolStats.created, // Pool capacity info
             maxBloodSplatters: this.maxBloodSplatters,
             culledThisFrame: this.culledParticles,
             poolSizes: {
                 particles: this.particlePool.length,
-                damage: this.damagePool.length,
+                damage: damagePoolStats.available, // From pool
                 splatters: this.splatterPool.length
             },
+            damagePoolStats: damagePoolStats, // Full pool statistics
             qualityLevel: this.qualityLevel,
             particleReduction: this.particleReduction
         };

@@ -119,8 +119,7 @@ export class Demon extends Enemy {
             this.velocity = { x: 0, y: 0 };
         }
         
-        // Update damage numbers and flash effects
-        this.updateDamageNumbers(dt);
+        // Flash effects (damage numbers now handled by globalDamageNumberPool)
         if (this.flashTime > 0) {
             this.flashTime -= dt;
         }
@@ -582,8 +581,7 @@ export class Demon extends Enemy {
         
         ctx.restore();
         
-        // Render damage numbers
-        this.renderDamageNumbers(ctx);
+        // Note: Damage numbers now rendered by globalDamageNumberPool
     }
     
     renderDemonDetails(ctx, renderY) {

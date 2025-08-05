@@ -105,53 +105,38 @@ export class TerrainRenderer {
         
         ctx.save();
         
-        // IMPROVED: Always visible boundary walls with thick, clear lines
-        const viewLeft = camera.x - camera.width/2 - 200;
-        const viewRight = camera.x + camera.width/2 + 200;
-        const viewTop = camera.y - camera.height/2 - 200;
-        const viewBottom = camera.y + camera.height/2 + 200;
-        
-        // Draw thick, clearly visible boundary walls
-        ctx.strokeStyle = '#FF6B47'; // Bright orange-red for visibility
-        ctx.lineWidth = 8; // Much thicker
+        // ENHANCED: Super visible boundary walls - always render regardless of camera position
+        ctx.strokeStyle = '#FF3030'; // Bright red for maximum visibility
+        ctx.lineWidth = 12; // Even thicker
         ctx.globalAlpha = 1.0; // Fully opaque
+        ctx.shadowColor = '#FF3030';
+        ctx.shadowBlur = 15;
         
-        // Left boundary - always draw if in view
-        if (viewLeft < -worldHalfWidth + 200) {
-            ctx.beginPath();
-            ctx.moveTo(-worldHalfWidth, Math.max(viewTop, -worldHalfHeight));
-            ctx.lineTo(-worldHalfWidth, Math.min(viewBottom, worldHalfHeight));
-            ctx.stroke();
-        }
+        // Draw all four boundaries as continuous walls
+        ctx.beginPath();
         
-        // Right boundary
-        if (viewRight > worldHalfWidth - 200) {
-            ctx.beginPath();
-            ctx.moveTo(worldHalfWidth, Math.max(viewTop, -worldHalfHeight));
-            ctx.lineTo(worldHalfWidth, Math.min(viewBottom, worldHalfHeight));
-            ctx.stroke();
-        }
+        // Left boundary (vertical line)
+        ctx.moveTo(-worldHalfWidth, -worldHalfHeight);
+        ctx.lineTo(-worldHalfWidth, worldHalfHeight);
         
-        // Top boundary
-        if (viewTop < -worldHalfHeight + 200) {
-            ctx.beginPath();
-            ctx.moveTo(Math.max(viewLeft, -worldHalfWidth), -worldHalfHeight);
-            ctx.lineTo(Math.min(viewRight, worldHalfWidth), -worldHalfHeight);
-            ctx.stroke();
-        }
+        // Top boundary (horizontal line)
+        ctx.moveTo(-worldHalfWidth, -worldHalfHeight);
+        ctx.lineTo(worldHalfWidth, -worldHalfHeight);
         
-        // Bottom boundary
-        if (viewBottom > worldHalfHeight - 200) {
-            ctx.beginPath();
-            ctx.moveTo(Math.max(viewLeft, -worldHalfWidth), worldHalfHeight);
-            ctx.lineTo(Math.min(viewRight, worldHalfWidth), worldHalfHeight);
-            ctx.stroke();
-        }
+        // Right boundary (vertical line)
+        ctx.moveTo(worldHalfWidth, -worldHalfHeight);
+        ctx.lineTo(worldHalfWidth, worldHalfHeight);
         
-        // IMPROVED: Add warning zone with gradient when getting close
+        // Bottom boundary (horizontal line)
+        ctx.moveTo(-worldHalfWidth, worldHalfHeight);
+        ctx.lineTo(worldHalfWidth, worldHalfHeight);
+        
+        ctx.stroke();
+        
+        // Add animated warning zones for better UX
         const playerX = camera.x;
         const playerY = camera.y;
-        const warningDistance = 150;
+        const warningDistance = 200; // Increased warning distance
         
         const distanceToLeft = playerX + worldHalfWidth;
         const distanceToRight = worldHalfWidth - playerX;
@@ -160,55 +145,74 @@ export class TerrainRenderer {
         
         const minDistance = Math.min(distanceToLeft, distanceToRight, distanceToTop, distanceToBottom);
         
+        // Enhanced warning system
         if (minDistance < warningDistance) {
-            // Create warning gradient overlay
             const intensity = 1 - (minDistance / warningDistance);
-            const gradient = ctx.createRadialGradient(
-                playerX, playerY, 50,
-                playerX, playerY, 300
-            );
-            gradient.addColorStop(0, `rgba(255, 107, 71, 0)`);
-            gradient.addColorStop(1, `rgba(255, 107, 71, ${intensity * 0.2})`);
+            const pulseTime = performance.now() * 0.005;
+            const pulseAlpha = (Math.sin(pulseTime) * 0.3 + 0.7) * intensity * 0.4;
             
-            ctx.fillStyle = gradient;
-            ctx.fillRect(
-                playerX - 400, playerY - 400,
-                800, 800
-            );
+            // Screen edge warning overlay
+            ctx.fillStyle = `rgba(255, 48, 48, ${pulseAlpha})`;
             
-            // Add pulsing boundary glow for extra visibility
-            if (minDistance < 50) {
-                const pulseIntensity = Math.sin(performance.now() * 0.01) * 0.3 + 0.7;
-                ctx.shadowColor = '#FF6B47';
-                ctx.shadowBlur = 20 * pulseIntensity;
+            // Draw warning zones on screen edges based on which boundary is closest
+            if (distanceToLeft === minDistance) {
+                // Left edge warning
+                const screenLeft = camera.x - camera.width/2;
+                ctx.fillRect(screenLeft, camera.y - camera.height/2, 50, camera.height);
+            }
+            if (distanceToRight === minDistance) {
+                // Right edge warning
+                const screenRight = camera.x + camera.width/2 - 50;
+                ctx.fillRect(screenRight, camera.y - camera.height/2, 50, camera.height);
+            }
+            if (distanceToTop === minDistance) {
+                // Top edge warning
+                const screenTop = camera.y - camera.height/2;
+                ctx.fillRect(camera.x - camera.width/2, screenTop, camera.width, 50);
+            }
+            if (distanceToBottom === minDistance) {
+                // Bottom edge warning
+                const screenBottom = camera.y + camera.height/2 - 50;
+                ctx.fillRect(camera.x - camera.width/2, screenBottom, camera.width, 50);
+            }
+            
+            // Enhanced boundary glow when very close
+            if (minDistance < 100) {
+                const glowIntensity = Math.sin(pulseTime * 2) * 0.5 + 1.0;
+                ctx.shadowColor = '#FF6060';
+                ctx.shadowBlur = 25 * glowIntensity;
+                ctx.strokeStyle = '#FF1010';
+                ctx.lineWidth = 16;
                 
-                // Redraw the closest boundary with glow
-                ctx.strokeStyle = '#FF6B47';
-                ctx.lineWidth = 12;
-                
+                // Redraw the closest boundary section with extra emphasis
+                ctx.beginPath();
                 if (distanceToLeft === minDistance) {
-                    ctx.beginPath();
-                    ctx.moveTo(-worldHalfWidth, playerY - 100);
-                    ctx.lineTo(-worldHalfWidth, playerY + 100);
-                    ctx.stroke();
+                    ctx.moveTo(-worldHalfWidth, playerY - 200);
+                    ctx.lineTo(-worldHalfWidth, playerY + 200);
                 } else if (distanceToRight === minDistance) {
-                    ctx.beginPath();
-                    ctx.moveTo(worldHalfWidth, playerY - 100);
-                    ctx.lineTo(worldHalfWidth, playerY + 100);
-                    ctx.stroke();
+                    ctx.moveTo(worldHalfWidth, playerY - 200);
+                    ctx.lineTo(worldHalfWidth, playerY + 200);
                 } else if (distanceToTop === minDistance) {
-                    ctx.beginPath();
-                    ctx.moveTo(playerX - 100, -worldHalfHeight);
-                    ctx.lineTo(playerX + 100, -worldHalfHeight);
-                    ctx.stroke();
+                    ctx.moveTo(playerX - 200, -worldHalfHeight);
+                    ctx.lineTo(playerX + 200, -worldHalfHeight);
                 } else if (distanceToBottom === minDistance) {
-                    ctx.beginPath();
-                    ctx.moveTo(playerX - 100, worldHalfHeight);
-                    ctx.lineTo(playerX + 100, worldHalfHeight);
-                    ctx.stroke();
+                    ctx.moveTo(playerX - 200, worldHalfHeight);
+                    ctx.lineTo(playerX + 200, worldHalfHeight);
                 }
+                ctx.stroke();
             }
         }
+        
+        // Add corner indicators for better spatial awareness
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#FF4040';
+        const cornerSize = 30;
+        
+        // Four corner markers
+        ctx.fillRect(-worldHalfWidth - cornerSize/2, -worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
+        ctx.fillRect(worldHalfWidth - cornerSize/2, -worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
+        ctx.fillRect(-worldHalfWidth - cornerSize/2, worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
+        ctx.fillRect(worldHalfWidth - cornerSize/2, worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
         
         ctx.restore();
     }

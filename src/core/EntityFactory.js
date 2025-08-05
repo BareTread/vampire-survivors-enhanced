@@ -28,7 +28,7 @@ import {
     WeaponComponent
 } from './Components.js';
 import { Config } from './ConfigManager.js';
-import { Logger, ErrorHandling, ErrorCategory } from './ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from './ErrorHandler.js';
 
 /**
  * Entity template definitions
@@ -435,7 +435,6 @@ export class EntityFactory {
      * @param {object} config - Entity configuration
      * @returns {Entity} Created entity
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     createEntity(templateName, config = {}) {
         const template = this.templates.get(templateName);
         if (!template) {

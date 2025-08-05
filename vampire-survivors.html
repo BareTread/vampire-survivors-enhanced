@@ -66,108 +66,7 @@
             font-family: 'Griffy', cursive;
         }
         
-        .health-bar {
-            position: absolute;
-            bottom: 50px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 300px;
-            height: 24px;
-            background: linear-gradient(145deg, rgba(0,0,0,0.8), rgba(20,20,20,0.9));
-            border: 2px solid #8B0000;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 
-                0 0 20px rgba(139, 0, 0, 0.6),
-                inset 0 2px 4px rgba(255,255,255,0.1),
-                inset 0 -2px 4px rgba(0,0,0,0.3);
-            backdrop-filter: blur(5px);
-        }
-        
-        .health-fill {
-            height: 100%;
-            background: linear-gradient(90deg, 
-                #8B0000 0%, 
-                #DC143C 30%, 
-                #FF6347 60%, 
-                #FFD700 100%);
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 
-                0 0 15px rgba(220, 20, 60, 0.8),
-                inset 0 2px 4px rgba(255,255,255,0.3);
-            position: relative;
-        }
-        
-        .health-fill::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, 
-                transparent 0%, 
-                rgba(255,255,255,0.2) 50%, 
-                transparent 100%);
-            animation: healthShine 2s linear infinite;
-        }
-        
-        @keyframes healthShine {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-        
-        .xp-bar {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 400px;
-            height: 14px;
-            background: linear-gradient(145deg, rgba(0,0,0,0.8), rgba(20,20,20,0.9));
-            border: 2px solid #4B0082;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 
-                0 0 15px rgba(75, 0, 130, 0.6),
-                inset 0 2px 4px rgba(255,255,255,0.1),
-                inset 0 -2px 4px rgba(0,0,0,0.3);
-            backdrop-filter: blur(3px);
-        }
-        
-        .xp-fill {
-            height: 100%;
-            background: linear-gradient(90deg, 
-                #4B0082 0%, 
-                #9370DB 40%, 
-                #FFD700 80%, 
-                #FFA500 100%);
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 
-                0 0 12px rgba(147, 112, 219, 0.8),
-                inset 0 2px 4px rgba(255,255,255,0.2);
-            position: relative;
-        }
-        
-        .xp-fill::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, 
-                transparent 0%, 
-                rgba(255,255,255,0.3) 30%, 
-                rgba(255,255,255,0.1) 70%, 
-                transparent 100%);
-            animation: xpPulse 3s ease-in-out infinite;
-        }
-        
-        @keyframes xpPulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
-        }
+        /* Redundant health and XP bars removed - using in-game HUD instead */
         
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
@@ -279,22 +178,36 @@
             }
         }
         
-        /* Performance overlay */
+        /* Performance overlay - cleaner styling */
         .performance-overlay {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.7);
-            color: #fff;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            min-width: 120px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.85), rgba(20,20,20,0.9));
+            color: #f0f0f0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            min-width: 140px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            backdrop-filter: blur(3px);
         }
         
         .performance-overlay div {
-            margin: 2px 0;
+            margin: 3px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .performance-overlay .perf-label {
+            color: #ccc;
+            font-weight: normal;
+        }
+        
+        .performance-overlay .perf-value {
+            font-weight: bold;
         }
         
         .fps-good { color: #4ade80; }
@@ -307,9 +220,10 @@
     
     <!-- Performance Monitor (hidden by default) -->
     <div id="performanceMonitor" class="performance-overlay" style="display: none;">
-        <div>FPS: <span id="fpsDisplay">60</span></div>
-        <div>Entities: <span id="entityDisplay">0</span></div>
-        <div>Memory: <span id="memoryDisplay">0MB</span></div>
+        <div><span class="perf-label">FPS:</span> <span id="fpsDisplay" class="perf-value fps-good">60</span></div>
+        <div><span class="perf-label">Entities:</span> <span id="entityDisplay" class="perf-value">0</span></div>
+        <div><span class="perf-label">Memory:</span> <span id="memoryDisplay" class="perf-value">0MB</span></div>
+        <div><span class="perf-label">Frame Time:</span> <span id="frameTimeDisplay" class="perf-value">16ms</span></div>
     </div>
     
     <!-- Controls Help (shown briefly at start) -->
@@ -334,7 +248,8 @@
             <p><strong>Mouse:</strong> Look/Aim direction</p>
             <p><strong>Auto-Attack:</strong> Weapons fire automatically</p>
             <p><strong>ESC:</strong> Pause/Resume</p>
-            <p><strong>F3:</strong> Debug info</p>
+            <p><strong>F1:</strong> Performance monitor</p>
+            <p><strong>F4:</strong> Debug overlay</p>
             <p><strong>1-5:</strong> Select level-up options</p>
         </div>
         <button class="game-button" onclick="closeControlsHelp()">Let's Fight! 🧛</button>
@@ -376,17 +291,39 @@
         }, 1000);
         
         function updatePerformanceDisplay() {
-            // This would be updated by the game
+            // Get elements
             const fpsDisplay = document.getElementById('fpsDisplay');
             const entityDisplay = document.getElementById('entityDisplay');
             const memoryDisplay = document.getElementById('memoryDisplay');
+            const frameTimeDisplay = document.getElementById('frameTimeDisplay');
             
             // Get info from debug commands if available
             if (window.debugCommands) {
                 const debugInfo = window.debugCommands.getDebugInfo();
-                if (debugInfo) {
-                    if (fpsDisplay) fpsDisplay.textContent = debugInfo.performance?.fps || '60';
-                    if (entityDisplay) entityDisplay.textContent = debugInfo.performance?.entityCount || '0';
+                if (debugInfo && debugInfo.performance) {
+                    const perf = debugInfo.performance;
+                    
+                    // Update FPS with color coding
+                    if (fpsDisplay) {
+                        const fps = perf.fps || 60;
+                        fpsDisplay.textContent = fps;
+                        fpsDisplay.className = fps >= 55 ? 'perf-value fps-good' : 
+                                              fps >= 30 ? 'perf-value fps-medium' : 
+                                              'perf-value fps-bad';
+                    }
+                    
+                    // Update entity count
+                    if (entityDisplay) {
+                        entityDisplay.textContent = perf.entityCount || '0';
+                    }
+                    
+                    // Update frame time
+                    if (frameTimeDisplay) {
+                        const frameTime = Math.round((perf.avgFrameTime || 16.67));
+                        frameTimeDisplay.textContent = frameTime + 'ms';
+                    }
+                    
+                    // Update memory usage
                     if (memoryDisplay && window.performance.memory) {
                         const used = Math.round(window.performance.memory.usedJSHeapSize / 1048576);
                         memoryDisplay.textContent = used + 'MB';

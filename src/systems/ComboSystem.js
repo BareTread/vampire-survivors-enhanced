@@ -13,7 +13,7 @@
 
 import { BaseSystem } from './BaseSystem.js';
 import { ComboComponent } from '../core/Components.js';
-import { Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
 import { Config } from '../core/ConfigManager.js';
 
 export class ComboSystem extends BaseSystem {

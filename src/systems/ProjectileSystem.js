@@ -9,29 +9,15 @@ export class ProjectileSystem {
         this.activeProjectiles = [];
         this.maxActiveProjectiles = 300; // Performance limit
         
-        // OPTIMIZED: Advanced collision optimization with hierarchical grids
-        this.gridSize = 64;
-        this.spatialGrid = new Map();
-        
-        // OPTIMIZED: Multi-resolution spatial indexing
-        this.fineGrid = new Map();   // 32x32 cells for precise collision
-        this.fineGridSize = 32;
-        this.coarseGrid = new Map();  // 128x128 cells for area queries
-        this.coarseGridSize = 128;
-        
-        // OPTIMIZED: Pooled structures for zero-allocation updates
-        this.gridCellPool = [];
-        this.queryResultsPool = [];
+        // OPTIMIZED: Removed redundant spatial grid - now using centralized CollisionSystem
+        // Reusable structures for performance
         this.tempResults = new Array(50);
         
         // Performance tracking with adaptive cleanup
         this.lastCleanupTime = 0;
         this.cleanupInterval = 800; // More frequent cleanup for projectiles
-        this.lastSpatialUpdate = 0;
-        this.spatialUpdateInterval = 25; // Update every 25ms for responsiveness
         
         this.initializePool();
-        this.initializeGridPools();
     }
     
     initializePool() {
@@ -47,57 +33,10 @@ export class ProjectileSystem {
         console.log(`🚀 ProjectileSystem: Initialized pool with ${poolSize} projectiles`);
     }
     
-    initializeGridPools() {
-        // OPTIMIZED: Pre-create grid cell arrays
-        for (let i = 0; i < 150; i++) {
-            this.gridCellPool.push([]);
-        }
-        
-        // OPTIMIZED: Pre-create query results arrays
-        for (let i = 0; i < 20; i++) {
-            this.queryResultsPool.push([]);
-        }
-    }
-    
-    // OPTIMIZED: Grid cell pooling to prevent array allocations
-    getGridCell() {
-        if (this.gridCellPool.length > 0) {
-            const cell = this.gridCellPool.pop();
-            cell.length = 0; // Clear the array
-            return cell;
-        }
-        return [];
-    }
-    
-    // OPTIMIZED: Recycle grid cells for reuse
-    recycleSpatialGridCells() {
-        // Return used cells to pool
-        for (const cell of this.spatialGrid.values()) {
-            if (this.gridCellPool.length < 300) { // Limit pool size
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-        for (const cell of this.fineGrid.values()) {
-            if (this.gridCellPool.length < 300) {
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-        for (const cell of this.coarseGrid.values()) {
-            if (this.gridCellPool.length < 300) {
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-    }
     
     update(dt) {
         // Update all active projectiles
         this.updateProjectiles(dt);
-        
-        // Update spatial grid for collision optimization
-        this.updateSpatialGrid();
         
         // Periodic cleanup
         const currentTime = performance.now();
@@ -132,66 +71,6 @@ export class ProjectileSystem {
         this.activeProjectiles.length = writeIndex;
     }
     
-    updateSpatialGrid() {
-        // OPTIMIZED: Skip updates if not enough time has passed
-        const now = performance.now();
-        if (now - this.lastSpatialUpdate < this.spatialUpdateInterval) {
-            return;
-        }
-        this.lastSpatialUpdate = now;
-        
-        // OPTIMIZED: Recycle grid cells efficiently
-        this.recycleSpatialGridCells();
-        this.spatialGrid.clear();
-        this.fineGrid.clear();
-        this.coarseGrid.clear();
-        
-        // OPTIMIZED: Single pass multi-resolution grid population
-        for (let i = 0; i < this.activeProjectiles.length; i++) {
-            const projectile = this.activeProjectiles[i];
-            if (!projectile.active) continue;
-            
-            const x = projectile.x;
-            const y = projectile.y;
-            
-            // OPTIMIZED: Populate all grid levels simultaneously
-            // Fine grid (precise collision)
-            const fineGridX = (x / this.fineGridSize) | 0;
-            const fineGridY = (y / this.fineGridSize) | 0;
-            const fineKey = `${fineGridX},${fineGridY}`;
-            
-            let fineCell = this.fineGrid.get(fineKey);
-            if (!fineCell) {
-                fineCell = this.getGridCell();
-                this.fineGrid.set(fineKey, fineCell);
-            }
-            fineCell.push(projectile);
-            
-            // Main grid (standard queries)
-            const gridX = (x / this.gridSize) | 0;
-            const gridY = (y / this.gridSize) | 0;
-            const mainKey = `${gridX},${gridY}`;
-            
-            let mainCell = this.spatialGrid.get(mainKey);
-            if (!mainCell) {
-                mainCell = this.getGridCell();
-                this.spatialGrid.set(mainKey, mainCell);
-            }
-            mainCell.push(projectile);
-            
-            // Coarse grid (area queries)
-            const coarseGridX = (x / this.coarseGridSize) | 0;
-            const coarseGridY = (y / this.coarseGridSize) | 0;
-            const coarseKey = `${coarseGridX},${coarseGridY}`;
-            
-            let coarseCell = this.coarseGrid.get(coarseKey);
-            if (!coarseCell) {
-                coarseCell = this.getGridCell();
-                this.coarseGrid.set(coarseKey, coarseCell);
-            }
-            coarseCell.push(projectile);
-        }
-    }
     
     createProjectile(x, y, config = {}) {
         if (this.activeProjectiles.length >= this.maxActiveProjectiles) {
@@ -318,62 +197,31 @@ export class ProjectileSystem {
     
     // Collision detection helpers
     getProjectilesInArea(x, y, radius) {
-        // OPTIMIZED: Hierarchical grid selection based on query size
-        const radiusSquared = radius * radius;
-        
-        let grid, gridSize, maxResults;
-        if (radius <= 64) {
-            grid = this.fineGrid;
-            gridSize = this.fineGridSize;
-            maxResults = 10;
-        } else if (radius <= 256) {
-            grid = this.spatialGrid;
-            gridSize = this.gridSize;
-            maxResults = 20;
-        } else {
-            grid = this.coarseGrid;
-            gridSize = this.coarseGridSize;
-            maxResults = 30;
-        }
-        
-        // OPTIMIZED: Reuse results array
-        this.tempResults.length = 0;
-        
-        const gridRange = Math.ceil(radius / gridSize);
-        const centerGridX = (x / gridSize) | 0;
-        const centerGridY = (y / gridSize) | 0;
-        
-        // OPTIMIZED: Spiral search for better cache locality
-        for (let r = 0; r <= gridRange && this.tempResults.length < maxResults; r++) {
-            for (let gx = centerGridX - r; gx <= centerGridX + r; gx++) {
-                for (let gy = centerGridY - r; gy <= centerGridY + r; gy++) {
-                    // Only check border cells for current radius
-                    if (r > 0 && 
-                        gx > centerGridX - r && gx < centerGridX + r &&
-                        gy > centerGridY - r && gy < centerGridY + r) {
-                        continue;
-                    }
-                    
-                    const key = `${gx},${gy}`;
-                    const projectiles = grid.get(key);
-                    
-                    if (projectiles) {
-                        for (let i = 0; i < projectiles.length && this.tempResults.length < maxResults; i++) {
-                            const projectile = projectiles[i];
-                            const dx = projectile.x - x;
-                            const dy = projectile.y - y;
-                            const distanceSquared = dx * dx + dy * dy;
-                            
-                            if (distanceSquared <= radiusSquared) {
-                                this.tempResults.push(projectile);
-                            }
-                        }
-                    }
+        // OPTIMIZED: Use centralized CollisionSystem for spatial queries
+        if (!this.game.systems.collision) {
+            // Fallback to linear search if collision system not available
+            const radiusSquared = radius * radius;
+            this.tempResults.length = 0;
+            
+            for (const projectile of this.activeProjectiles) {
+                if (!projectile.active) continue;
+                
+                const dx = projectile.x - x;
+                const dy = projectile.y - y;
+                const distanceSquared = dx * dx + dy * dy;
+                
+                if (distanceSquared <= radiusSquared) {
+                    this.tempResults.push(projectile);
                 }
             }
+            
+            return this.tempResults.slice();
         }
         
-        return this.tempResults.slice(); // Return copy to prevent mutation
+        // Filter to only return projectile entities
+        return this.game.systems.collision.getEntitiesInRadius(x, y, radius, entity => {
+            return this.activeProjectiles.includes(entity) && entity.active;
+        });
     }
     
     getPlayerProjectiles() {
@@ -515,7 +363,6 @@ export class ProjectileSystem {
         }
         
         this.activeProjectiles = [];
-        this.spatialGrid.clear();
     }
     
     render(renderer) {

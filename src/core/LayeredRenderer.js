@@ -333,25 +333,7 @@ export class LayeredRenderer {
         
         const { width, height } = this.layers.ui.canvas;
         
-        // Health bar
-        const healthPercent = game.player.health / game.player.maxHealth;
-        const healthBarWidth = 200;
-        const healthBarHeight = 20;
-        const healthBarX = 20;
-        const healthBarY = height - 50;
-        
-        // Health bar background
-        ctx.fillStyle = 'rgba(128, 0, 0, 0.8)';
-        ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-        
-        // Health bar fill
-        ctx.fillStyle = healthPercent > 0.3 ? '#4CAF50' : '#F44336';
-        ctx.fillRect(healthBarX, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
-        
-        // Health bar border
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+        // Health bar removed - using in-game HUD instead
         
         // Level and XP
         ctx.fillStyle = '#FFFFFF';

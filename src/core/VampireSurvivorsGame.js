@@ -5,10 +5,14 @@ import { ExperienceSystem } from '../systems/ExperienceSystem.js';
 import { ParticleSystemCore } from '../systems/ParticleSystemCore.js';
 import { StatusEffectSystem } from '../systems/StatusEffectSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
+import { CollisionSystem } from '../systems/CollisionSystem.js';
 // import { ComboSystem } from '../systems/ComboSystem.js';
+import { globalDamageNumberPool } from './DamageNumberPool.js';
 import { Camera } from './Camera.js';
 import { Renderer } from './Renderer.js';
 import { GraphicsUpgrade } from './GraphicsUpgrade.js';
+import { World } from './ECS.js';
+import { globalTimerManager, managedSetTimeout } from './TimerManager.js';
 
 // Import weapons
 import { MagicMissile } from '../entities/weapons/MagicMissile.js';
@@ -28,6 +32,7 @@ export class VampireSurvivorsGame {
         this.score = 0;
         
         // Core systems
+        this.world = new World(); // ECS World for entity management
         this.camera = new Camera(canvas.width, canvas.height);
         this.renderer = new Renderer(canvas, this.ctx);
         
@@ -45,6 +50,7 @@ export class VampireSurvivorsGame {
         // Game systems
         this.systems = {
             terrain: new TerrainSystem(this),
+            collision: new CollisionSystem(this.world, 'collision'), // ECS-based collision system
             enemy: new EnemySystem(this),
             projectile: new ProjectileSystem(this),
             experience: new ExperienceSystem(this),
@@ -175,48 +181,74 @@ export class VampireSurvivorsGame {
             left: 20px;
             color: #E6E6FA;
             font-family: 'Cinzel', 'Times New Roman', serif;
-            text-shadow: 3px 3px 6px rgba(75, 0, 130, 0.8), 0 0 10px rgba(138, 43, 226, 0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(138, 43, 226, 0.4);
             pointer-events: none;
-            background: linear-gradient(135deg, rgba(25, 25, 112, 0.3), rgba(75, 0, 130, 0.2));
-            padding: 15px;
-            border-radius: 10px;
-            border: 2px solid rgba(138, 43, 226, 0.6);
-            box-shadow: 0 0 20px rgba(75, 0, 130, 0.4);
+            background: linear-gradient(135deg, rgba(15, 15, 35, 0.92), rgba(45, 0, 80, 0.85));
+            padding: 18px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(138, 43, 226, 0.7);
+            box-shadow: 
+                0 0 25px rgba(75, 0, 130, 0.6),
+                inset 0 1px 2px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            max-width: 280px;
         `;
         
         hud.innerHTML = `
-            <div style="font-size: 20px; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
-                <div style="color: #FFD700; text-shadow: 2px 2px 4px rgba(218, 165, 32, 0.8);">⚔ Level <span id="player-level">1</span> ⚔</div>
-                <div style="color: #FF6B6B; text-shadow: 2px 2px 4px rgba(255, 107, 107, 0.8); margin-top: 5px;">❤ <span id="player-health">100</span>/<span id="player-max-health">100</span></div>
-                <div style="color: #40E0D0; text-shadow: 2px 2px 4px rgba(64, 224, 208, 0.8); margin-top: 5px;">✦ <span id="player-exp">0</span>/<span id="player-exp-needed">100</span> XP</div>
+            <!-- Core Player Stats - Primary Hierarchy -->
+            <div style="font-size: 22px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                <div style="color: #FFD700; text-shadow: 3px 3px 6px rgba(218, 165, 32, 0.9); margin-bottom: 8px;">
+                    ⚔ Level <span id="player-level">1</span> ⚔
+                </div>
+                <div style="color: #FF6B6B; text-shadow: 2px 2px 4px rgba(255, 107, 107, 0.8); font-size: 18px;">
+                    ❤ <span id="player-health">100</span>/<span id="player-max-health">100</span>
+                </div>
+                <div style="color: #40E0D0; text-shadow: 2px 2px 4px rgba(64, 224, 208, 0.8); font-size: 16px; margin-top: 4px;">
+                    ✦ <span id="player-exp">0</span>/<span id="player-exp-needed">100</span> XP
+                </div>
             </div>
-            <div style="font-size: 18px; margin-bottom: 10px; color: #FFD700; text-shadow: 3px 3px 6px rgba(218, 165, 32, 0.9); animation: pulse 2s infinite;">
-                <div id="combo-display" style="display: none;">🔥 COMBO: <span id="combo-count">0</span> (×<span id="combo-multiplier">1.0</span>)</div>
+            
+            <!-- Combo Display - Special Attention When Active -->
+            <div style="font-size: 20px; margin-bottom: 12px; color: #FFD700; text-shadow: 3px 3px 6px rgba(218, 165, 32, 0.9);">
+                <div id="combo-display" style="display: none; animation: pulse 1.5s infinite;">
+                    🔥 COMBO: <span id="combo-count">0</span> (×<span id="combo-multiplier">1.0</span>)
+                </div>
             </div>
-            <div style="font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
-                <div style="color: #DDA0DD; margin-bottom: 3px;">⚡ Wave <span id="current-wave">1</span></div>
-                <div style="color: #F0E68C; margin-bottom: 3px;">👹 Enemies: <span id="enemy-count">0</span></div>
-                <div style="color: #98FB98; margin-bottom: 3px;">⏰ <span id="game-time">0:00</span></div>
-                <div style="color: #FFA500; margin-bottom: 3px;">🏆 <span id="game-score">0</span></div>
+            
+            <!-- Game Progress - Secondary Hierarchy -->
+            <div style="font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                <div style="color: #DDA0DD; margin-bottom: 4px;">⚡ Wave <span id="current-wave">1</span></div>
+                <div style="color: #98FB98; margin-bottom: 4px;">⏰ <span id="game-time">0:00</span></div>
+                <div style="color: #FFA500;">🏆 <span id="game-score">0</span></div>
             </div>
-            <div id="powerup-indicators" style="font-size: 14px; margin-top: 10px; color: #00FFFF; text-shadow: 2px 2px 4px rgba(0, 255, 255, 0.8);">
+            
+            <!-- Power-up Indicators - Dynamic Content -->
+            <div id="powerup-indicators" style="font-size: 14px; margin-top: 12px; color: #00FFFF; text-shadow: 2px 2px 4px rgba(0, 255, 255, 0.8);">
                 <!-- Power-up indicators will be added dynamically -->
             </div>
-            <div id="manual-aiming-status" style="font-size: 14px; margin-top: 10px; display: none; color: #00FFFF; text-shadow: 2px 2px 4px rgba(0, 255, 255, 0.9); animation: pulse 1.5s infinite;">
+            
+            <!-- Manual Aiming UI - Context-Sensitive -->
+            <div id="manual-aiming-status" style="font-size: 14px; margin-top: 12px; display: none; color: #00FFFF; text-shadow: 2px 2px 4px rgba(0, 255, 255, 0.9); animation: pulse 1.5s infinite;">
                 🎯 MANUAL AIM: <span id="aim-accuracy">0%</span> | <span id="aim-bonus">1.0x</span> DMG
                 <div style="font-size: 12px; color: #FFAA00; margin-top: 3px;">
                     Shots: <span id="aim-total-shots">0</span> | Accuracy: <span id="aim-overall-accuracy">0%</span>
                 </div>
             </div>
-            <div id="controls-hint" style="font-size: 11px; margin-top: 8px; color: #AAA; opacity: 0.8;">
-                Press <span style="color: #FFD700; font-weight: bold;">SHIFT</span> to toggle Manual Aiming mode<br>
-                <span style="color: #00FFFF;">Manual Aim:</span> Mouse to aim, Left click to track accuracy
+            
+            <!-- Controls Hint - Minimal and Subtle -->
+            <div id="controls-hint" style="font-size: 10px; margin-top: 10px; color: #888; opacity: 0.6; line-height: 1.3;">
+                <span style="color: #FFD700; font-weight: bold;">SHIFT</span>: Manual Aim | 
+                <span style="color: #FFD700; font-weight: bold;">F1</span>: Performance | 
+                <span style="color: #FFD700; font-weight: bold;">F4</span>: Debug
             </div>
-            <div id="debug-info" style="font-size: 12px; margin-top: 10px; display: none; opacity: 0.7;">
-                <div>FPS: <span id="fps">60</span></div>
-                <div>Entities: <span id="entity-count">0</span></div>
-                <div>Projectiles: <span id="projectile-count">0</span></div>
-                <div>Experience Gems: <span id="gem-count">0</span></div>
+            
+            <!-- Debug Overlay - Technical Metrics Only -->
+            <div id="debug-info" style="font-size: 11px; margin-top: 12px; display: none; opacity: 0.8; color: #ccc; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 3px solid #444;">
+                <div style="color: #aaa; font-weight: bold; margin-bottom: 4px;">TECHNICAL DEBUG</div>
+                <div>Entities: <span id="entity-count" style="color: #4ade80;">0</span></div>
+                <div>Projectiles: <span id="projectile-count" style="color: #fbbf24;">0</span></div>
+                <div>Experience Gems: <span id="gem-count" style="color: #8b5cf6;">0</span></div>
+                <div>Enemies: <span id="enemy-count" style="color: #ef4444;">0</span></div>
             </div>
         `;
         
@@ -469,6 +501,12 @@ export class VampireSurvivorsGame {
     }
     
     showLevelUpUI() {
+        // FIXED: Prevent multiple level-up UIs from showing simultaneously
+        if (this.levelUpActive) {
+            console.log('Level-up UI already active, skipping duplicate show request');
+            return;
+        }
+        
         this.levelUpActive = true;
         this.gameState = 'levelUp';
         this.timeScale = 0; // Pause game during level up
@@ -477,7 +515,12 @@ export class VampireSurvivorsGame {
         this.generateLevelUpOptions();
         
         // Show UI
-        document.getElementById('level-up-ui').style.display = 'block';
+        const levelUpUI = document.getElementById('level-up-ui');
+        if (levelUpUI) {
+            levelUpUI.style.display = 'block';
+        } else {
+            console.warn('Level-up UI element not found');
+        }
     }
     
     hideLevelUpUI() {
@@ -495,6 +538,11 @@ export class VampireSurvivorsGame {
         // Also clear particle system screen effects
         if (this.systems.particle && this.systems.particle.clearScreenEffects) {
             this.systems.particle.clearScreenEffects();
+        }
+        
+        // FIXED: Process next queued level-up after player makes selection
+        if (this.player && this.player.completeLevelUpSelection) {
+            this.player.completeLevelUpSelection();
         }
     }
     
@@ -746,6 +794,11 @@ export class VampireSurvivorsGame {
         try {
             if (!this.running) return;
             
+            // Memory pressure check - prevent crashes at high levels
+            if (this.frameCount % 1800 === 0) { // Every 30 seconds at 60fps
+                this.performMemoryCleanup();
+            }
+            
             // OPTIMIZED: Ultra-fast deltaTime calculation with minimal operations
             const rawDeltaTime = (currentTime - this.lastTime) * 0.001; // Multiply is faster than divide
             this.deltaTime = rawDeltaTime > 0.033 ? 0.033 : (rawDeltaTime < 0.001 ? 0.001 : rawDeltaTime); // Branchless clamp
@@ -761,6 +814,8 @@ export class VampireSurvivorsGame {
                 this.update(scaledDeltaTime);
             } catch (updateError) {
                 console.error('Update error:', updateError);
+                // Emergency cleanup on critical update errors
+                this.handleCriticalError(updateError);
                 // Continue with rendering even if update fails
             }
             this.performanceStats.updateTime = performance.now() - updateStart;
@@ -788,6 +843,12 @@ export class VampireSurvivorsGame {
                     } else if (this.performanceStats.avgFrameTime < 14.0 && entityCount < 80) {
                         this.adaptiveQualityRestoration();
                     }
+                    
+                    // Emergency brake at very high entity counts
+                    if (entityCount > 500) {
+                        console.warn('Emergency entity limit reached, forcing cleanup');
+                        this.emergencyEntityCleanup();
+                    }
                 } catch (perfError) {
                     console.warn('Performance monitoring error:', perfError);
                 }
@@ -797,14 +858,144 @@ export class VampireSurvivorsGame {
             
         } catch (criticalError) {
             console.error('Critical game loop error:', criticalError);
+            console.error('Error stack:', criticalError.stack);
+            
+            // Save game state before potential crash
+            try {
+                this.saveEmergencyState();
+            } catch (saveError) {
+                console.error('Failed to save emergency state:', saveError);
+            }
             
             // Emergency fallback - try to restart the game loop after a delay
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 console.log('Attempting to restart game loop...');
                 if (this.running) {
                     requestAnimationFrame(this.gameLoop);
                 }
-            }, 1000);
+            }, 1000, this);
+        }
+    }
+    /**
+     * Perform memory cleanup to prevent crashes at high levels
+     */
+    performMemoryCleanup() {
+        try {
+            // Clear damage number pool periodically
+            if (globalDamageNumberPool.getStats().available < 20) {
+                globalDamageNumberPool.clear();
+            }
+            
+            // Clean up particle systems
+            if (this.systems.particle && this.systems.particle.clear) {
+                const particleStats = this.systems.particle.getPerformanceInfo();
+                if (particleStats.effectParticles > 300) {
+                    // Reduce particle count by half
+                    this.systems.particle.adaptParticleLimits();
+                }
+            }
+            
+            // Force garbage collection hint (if available)
+            if (window.gc) {
+                window.gc();
+            }
+            
+            console.log('🧹 Memory cleanup performed');
+        } catch (error) {
+            console.warn('Memory cleanup failed:', error);
+        }
+    }
+    
+    /**
+     * Handle critical errors that could crash the game
+     */
+    handleCriticalError(error) {
+        try {
+            // Emergency entity cleanup
+            this.emergencyEntityCleanup();
+            
+            // Reset particle systems
+            if (this.systems.particle && this.systems.particle.clear) {
+                this.systems.particle.clear();
+            }
+            
+            // Clear timer manager
+            globalTimerManager.clearAll();
+            
+            console.log('🚨 Critical error handled, systems reset');
+        } catch (cleanupError) {
+            console.error('Emergency cleanup failed:', cleanupError);
+        }
+    }
+    
+    /**
+     * Emergency entity cleanup when counts get too high
+     */
+    emergencyEntityCleanup() {
+        try {
+            // Limit enemies to reasonable count
+            if (this.systems.enemy && this.systems.enemy.activeEnemies) {
+                const enemies = this.systems.enemy.activeEnemies;
+                if (enemies.length > 200) {
+                    // Remove older/weaker enemies, keep stronger ones
+                    enemies.sort((a, b) => (b.maxHealth + b.damage) - (a.maxHealth + a.damage));
+                    const toRemove = enemies.slice(150); // Keep top 150
+                    
+                    for (const enemy of toRemove) {
+                        enemy.active = false;
+                    }
+                    
+                    console.log(`🔥 Emergency cleanup: removed ${toRemove.length} enemies`);
+                }
+            }
+            
+            // Limit projectiles
+            if (this.systems.projectile && this.systems.projectile.activeProjectiles) {
+                const projectiles = this.systems.projectile.activeProjectiles;
+                if (projectiles.length > 300) {
+                    // Remove oldest projectiles
+                    const toRemove = projectiles.slice(0, projectiles.length - 200);
+                    for (const projectile of toRemove) {
+                        projectile.active = false;
+                    }
+                    
+                    console.log(`⚡ Emergency cleanup: removed ${toRemove.length} projectiles`);
+                }
+            }
+            
+            // Clear experience gems if too many
+            if (this.systems.experience && this.systems.experience.activeGems) {
+                const gems = this.systems.experience.activeGems;
+                if (gems.length > 100) {
+                    const toRemove = gems.slice(0, gems.length - 50);
+                    for (const gem of toRemove) {
+                        gem.active = false;
+                    }
+                    
+                    console.log(`💎 Emergency cleanup: removed ${toRemove.length} gems`);
+                }
+            }
+        } catch (error) {
+            console.error('Emergency entity cleanup failed:', error);
+        }
+    }
+    
+    /**
+     * Save emergency state for crash recovery
+     */
+    saveEmergencyState() {
+        try {
+            const emergencyState = {
+                level: this.player?.level || 1,
+                score: this.score || 0,
+                gameTime: this.gameTime || 0,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem('vampire-survivors-emergency', JSON.stringify(emergencyState));
+            console.log('💾 Emergency state saved');
+        } catch (error) {
+            console.warn('Failed to save emergency state:', error);
         }
     }
     
@@ -812,55 +1003,65 @@ export class VampireSurvivorsGame {
         if (this.gameState === 'playing' || this.gameState === 'levelUp') {
             this.gameTime += dt;
             
+            // FIXED: Apply timeScale for proper game pausing during level-up
+            const scaledDt = dt * this.timeScale;
+            
             // OPTIMIZED: Smart update ordering for cache efficiency
             if (this.player) {
-                this.player.update(dt);
-                
-                // CRITICAL: Camera effects update with raw deltaTime to prevent overlay bugs
-                const cameraUpdateDt = this.gameState === 'levelUp' ? this.deltaTime : dt;
-                this.camera.follow(this.player.x, this.player.y, cameraUpdateDt);
+                // FIXED: Only update player UI effects during pause, not gameplay mechanics
+                if (this.gameState === 'levelUp') {
+                    // During level-up: only update visual effects (glow, particles, etc.)
+                    this.player.updateLevelUpEffects(dt);
+                    this.camera.follow(this.player.x, this.player.y, dt);
+                } else {
+                    // Normal gameplay: full player update
+                    this.player.update(dt);
+                    this.camera.follow(this.player.x, this.player.y, dt);
+                }
             }
             
-            // OPTIMIZED: Strategic system update order for minimal cache misses
-            // 1. Terrain (provides spatial context)
-            this.systems.terrain.update(dt);
+            // FIXED: Only update game systems when not paused (timeScale > 0)
+            if (this.timeScale > 0) {
+                // OPTIMIZED: Strategic system update order for minimal cache misses
+                // 1. Terrain (provides spatial context)
+                this.systems.terrain.update(scaledDt);
+                
+                // 2. Enemies (movement and AI)
+                this.systems.enemy.update(scaledDt);
+                
+                // 3. Projectiles (collision detection benefits from updated enemy positions)
+                this.systems.projectile.update(scaledDt);
+                
+                // 4. Experience (collision with updated player position)
+                this.systems.experience.update(scaledDt);
+                
+                // 5. Status effects (depend on updated entity states)
+                this.systems.statusEffect.update(scaledDt);
+                
+                // 6. Power-ups (benefit from all position updates)
+                this.updatePowerUpDrops(scaledDt);
+                
+                // 7. Audio intensity updates (only when game is active)
+                const entityCount = this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
+                const audioFreq = entityCount > 120 ? 16 : 8;
+                if (this.frameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
+                    const intensity = Math.min(1, entityCount * 0.02);
+                    this.audioManager.setGameIntensity(intensity);
+                }
+                
+                // 8. UI updates (adaptive frequency based on entity density)
+                const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
+                if (this.frameCount % uiUpdateFreq === 0) {
+                    this.updateGameUI();
+                }
+            }
             
-            // 2. Enemies (movement and AI)
-            this.systems.enemy.update(dt);
-            
-            // 3. Projectiles (collision detection benefits from updated enemy positions)
-            this.systems.projectile.update(dt);
-            
-            // 4. Experience (collision with updated player position)
-            this.systems.experience.update(dt);
-            
-            // 5. Status effects (depend on updated entity states)
-            this.systems.statusEffect.update(dt);
-            
-            // 5.5. Combo system (tracks player actions)
-            // this.systems.combo.update(dt);
-            
-            // 6. Power-ups (benefit from all position updates)
-            this.updatePowerUpDrops(dt);
-            
-            // 7. Particles (visual effects based on all game state)
+            // Visual systems always update (even when paused) for smooth UI
+            // Particles (visual effects based on all game state)
             this.systems.particle.update(dt, this.qualitySettings);
             
-            // OPTIMIZED: Batch infrequent updates based on entity count for scalability
-            const entityCount = this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
-            
-            // Audio updates (every 8-16 frames based on load)
-            const audioFreq = entityCount > 120 ? 16 : 8;
-            if (this.frameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
-                const intensity = Math.min(1, entityCount * 0.02); // More efficient calculation
-                this.audioManager.setGameIntensity(intensity);
-            }
-            
-            // UI updates (adaptive frequency based on entity density)
-            const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
-            if (this.frameCount % uiUpdateFreq === 0) {
-                this.updateGameUI();
-            }
+            // Update damage numbers from centralized pool
+            globalDamageNumberPool.update(dt);
         }
     }
     
@@ -912,6 +1113,9 @@ export class VampireSurvivorsGame {
         
         // 6. Particles (alpha blending, render last)
         this.systems.particle.render(this.renderer, this.qualitySettings);
+        
+        // 7. Damage numbers (rendered after particles for proper layering)
+        globalDamageNumberPool.render(this.ctx, this.camera);
         
         // Restore camera transform
         this.ctx.restore();
@@ -1011,7 +1215,111 @@ export class VampireSurvivorsGame {
     }
     
     renderUIOverlays() {
-        // Any additional canvas-based UI can go here
+        // Boundary awareness HUD
+        this.renderBoundaryAwarenessHUD();
+    }
+
+    renderBoundaryAwarenessHUD() {
+        if (!this.player || !this.systems.terrain) return;
+        
+        const ctx = this.ctx;
+        const worldBounds = this.systems.terrain.getWorldBounds();
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        
+        // Calculate distances to boundaries
+        const distanceToLeft = playerX - worldBounds.left;
+        const distanceToRight = worldBounds.right - playerX;
+        const distanceToTop = playerY - worldBounds.top;
+        const distanceToBottom = worldBounds.bottom - playerY;
+        
+        const minDistance = Math.min(distanceToLeft, distanceToRight, distanceToTop, distanceToBottom);
+        
+        // Only show when getting close to boundaries
+        if (minDistance < 300) {
+            ctx.save();
+            
+            // Draw mini-map style boundary indicator in top-right corner
+            const hudX = this.canvas.width - 150;
+            const hudY = 20;
+            const hudSize = 120;
+            
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(hudX, hudY, hudSize, hudSize);
+            
+            // Border
+            ctx.strokeStyle = '#FF3030';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(hudX, hudY, hudSize, hudSize);
+            
+            // Map boundaries (scaled down)
+            const worldWidth = worldBounds.right - worldBounds.left;
+            const worldHeight = worldBounds.bottom - worldBounds.top;
+            const scaleX = (hudSize - 20) / worldWidth;
+            const scaleY = (hudSize - 20) / worldHeight;
+            
+            // Boundary walls
+            ctx.strokeStyle = '#FF6060';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(hudX + 10, hudY + 10, hudSize - 20, hudSize - 20);
+            
+            // Player position
+            const playerHudX = hudX + 10 + (playerX - worldBounds.left) * scaleX;
+            const playerHudY = hudY + 10 + (playerY - worldBounds.top) * scaleY;
+            
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(playerHudX - 2, playerHudY - 2, 4, 4);
+            
+            // Warning text
+            ctx.fillStyle = '#FF4040';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('BOUNDARY', hudX + hudSize/2, hudY + hudSize + 20);
+            ctx.fillText(`${Math.round(minDistance)}m`, hudX + hudSize/2, hudY + hudSize + 35);
+            
+            // Directional arrow pointing to closest boundary
+            ctx.strokeStyle = '#FF6060';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            let arrowX = hudX + hudSize/2;
+            let arrowY = hudY + hudSize/2;
+            let arrowEndX = arrowX;
+            let arrowEndY = arrowY;
+            
+            if (distanceToLeft === minDistance) {
+                arrowEndX = hudX + 15;
+            } else if (distanceToRight === minDistance) {
+                arrowEndX = hudX + hudSize - 15;
+            } else if (distanceToTop === minDistance) {
+                arrowEndY = hudY + 15;
+            } else if (distanceToBottom === minDistance) {
+                arrowEndY = hudY + hudSize - 15;
+            }
+            
+            ctx.moveTo(arrowX, arrowY);
+            ctx.lineTo(arrowEndX, arrowEndY);
+            ctx.stroke();
+            
+            // Arrow head
+            const angle = Math.atan2(arrowEndY - arrowY, arrowEndX - arrowX);
+            const arrowSize = 8;
+            ctx.beginPath();
+            ctx.moveTo(arrowEndX, arrowEndY);
+            ctx.lineTo(
+                arrowEndX - arrowSize * Math.cos(angle - Math.PI/6),
+                arrowEndY - arrowSize * Math.sin(angle - Math.PI/6)
+            );
+            ctx.moveTo(arrowEndX, arrowEndY);
+            ctx.lineTo(
+                arrowEndX - arrowSize * Math.cos(angle + Math.PI/6),
+                arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
+            );
+            ctx.stroke();
+            
+            ctx.restore();
+        }
     }
     
     resetCanvasState() {
@@ -1042,12 +1350,12 @@ export class VampireSurvivorsGame {
         this.updateManualAimingUI();
         
         
-        // Update debug info
+        // Update debug info (technical metrics only)
         if (this.showDebug) {
-            document.getElementById('fps').textContent = this.performanceStats.fps;
             document.getElementById('entity-count').textContent = this.performanceStats.entityCount;
             document.getElementById('projectile-count').textContent = this.systems.projectile.activeProjectiles.length;
             document.getElementById('gem-count').textContent = this.systems.experience.getActiveGemCount();
+            document.getElementById('enemy-count').textContent = this.systems.enemy.getEnemyCount();
         }
     }
     
@@ -1280,9 +1588,9 @@ export class VampireSurvivorsGame {
         document.body.appendChild(notification);
         
         // Remove after animation
-        setTimeout(() => {
+        managedSetTimeout(() => {
             notification.remove();
-        }, 3000);
+        }, 3000, this);
         
         // Enhanced visual effects based on wave type
         if (this.camera) {
@@ -1302,14 +1610,14 @@ export class VampireSurvivorsGame {
                 });
                 
                 // Secondary burst
-                setTimeout(() => {
+                managedSetTimeout(() => {
                     this.systems.particle.createBurst(this.player.x, this.player.y, 'gemExplosion', {
                         color: '#FFFFFF',
                         count: 40,
                         spread: 100,
                         intensity: intensity
                     });
-                }, 300);
+                }, 300, this);
             } else if (isBossWave) {
                 // Ominous effect for boss waves
                 this.systems.particle.createBurst(this.player.x, this.player.y, 'bloodSplash', {
@@ -1341,14 +1649,14 @@ export class VampireSurvivorsGame {
         if (this.audioManager) {
             if (isMilestoneWave) {
                 this.audioManager.playVampireSound('levelUp', 1.0, 1.5);
-                setTimeout(() => {
+                managedSetTimeout(() => {
                     this.audioManager.playVampireSound('criticalHit', 0.8, 1.8);
-                }, 400);
+                }, 400, this);
             } else if (isBossWave) {
                 this.audioManager.playVampireSound('vampireBite', 1.0, 0.7); // Deep, ominous
-                setTimeout(() => {
+                managedSetTimeout(() => {
                     this.audioManager.playVampireSound('criticalHit', 0.9, 1.2);
-                }, 300);
+                }, 300, this);
             } else if (isSpecialWave) {
                 this.audioManager.playVampireSound('weaponUpgrade', 0.9, 1.3);
             } else {
@@ -1377,7 +1685,7 @@ export class VampireSurvivorsGame {
         
         // Warning text for dangerous waves
         if (isBossWave || isMilestoneWave) {
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 const warningText = document.createElement('div');
                 warningText.style.cssText = `
                     position: absolute;
@@ -1410,8 +1718,8 @@ export class VampireSurvivorsGame {
                 }
                 
                 document.body.appendChild(warningText);
-                setTimeout(() => warningText.remove(), 2000);
-            }, 1000);
+                managedSetTimeout(() => warningText.remove(), 2000, this);
+            }, 1000, this);
         }
     }
     
@@ -1600,6 +1908,9 @@ export class VampireSurvivorsGame {
         if (this.audioManager) {
             this.audioManager.stopAll();
         }
+        
+        // Clear all managed timers to prevent memory leaks
+        globalTimerManager.clearAll();
     }
     
     // Public API for external access
@@ -1619,8 +1930,21 @@ export class VampireSurvivorsGame {
     }
     
     getDebugInfo() {
+        // Memory usage information
+        let memoryInfo = {};
+        if (performance.memory) {
+            memoryInfo = {
+                used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
+                total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024),
+                limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024)
+            };
+        }
+        
         return {
             performance: this.performanceStats,
+            memory: memoryInfo,
+            timers: globalTimerManager.getStats(),
+            damageNumbers: globalDamageNumberPool.getStats(),
             systems: {
                 enemy: this.systems.enemy.getDebugInfo(),
                 projectile: this.systems.projectile.getDebugInfo(),

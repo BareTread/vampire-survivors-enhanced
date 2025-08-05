@@ -1,0 +1,10 @@
+{
+  "uiUpdateRate": 12,
+  "spatialGridUpdateRate": 3,
+  "performanceReportInterval": 5000,
+  "highEntityThreshold": 100,
+  "criticalEntityThreshold": 200,
+  "entityPoolSize": 100,
+  "projectilePoolSize": 200,
+  "particlePoolSize": 500
+}

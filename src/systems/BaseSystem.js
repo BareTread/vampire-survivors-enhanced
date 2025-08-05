@@ -14,7 +14,7 @@
 
 import { System } from '../core/ECS.js';
 import { Config } from '../core/ConfigManager.js';
-import { Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger, ErrorHandling, ErrorCategory } from '../core/ErrorHandler.js';
 
 /**
  * Base system class with common functionality for game systems
@@ -68,7 +68,6 @@ export class BaseSystem extends System {
     /**
      * Initialize the system (called once when added to world)
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     init() {
         if (this.initialized) {
             Logger.warn(`System '${this.systemName}' already initialized`);
@@ -176,7 +175,6 @@ export class BaseSystem extends System {
      * Main update method with performance tracking
      * @param {number} deltaTime - Time elapsed since last update
      */
-    @ErrorHandling.timed()
     update(deltaTime) {
         if (!this.enabled || !this.initialized) return;
 
@@ -212,7 +210,6 @@ export class BaseSystem extends System {
      * @param {CanvasRenderingContext2D} ctx - Canvas context
      * @param {Camera} camera - Camera for transformations
      */
-    @ErrorHandling.safe(ErrorCategory.RENDERING)
     render(ctx, camera) {
         if (!this.enabled || !this.initialized) return;
 

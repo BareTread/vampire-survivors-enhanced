@@ -9,7 +9,7 @@
  */
 
 import { BaseSystem } from './BaseSystem.js';
-import { Logger } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger } from '../core/ErrorHandler.js';
 
 export class PlayerInputSystem extends BaseSystem {
     onInit() {

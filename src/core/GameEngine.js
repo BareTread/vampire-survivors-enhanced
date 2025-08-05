@@ -19,7 +19,7 @@
 
 import { World, System } from './ECS.js';
 import { Config } from './ConfigManager.js';
-import { GlobalErrorHandler, Logger, ErrorCategory, ErrorHandling } from './ErrorHandler.js';
+import { GlobalErrorHandler, LoggerInstance as Logger, ErrorCategory, ErrorHandling } from './ErrorHandler.js';
 import { Camera } from './Camera.js';
 import { Renderer } from './Renderer.js';
 
@@ -104,8 +104,7 @@ export class GameEngine {
         this.lastTime = 0;
         this.animationFrameId = null;
 
-        // Event system for loose coupling
-        this.eventHandlers = new Map();
+        // Event system unified with ECS World - removed duplicate handlers
 
         // System registry for dynamic system management
         this.systemRegistry = new Map();
@@ -118,7 +117,6 @@ export class GameEngine {
      * Initialize the game engine
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     initialize() {
         Logger.info('Initializing Game Engine');
 
@@ -211,7 +209,6 @@ export class GameEngine {
      * Initialize core engine components
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     initializeCoreComponents() {
         // Configure camera
         const cameraConfig = Config.getSection('rendering.camera');
@@ -349,7 +346,6 @@ export class GameEngine {
      * Initialize user interface
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     initializeUI() {
         // UI initialization will be handled by specific game implementations
         // This provides a hook for game-specific UI setup
@@ -562,7 +558,6 @@ export class GameEngine {
     /**
      * Start the game
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     start() {
         if (this.running) {
             Logger.warn('Game engine is already running');
@@ -610,7 +605,6 @@ export class GameEngine {
      * Main game loop
      * @private
      */
-    @ErrorHandling.timed('gameLoop')
     gameLoop = () => {
         if (!this.running) return;
 
@@ -647,7 +641,6 @@ export class GameEngine {
      * @param {number} deltaTime - Scaled delta time
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.SYSTEM)
     update(deltaTime) {
         Logger.startPerformanceMark('update');
 
@@ -670,7 +663,6 @@ export class GameEngine {
      * Render the game
      * @private
      */
-    @ErrorHandling.safe(ErrorCategory.RENDERING)
     render() {
         Logger.startPerformanceMark('render');
 
@@ -845,50 +837,29 @@ export class GameEngine {
     }
 
     /**
-     * Add event listener
+     * Add event listener - delegates to ECS World
      * @param {string} eventType - Event type
      * @param {function} handler - Event handler
      */
     on(eventType, handler) {
-        if (!this.eventHandlers.has(eventType)) {
-            this.eventHandlers.set(eventType, []);
-        }
-        this.eventHandlers.get(eventType).push(handler);
+        this.world.on(eventType, handler);
     }
 
     /**
-     * Remove event listener
+     * Remove event listener - delegates to ECS World
      * @param {string} eventType - Event type
      * @param {function} handler - Event handler
      */
     off(eventType, handler) {
-        const handlers = this.eventHandlers.get(eventType);
-        if (handlers) {
-            const index = handlers.indexOf(handler);
-            if (index !== -1) {
-                handlers.splice(index, 1);
-            }
-        }
+        this.world.off(eventType, handler);
     }
 
     /**
-     * Emit an event
+     * Emit an event - delegates to ECS World
      * @param {string} eventType - Event type
      * @param {*} data - Event data
      */
     emit(eventType, data) {
-        const handlers = this.eventHandlers.get(eventType);
-        if (handlers) {
-            handlers.forEach(handler => {
-                try {
-                    handler(data);
-                } catch (error) {
-                    Logger.error(`Error in event handler for '${eventType}':`, { error: error.message });
-                }
-            });
-        }
-
-        // Also emit to ECS world
         this.world.emit(eventType, data);
     }
 
@@ -948,7 +919,6 @@ export class GameEngine {
         
         this.stop();
         this.world.cleanup();
-        this.eventHandlers.clear();
         this.systemRegistry.clear();
         
         // Clean up UI elements

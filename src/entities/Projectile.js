@@ -231,11 +231,13 @@ export class Projectile {
     }
     
     checkCollisions() {
+        // CRITICAL FIX: Player projectiles should NEVER hit the player
         if (this.source === 'player') {
             this.checkEnemyCollisions();
-        } else {
+        } else if (this.source === 'enemy') {
             this.checkPlayerCollision();
         }
+        // If source is neither, don't check any collisions (safety)
     }
     
     checkEnemyCollisions() {
@@ -264,6 +266,12 @@ export class Projectile {
     }
     
     checkPlayerCollision() {
+        // CRITICAL SAFETY: Never allow player projectiles to hit the player
+        if (this.source === 'player') {
+            console.error('🚫 BUG PREVENTED: Player projectile tried to hit player!', this);
+            return;
+        }
+        
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
         
@@ -274,11 +282,19 @@ export class Projectile {
     }
     
     isCollidingWith(entity) {
-        const dx = this.x - entity.x;
-        const dy = this.y - entity.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const distanceSquared = (this.x - entity.x) * (this.x - entity.x) + (this.y - entity.y) * (this.y - entity.y);
         
-        return distance < (this.size + entity.size);
+        // Use actual collision size - for enemies, use visual size instead of enlarged hitbox
+        let entityCollisionSize = entity.size;
+        if (entity.hitbox && entity.hitbox.width) {
+            // For enemies with hitboxes, use visual size for collision detection
+            entityCollisionSize = entity.size; // Use visual size, not hitbox size
+        }
+        
+        const minDistance = this.size + entityCollisionSize;
+        const minDistanceSquared = minDistance * minDistance;
+        
+        return distanceSquared <= minDistanceSquared;
     }
     
     hitEnemy(enemy) {
@@ -706,6 +722,12 @@ export class Projectile {
         this.type = config.type || 'basic';
         this.source = config.source || 'player';
         this.weaponId = config.weaponId || null;
+        
+        // CRITICAL DEBUG: Log if source is wrong
+        if (this.source !== 'player' && this.source !== 'enemy') {
+            console.error('🚫 CRITICAL: Invalid projectile source!', this.source, config);
+            this.source = 'player'; // Force to player as safety
+        }
         
         this.gravity = config.gravity || 0;
         this.bounce = config.bounce || false;

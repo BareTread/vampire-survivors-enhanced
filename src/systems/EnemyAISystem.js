@@ -10,7 +10,7 @@
 
 import { BaseSystem } from './BaseSystem.js';
 import { Config } from '../core/ConfigManager.js';
-import { Logger } from '../core/ErrorHandler.js';
+import { LoggerInstance as Logger } from '../core/ErrorHandler.js';
 
 export class EnemyAISystem extends BaseSystem {
     constructor(world, name = 'enemyAI', config = {}) {

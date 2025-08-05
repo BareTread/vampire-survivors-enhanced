@@ -1,6 +1,7 @@
 import { Enemy } from '../entities/Enemy.js';
 import { Wraith } from '../entities/enemies/Wraith.js';
 import { Demon } from '../entities/enemies/Demon.js';
+import { MathUtils } from '../utils/MathUtils.js';
 
 export class EnemySystem {
     constructor(game) {
@@ -54,32 +55,12 @@ export class EnemySystem {
             juggernaut: { weight: 1, minWave: 10 }
         };
         
-        // OPTIMIZED: Ultra-efficient spatial partitioning with hierarchical grids
-        this.gridSize = 64;
-        this.spatialGrid = new Map();
-        this.gridBounds = { minX: -2000, minY: -2000, maxX: 2000, maxY: 2000 };
-        
-        // OPTIMIZED: Hierarchical spatial indexing for different query ranges
-        this.coarseGrid = new Map(); // 256x256 cells for long-range queries
-        this.coarseGridSize = 256;
-        this.fineGrid = new Map();   // 64x64 cells for precise queries
-        this.fineGridSize = 64;
-        
-        // OPTIMIZED: Pre-allocated structures to eliminate garbage collection
-        this.gridUpdateInterval = 33; // Update every 33ms (~30 FPS) for balance
-        this.lastGridUpdate = 0;
+        // OPTIMIZED: Removed redundant spatial grid - now using centralized CollisionSystem
+        // Pre-allocated structures for performance
         this.tempEnemyArray = new Array(300); // Larger reusable array
         this.nearbyResults = new Array(50);   // Reusable results array
-        this.gridKeyPool = [];                // Pooled grid key strings
-        this.gridCellPool = [];               // Pooled grid cell arrays
-        
-        // OPTIMIZED: Distance calculation cache for expensive operations
-        this.distanceCache = new Map();
-        this.cacheSize = 0;
-        this.maxCacheSize = 1000;
         
         this.initializePools();
-        this.initializeGridPools();
     }
     
     initializePools() {
@@ -108,63 +89,6 @@ export class EnemySystem {
         }
     }
     
-    initializeGridPools() {
-        // OPTIMIZED: Pre-create grid key strings to prevent string allocation
-        for (let x = -50; x <= 50; x++) {
-            for (let y = -50; y <= 50; y++) {
-                this.gridKeyPool.push(`${x},${y}`);
-            }
-        }
-        
-        // OPTIMIZED: Pre-create grid cell arrays
-        for (let i = 0; i < 200; i++) {
-            this.gridCellPool.push([]);
-        }
-    }
-    
-    // OPTIMIZED: Fast grid key generation with pooling
-    getGridKey(x, y) {
-        // For common coordinates, use pooled keys
-        if (x >= -50 && x <= 50 && y >= -50 && y <= 50) {
-            const index = (x + 50) * 101 + (y + 50);
-            return this.gridKeyPool[index];
-        }
-        // Fall back to string generation for extreme coordinates
-        return `${x},${y}`;
-    }
-    
-    // OPTIMIZED: Grid cell pooling to prevent array allocations
-    getGridCell() {
-        if (this.gridCellPool.length > 0) {
-            const cell = this.gridCellPool.pop();
-            cell.length = 0; // Clear the array
-            return cell;
-        }
-        return [];
-    }
-    
-    // OPTIMIZED: Recycle grid cells for reuse
-    recycleSpatialGridCells() {
-        // Return used cells to pool
-        for (const cell of this.spatialGrid.values()) {
-            if (this.gridCellPool.length < 500) { // Limit pool size
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-        for (const cell of this.fineGrid.values()) {
-            if (this.gridCellPool.length < 500) {
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-        for (const cell of this.coarseGrid.values()) {
-            if (this.gridCellPool.length < 500) {
-                cell.length = 0;
-                this.gridCellPool.push(cell);
-            }
-        }
-    }
     
     update(dt) {
         // Update wave timer
@@ -187,48 +111,45 @@ export class EnemySystem {
         
         // Clean up distant enemies
         this.cleanupDistantEnemies();
-        
-        // Update spatial grid adaptively based on entity count
-        const updateFreq = this.activeEnemies.length > 100 ? 4 : this.activeEnemies.length > 50 ? 3 : 2;
-        if (this.game.frameCount % updateFreq === 0) {
-            this.updateSpatialGrid();
-        }
     }
     
     updateDifficulty() {
-        // Increase difficulty over time and waves - FIXED: Added bounds checking
+        // Increase difficulty over time and waves - REBALANCED FOR LONG-TERM ENGAGEMENT
         if (!this.game || typeof this.game.gameTime !== 'number') {
             this.difficultyMultiplier = 1.0;
             return;
         }
         
         // Cap game time to prevent astronomical numbers
-        const cappedGameTime = Math.min(this.game.gameTime, 3600); // Max 1 hour
-        const cappedWave = Math.min(this.currentWave, 50); // Max wave 50
+        const cappedGameTime = Math.min(this.game.gameTime, 7200); // Max 2 hours
+        const cappedWave = Math.min(this.currentWave, 100); // Max wave 100
         
-        // FIXED: More gradual difficulty increase to prevent overwhelming at 4 minutes
-        // Linear time scaling: 1% every 10 seconds (was exponential 2%)
-        const timeMultiplier = 1.0 + (cappedGameTime / 10) * 0.01;
-        // Reduced wave scaling: 8% per wave (was 15%)
-        const waveMultiplier = 1.0 + (cappedWave - 1) * 0.08;
+        // REBALANCED: Exponential scaling for challenging long-term gameplay
+        // Time scaling: Exponential growth every 60 seconds (was linear every 10)
+        const timeMinutes = cappedGameTime / 60;
+        const timeMultiplier = Math.pow(1.4, timeMinutes); // 40% increase every minute
         
-        // FIXED: Add safety checks for mathematical operations
+        // Wave scaling: Exponential growth (was linear 8% per wave)  
+        const waveMultiplier = Math.pow(1.12, cappedWave - 1); // 12% increase per wave
+        
+        // REBALANCED: Remove artificial caps to allow proper scaling
         const rawMultiplier = timeMultiplier * waveMultiplier;
         
-        // Validate the calculation result and cap total difficulty to prevent overflow
+        // Validate the calculation result and use much higher cap
         if (isFinite(rawMultiplier) && rawMultiplier > 0) {
-            this.difficultyMultiplier = Math.min(rawMultiplier, 100.0);
+            this.difficultyMultiplier = Math.min(rawMultiplier, 1000.0); // Increased from 100x to 1000x
         } else {
             console.warn('Invalid difficulty multiplier calculated, using fallback');
-            this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.1, 10.0);
+            this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.2, 50.0);
         }
         
-        // Adjust spawn rate based on difficulty
-        const rawSpawnRate = 2.0 + (this.difficultyMultiplier - 1) * 1.5;
+        // REBALANCED: Aggressive spawn rate scaling for crowded battles
+        // Base spawn rate increases exponentially to create swarm encounters
+        const rawSpawnRate = 2.0 + Math.pow(this.difficultyMultiplier - 1, 0.8) * 2.0;
         
-        // FIXED: Validate spawn rate calculation
+        // Validate spawn rate calculation with much higher cap
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
-            this.spawnRate = Math.min(rawSpawnRate, 8.0); // Cap at 8 per second
+            this.spawnRate = Math.min(rawSpawnRate, 25.0); // Increased from 8 to 25 enemies per second
         } else {
             console.warn('Invalid spawn rate calculated, using fallback');
             this.spawnRate = 2.0; // Fallback to base rate
@@ -236,6 +157,14 @@ export class EnemySystem {
         
         // Enhanced elite spawn chance based on player performance
         this.updateEliteSpawnRate();
+        
+        // REBALANCED: Update max active enemies based on time for epic battles
+        const baseMaxEnemies = 150;
+        const timeBonus = Math.floor(timeMinutes * 25); // +25 enemies per minute
+        const waveBonus = (cappedWave - 1) * 5; // +5 enemies per wave
+        this.maxActiveEnemies = Math.min(500, baseMaxEnemies + timeBonus + waveBonus); // Cap at 500 for performance
+        
+        console.log(`REBALANCED: Time ${timeMinutes.toFixed(1)}min, Wave ${this.currentWave}, Difficulty ${this.difficultyMultiplier.toFixed(2)}x, Spawn Rate ${this.spawnRate.toFixed(1)}/s, Max Enemies ${this.maxActiveEnemies}`);
     }
     
     updateEliteSpawnRate() {
@@ -287,11 +216,22 @@ export class EnemySystem {
     }
     
     spawnEnemyWave() {
-        // Determine number of enemies to spawn (1-3 based on difficulty)
-        const spawnCount = Math.min(1 + Math.floor(this.difficultyMultiplier / 3), 3);
+        // REBALANCED: Scale number of enemies per spawn based on difficulty for swarm encounters
+        const baseSpawnCount = Math.min(1 + Math.floor(this.difficultyMultiplier / 2), 8); // Up to 8 enemies per spawn (was 3)
+        
+        // Additional swarm bonus after 5 minutes for epic battles
+        const timeMinutes = this.game.gameTime / 60;
+        const swarmBonus = timeMinutes > 5 ? Math.floor((timeMinutes - 5) / 2) : 0; // +1 enemy per spawn every 2 minutes after 5min
+        
+        const spawnCount = Math.min(baseSpawnCount + swarmBonus, 12); // Cap at 12 enemies per spawn for epic swarms
         
         for (let i = 0; i < spawnCount; i++) {
             this.spawnSingleEnemy();
+        }
+        
+        // Debug logging for balance testing
+        if (this.game.gameTime > 240) { // After 4 minutes
+            console.log(`SWARM: Spawning ${spawnCount} enemies (base: ${baseSpawnCount}, swarm bonus: ${swarmBonus})`);
         }
     }
     
@@ -532,75 +472,6 @@ export class EnemySystem {
         }
     }
     
-    updateSpatialGrid() {
-        // OPTIMIZED: Skip grid updates if not enough time has passed
-        const now = performance.now();
-        if (now - this.lastGridUpdate < this.gridUpdateInterval) {
-            return;
-        }
-        this.lastGridUpdate = now;
-        
-        // OPTIMIZED: Efficient grid clearing with cell recycling
-        this.recycleSpatialGridCells();
-        this.spatialGrid.clear();
-        this.coarseGrid.clear();
-        this.fineGrid.clear();
-        
-        // OPTIMIZED: Pre-calculate player position for distance culling
-        const playerX = this.game.player ? this.game.player.x : 0;
-        const playerY = this.game.player ? this.game.player.y : 0;
-        const maxDistance = 1000; // Increased for better spatial queries
-        const maxDistanceSquared = maxDistance * maxDistance;
-        
-        // OPTIMIZED: Single pass to populate both grid levels
-        for (let i = 0; i < this.activeEnemies.length; i++) {
-            const enemy = this.activeEnemies[i];
-            if (!enemy.active) continue;
-            
-            // OPTIMIZED: Fast distance culling with squared distances
-            const dx = enemy.x - playerX;
-            const dy = enemy.y - playerY;
-            const distanceSquared = dx * dx + dy * dy;
-            
-            if (distanceSquared > maxDistanceSquared) continue;
-            
-            // OPTIMIZED: Populate fine grid (precise collision detection)
-            const fineGridX = (enemy.x / this.fineGridSize) | 0;
-            const fineGridY = (enemy.y / this.fineGridSize) | 0;
-            const fineKey = this.getGridKey(fineGridX, fineGridY);
-            
-            let fineCell = this.fineGrid.get(fineKey);
-            if (!fineCell) {
-                fineCell = this.getGridCell();
-                this.fineGrid.set(fineKey, fineCell);
-            }
-            fineCell.push(enemy);
-            
-            // OPTIMIZED: Populate coarse grid (long-range queries)
-            const coarseGridX = (enemy.x / this.coarseGridSize) | 0;
-            const coarseGridY = (enemy.y / this.coarseGridSize) | 0;
-            const coarseKey = this.getGridKey(coarseGridX, coarseGridY);
-            
-            let coarseCell = this.coarseGrid.get(coarseKey);
-            if (!coarseCell) {
-                coarseCell = this.getGridCell();
-                this.coarseGrid.set(coarseKey, coarseCell);
-            }
-            coarseCell.push(enemy);
-            
-            // OPTIMIZED: Maintain backward compatibility with existing grid
-            const gridX = (enemy.x / this.gridSize) | 0;
-            const gridY = (enemy.y / this.gridSize) | 0;
-            const mainKey = this.getGridKey(gridX, gridY);
-            
-            let mainCell = this.spatialGrid.get(mainKey);
-            if (!mainCell) {
-                mainCell = this.getGridCell();
-                this.spatialGrid.set(mainKey, mainCell);
-            }
-            mainCell.push(enemy);
-        }
-    }
     
     nextWave() {
         // Check if previous wave was perfect (no damage taken)
@@ -678,9 +549,9 @@ export class EnemySystem {
         for (const enemy of this.activeEnemies) {
             if (!enemy.active) continue;
             
-            const dx = enemy.x - x;
-            const dy = enemy.y - y;
-            const distanceSquared = dx * dx + dy * dy;
+            const distanceSquared = MathUtils.distanceSquared(
+                enemy.x, enemy.y, x, y
+            );
             
             if (distanceSquared <= rangeSquared) {
                 result.push(enemy);
@@ -691,73 +562,17 @@ export class EnemySystem {
     }
     
     getNearbyEnemies(x, y, range) {
-        // OPTIMIZED: Hierarchical spatial lookup for maximum efficiency
-        const rangeSquared = range * range;
-        
-        // OPTIMIZED: Choose grid resolution based on query range
-        let grid, gridSize, maxResults;
-        
-        if (range <= 128) {
-            // Small range: use fine grid for precision
-            grid = this.fineGrid;
-            gridSize = this.fineGridSize;
-            maxResults = 15;
-        } else if (range <= 512) {
-            // Medium range: use main grid
-            grid = this.spatialGrid;
-            gridSize = this.gridSize;
-            maxResults = 25;
-        } else {
-            // Large range: use coarse grid
-            grid = this.coarseGrid;
-            gridSize = this.coarseGridSize;
-            maxResults = 40;
+        // OPTIMIZED: Use centralized CollisionSystem for spatial queries
+        if (!this.game.systems.collision) {
+            // Fallback to linear search if collision system not available
+            return this.getEnemiesInRange(x, y, range);
         }
         
-        // OPTIMIZED: Reuse results array to prevent allocations
-        this.nearbyResults.length = 0;
-        
-        const gridRange = Math.ceil(range / gridSize);
-        const centerGridX = (x / gridSize) | 0;
-        const centerGridY = (y / gridSize) | 0;
-        
-        // OPTIMIZED: Spiral search pattern for better cache locality
-        for (let radius = 0; radius <= gridRange; radius++) {
-            for (let gx = centerGridX - radius; gx <= centerGridX + radius; gx++) {
-                for (let gy = centerGridY - radius; gy <= centerGridY + radius; gy++) {
-                    // Only check border cells for current radius (spiral pattern)
-                    if (radius > 0 && 
-                        gx > centerGridX - radius && gx < centerGridX + radius &&
-                        gy > centerGridY - radius && gy < centerGridY + radius) {
-                        continue;
-                    }
-                    
-                    const key = this.getGridKey(gx, gy);
-                    const enemies = grid.get(key);
-                    
-                    if (enemies) {
-                        for (let i = 0; i < enemies.length && this.nearbyResults.length < maxResults; i++) {
-                            const enemy = enemies[i];
-                            
-                            // OPTIMIZED: Fast squared distance check
-                            const dx = enemy.x - x;
-                            const dy = enemy.y - y;
-                            const distanceSquared = dx * dx + dy * dy;
-                            
-                            if (distanceSquared <= rangeSquared) {
-                                this.nearbyResults.push(enemy);
-                            }
-                        }
-                    }
-                    
-                    if (this.nearbyResults.length >= maxResults) {
-                        return this.nearbyResults.slice(); // Return copy to avoid mutation
-                    }
-                }
-            }
-        }
-        
-        return this.nearbyResults.slice();
+        // Filter to only return enemy entities
+        return this.game.systems.collision.getEntitiesInRadius(x, y, range, entity => {
+            // Check if this entity is an enemy from our active enemies list
+            return this.activeEnemies.includes(entity) && entity.active;
+        });
     }
     
     // OPTIMIZED: Return squared distance to avoid expensive Math.sqrt()
@@ -772,11 +587,10 @@ export class EnemySystem {
             return Infinity;
         }
         
-        const dx = enemy.x - this.game.player.x;
-        const dy = enemy.y - this.game.player.y;
-        
-        // Return squared distance for performance
-        const distanceSquared = dx * dx + dy * dy;
+        // Return squared distance for performance using MathUtils
+        const distanceSquared = MathUtils.distanceSquared(
+            enemy.x, enemy.y, this.game.player.x, this.game.player.y
+        );
         return isFinite(distanceSquared) ? distanceSquared : Infinity;
     }
     
@@ -831,6 +645,5 @@ export class EnemySystem {
         this.difficultyMultiplier = 1.0;
         this.eliteSpawnChance = 0.05;
         this.spawnTimer = 0;
-        this.spatialGrid.clear();
     }
 }

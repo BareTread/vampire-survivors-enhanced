@@ -1,0 +1,7 @@
+{
+  "showBounds": false,
+  "showSpatialGrid": false,
+  "showPerformanceMetrics": false,
+  "enableConsoleCommands": true,
+  "logLevel": "warn"
+}
