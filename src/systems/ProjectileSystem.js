@@ -90,6 +90,11 @@ export class ProjectileSystem {
         projectile.reset(x, y, config);
         this.activeProjectiles.push(projectile);
         
+        // Debug tracking
+        if (this.game.projectileDebugger) {
+            this.game.projectileDebugger.trackProjectileCreation(projectile);
+        }
+        
         return projectile;
     }
     
@@ -166,33 +171,57 @@ export class ProjectileSystem {
     returnToPool(projectile) {
         if (!projectile) return;
         
-        // OPTIMIZED: Ultra-fast state reset with minimal operations
-        projectile.active = false;
-        projectile.lifetime = 0;
-        if (projectile.hitTargets) projectile.hitTargets.clear();
-        if (projectile.trailPoints) projectile.trailPoints.length = 0; // Faster than new array
-        // Reset transform properties for reuse
-        projectile.x = 0;
-        projectile.y = 0;
-        projectile.vx = 0;
-        projectile.vy = 0;
-        
-        // OPTIMIZED: Larger pool size and pre-check
-        if (this.projectilePool.length < 300) {
-            this.projectilePool.push(projectile);
+        // Debug tracking - track destruction reason
+        let destructionReason = 'lifetime';
+        if (this.game.projectileDebugger) {
+            if (isNaN(projectile.x) || isNaN(projectile.y)) {
+                destructionReason = 'coordinateOverflow';
+            } else if (!isFinite(projectile.velocity.x) || !isFinite(projectile.velocity.y)) {
+                destructionReason = 'invalidMovement';
+            } else if (Math.abs(projectile.x) > 10000 || Math.abs(projectile.y) > 10000) {
+                destructionReason = 'boundaryExit';
+            }
+            this.game.projectileDebugger.trackProjectileDestruction(projectile, destructionReason);
         }
+        
+        // Clean up any references
+        projectile.active = false;
+        projectile.hitTargets.clear();
+        projectile.trailPoints = [];
+        projectile.homingTarget = null;
+        
+        // OPTIMIZED: Validate projectile state before pooling
+        if (isNaN(projectile.x) || isNaN(projectile.y)) {
+            console.warn('⚠️ ProjectileSystem: Invalid projectile coordinates detected:', projectile.x, projectile.y);
+            // Don't return corrupted projectiles to pool
+            return;
+        }
+        
+        // Return to pool for reuse
+        this.projectilePool.push(projectile);
     }
     
     cleanup() {
-        // Remove inactive projectiles
-        for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
+        // OPTIMIZED: Use write index pattern instead of splice
+        let writeIndex = 0;
+        
+        for (let i = 0; i < this.activeProjectiles.length; i++) {
             const projectile = this.activeProjectiles[i];
             
             if (!projectile.active) {
-                this.activeProjectiles.splice(i, 1);
                 this.returnToPool(projectile);
+                continue; // Skip inactive projectiles
             }
+            
+            // Keep active projectiles
+            if (writeIndex !== i) {
+                this.activeProjectiles[writeIndex] = projectile;
+            }
+            writeIndex++;
         }
+        
+        // Truncate array
+        this.activeProjectiles.length = writeIndex;
     }
     
     // Collision detection helpers
@@ -380,8 +409,8 @@ export class ProjectileSystem {
             activeProjectiles: this.activeProjectiles.length,
             poolSize: this.projectilePool.length,
             playerProjectiles: this.getPlayerProjectiles().length,
-            enemyProjectiles: this.getEnemyProjectiles().length,
-            gridCells: this.spatialGrid.size
+            enemyProjectiles: this.getEnemyProjectiles().length
+            // spatialGrid removed - using centralized CollisionSystem
         };
     }
     

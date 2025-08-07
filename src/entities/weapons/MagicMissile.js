@@ -7,7 +7,7 @@ export class MagicMissile extends BaseWeapon {
             name: 'Magic Missile',
             description: 'Automatically fires homing projectiles at nearby enemies',
             type: 'projectile',
-            damage: 15,
+            damage: 10,
             cooldown: 1.2,
             range: 250,
             speed: 180,
@@ -32,14 +32,14 @@ export class MagicMissile extends BaseWeapon {
         
         // Level progression
         this.levelProgression = {
-            1: { damage: 15, cooldown: 1.2, projectiles: 1 },
-            2: { damage: 18, cooldown: 1.1, projectiles: 1 },
-            3: { damage: 22, cooldown: 1.0, projectiles: 1 },
-            4: { damage: 26, cooldown: 0.9, projectiles: 2 },
-            5: { damage: 30, cooldown: 0.8, projectiles: 2 },
-            6: { damage: 35, cooldown: 0.7, projectiles: 2 },
-            7: { damage: 40, cooldown: 0.6, projectiles: 3 },
-            8: { damage: 50, cooldown: 0.5, projectiles: 3 }
+            1: { damage: 10, cooldown: 1.2, projectiles: 1 },
+            2: { damage: 12, cooldown: 1.1, projectiles: 1 },
+            3: { damage: 14, cooldown: 1.0, projectiles: 1 },
+            4: { damage: 17, cooldown: 0.9, projectiles: 2 },
+            5: { damage: 20, cooldown: 0.8, projectiles: 2 },
+            6: { damage: 23, cooldown: 0.7, projectiles: 2 },
+            7: { damage: 26, cooldown: 0.6, projectiles: 3 },
+            8: { damage: 33, cooldown: 0.5, projectiles: 3 }
         };
     }
     

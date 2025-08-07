@@ -236,8 +236,16 @@ export class Projectile {
             this.checkEnemyCollisions();
         } else if (this.source === 'enemy') {
             this.checkPlayerCollision();
+        } else {
+            // Invalid source - log error and deactivate projectile
+            console.error('CRITICAL: Projectile has invalid source, deactivating!', {
+                source: this.source,
+                type: this.type,
+                id: this.id,
+                weaponId: this.weaponId
+            });
+            this.active = false;
         }
-        // If source is neither, don't check any collisions (safety)
     }
     
     checkEnemyCollisions() {
@@ -558,13 +566,18 @@ export class Projectile {
             const bounds = this.game.camera.getWorldBounds(200);
             if (this.x < bounds.left - 200 || this.x > bounds.right + 200 ||
                 this.y < bounds.top - 200 || this.y > bounds.bottom + 200) {
-                this.destroy();
+                this.destroy('boundaryExit');
             }
         }
     }
     
-    destroy() {
+    destroy(reason = 'lifetime') {
         this.active = false;
+        
+        // Debug tracking for destruction reason
+        if (this.game.projectileDebugger) {
+            this.game.projectileDebugger.trackProjectileDestruction(this, reason);
+        }
         
         // Return to object pool
         this.game.systems.projectile.returnToPool(this);

@@ -21,11 +21,11 @@ export class ExperienceGem {
         this.friction = 0.95; // velocity decay
         this.grounded = false;
         
-        // Collection mechanics
-        this.magnetRange = 80; // Distance at which gem starts moving toward player
-        this.magnetStrength = 200; // Attraction force
+        // Collection mechanics - IMPROVED MAGNETISM
+        this.magnetRange = 120; // Distance at which gem starts moving toward player (was 80) - WIDER RANGE
+        this.magnetStrength = 350; // Attraction force (was 200) - MUCH STRONGER PULL
         this.beingMagnetized = false;
-        this.collectRange = 15; // Distance at which gem is collected
+        this.collectRange = 25; // Distance at which gem is collected (was 15) - EASIER COLLECTION
         
         // Lifetime
         this.maxLifetime = 30.0; // 30 seconds before disappearing
@@ -62,21 +62,21 @@ export class ExperienceGem {
             this.size = 8;
             this.color = '#9B59B6';
             this.glowColor = '#E74C3C';
-            this.sparkleCount = 8;
+            this.sparkleCount = 4; // Reduced from 8 to 4
         } else if (this.value >= 20) {
             // Uncommon gem
             this.type = 'uncommon';
             this.size = 6;
             this.color = '#3498DB';
             this.glowColor = '#2ECC71';
-            this.sparkleCount = 4;
+            this.sparkleCount = 2; // Reduced from 4 to 2
         } else {
             // Common gem
             this.type = 'common';
             this.size = 4;
             this.color = '#F1C40F';
             this.glowColor = '#E67E22';
-            this.sparkleCount = 2;
+            this.sparkleCount = 1; // Reduced from 2 to 1
         }
     }
     
@@ -669,8 +669,8 @@ export class ExperienceGem {
     renderLuckySparkles(ctx, intensity) {
         const time = performance.now() * 0.01;
         
-        // More sparkles for lucky gems
-        const luckySparkleCount = this.sparkleCount * 2;
+        // More sparkles for lucky gems - reduced from 2x to 1.5x
+        const luckySparkleCount = Math.ceil(this.sparkleCount * 1.5);
         
         for (let i = 0; i < luckySparkleCount; i++) {
             const angle = (i / luckySparkleCount) * Math.PI * 2 + time * 2;

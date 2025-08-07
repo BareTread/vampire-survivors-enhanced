@@ -7,7 +7,7 @@ export class ThrowingKnife extends BaseWeapon {
             name: 'Throwing Knife',
             description: 'Fast projectiles that pierce through enemies',
             type: 'projectile',
-            damage: 20,
+            damage: 13,
             cooldown: 0.6,
             range: 200,
             speed: 300,
@@ -39,14 +39,14 @@ export class ThrowingKnife extends BaseWeapon {
         
         // Level progression
         this.levelProgression = {
-            1: { damage: 20, cooldown: 0.6, piercing: 2, projectiles: 1 },
-            2: { damage: 24, cooldown: 0.55, piercing: 2, projectiles: 1 },
-            3: { damage: 29, cooldown: 0.5, piercing: 3, projectiles: 1 },
-            4: { damage: 35, cooldown: 0.45, piercing: 3, projectiles: 2 },
-            5: { damage: 42, cooldown: 0.4, piercing: 4, projectiles: 2 },
-            6: { damage: 50, cooldown: 0.35, piercing: 4, projectiles: 2 },
-            7: { damage: 60, cooldown: 0.3, piercing: 5, projectiles: 3 },
-            8: { damage: 75, cooldown: 0.25, piercing: 6, projectiles: 3 }
+            1: { damage: 13, cooldown: 0.6, piercing: 2, projectiles: 1 },
+            2: { damage: 16, cooldown: 0.55, piercing: 2, projectiles: 1 },
+            3: { damage: 19, cooldown: 0.5, piercing: 3, projectiles: 1 },
+            4: { damage: 23, cooldown: 0.45, piercing: 3, projectiles: 2 },
+            5: { damage: 27, cooldown: 0.4, piercing: 4, projectiles: 2 },
+            6: { damage: 33, cooldown: 0.35, piercing: 4, projectiles: 2 },
+            7: { damage: 39, cooldown: 0.3, piercing: 5, projectiles: 3 },
+            8: { damage: 49, cooldown: 0.25, piercing: 6, projectiles: 3 }
         };
     }
     
@@ -218,12 +218,17 @@ export class ThrowingKnife extends BaseWeapon {
         const projectile = super.createProjectile(x, y, angle, config);
         
         if (projectile && config.ricochet) {
-            // Add ricochet behavior
-            const originalUpdate = projectile.update.bind(projectile);
-            projectile.update = (dt) => {
-                originalUpdate(dt);
-                this.updateKnifeRicochet(projectile, dt);
-            };
+            // Add ricochet behavior - store original update only once
+            if (!projectile._originalUpdate) {
+                projectile._originalUpdate = projectile.update.bind(projectile);
+                projectile._hasRicochetBehavior = true;
+                projectile.update = (dt) => {
+                    projectile._originalUpdate(dt);
+                    if (projectile._hasRicochetBehavior) {
+                        this.updateKnifeRicochet(projectile, dt);
+                    }
+                };
+            }
         }
         
         return projectile;

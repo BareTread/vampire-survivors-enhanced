@@ -160,23 +160,23 @@ export class Player {
     }
     
     handleKeyDown(key) {
-        // WASD movement support (will be combined with mouse movement)
+        // WASD movement support
         switch(key.toLowerCase()) {
             case 'w':
             case 'arrowup':
-                this.keyPressed = { ...this.keyPressed, up: true };
+                this.keyPressed.up = true;
                 break;
             case 's':
             case 'arrowdown':
-                this.keyPressed = { ...this.keyPressed, down: true };
+                this.keyPressed.down = true;
                 break;
             case 'a':
             case 'arrowleft':
-                this.keyPressed = { ...this.keyPressed, left: true };
+                this.keyPressed.left = true;
                 break;
             case 'd':
             case 'arrowright':
-                this.keyPressed = { ...this.keyPressed, right: true };
+                this.keyPressed.right = true;
                 break;
             case 'shift':
                 // Toggle manual aiming mode
@@ -189,19 +189,19 @@ export class Player {
         switch(key.toLowerCase()) {
             case 'w':
             case 'arrowup':
-                this.keyPressed = { ...this.keyPressed, up: false };
+                this.keyPressed.up = false;
                 break;
             case 's':
             case 'arrowdown':
-                this.keyPressed = { ...this.keyPressed, down: false };
+                this.keyPressed.down = false;
                 break;
             case 'a':
             case 'arrowleft':
-                this.keyPressed = { ...this.keyPressed, left: false };
+                this.keyPressed.left = false;
                 break;
             case 'd':
             case 'arrowright':
-                this.keyPressed = { ...this.keyPressed, right: false };
+                this.keyPressed.right = false;
                 break;
         }
     }
@@ -310,14 +310,8 @@ export class Player {
             this.velocity = { x: 0, y: 0 };
         }
         
-        // Keep player within world bounds (but allow some freedom)
-        const maxBound = 2000;
-        if (Math.abs(this.x) > maxBound) {
-            this.x = Math.sign(this.x) * maxBound;
-        }
-        if (Math.abs(this.y) > maxBound) {
-            this.y = Math.sign(this.y) * maxBound;
-        }
+        // Boundary enforcement is handled by TerrainSystem to avoid duplication
+        // World bounds will be enforced by the TerrainSystem's checkBounds method
     }
     
     updateWeapons(dt) {
@@ -610,12 +604,9 @@ export class Player {
     }
     
     render(renderer) {
-        // Use sprite system if available, fallback to procedural rendering
-        if (this.game.spriteManager) {
-            this.renderWithSprites(renderer);
-        } else {
-            this.renderProcedural(renderer);
-        }
+        // Force procedural rendering to ensure player is always visible
+        // Sprite system seems to have issues, so using procedural as primary
+        this.renderProcedural(renderer);
         
         // Always render UI elements
         this.renderHealthBar(renderer.ctx);
@@ -682,6 +673,10 @@ export class Player {
     renderProcedural(renderer) {
         // Fallback to original rendering
         const ctx = renderer.ctx;
+        if (!ctx) {
+            console.error('No rendering context available for player!');
+            return;
+        }
         ctx.save();
         
         // Apply invulnerability flashing effect
@@ -1235,10 +1230,6 @@ export class Player {
     
     // Override damage to include near-death bonuses and power-up effects
     takeDamageEnhanced(amount) {
-        // DEBUG: Log damage after 4 minutes to find the source
-        if (this.game && this.game.gameTime > 240) {
-            console.warn(`DEBUG: Player taking ${amount} damage at ${this.game.gameTime.toFixed(1)}s`, new Error().stack);
-        }
         
         // Invincibility power-up
         if (this.powerUps.invincible.active) {

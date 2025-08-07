@@ -6,7 +6,6 @@ import { ParticleSystemCore } from '../systems/ParticleSystemCore.js';
 import { StatusEffectSystem } from '../systems/StatusEffectSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
-// import { ComboSystem } from '../systems/ComboSystem.js';
 import { globalDamageNumberPool } from './DamageNumberPool.js';
 import { Camera } from './Camera.js';
 import { Renderer } from './Renderer.js';
@@ -18,6 +17,11 @@ import { globalTimerManager, managedSetTimeout } from './TimerManager.js';
 import { MagicMissile } from '../entities/weapons/MagicMissile.js';
 import { Whip } from '../entities/weapons/Whip.js';
 import { ThrowingKnife } from '../entities/weapons/ThrowingKnife.js';
+import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
+import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
+import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
+import { SettingsMenu } from '../ui/SettingsMenu.js';
+import { HelpOverlay } from '../ui/HelpOverlay.js';
 
 export class VampireSurvivorsGame {
     constructor(canvas, config) {
@@ -56,8 +60,21 @@ export class VampireSurvivorsGame {
             experience: new ExperienceSystem(this),
             particle: new ParticleSystemCore(this),
             statusEffect: new StatusEffectSystem(this),
-            // combo: new ComboSystem(this),
         };
+        
+        // Debug systems
+        this.projectileDebugger = new ProjectileDebugger(this);
+        this.progressionTelemetry = new ProgressionTelemetry(this);
+        
+        // Responsive canvas
+        // DISABLED: ResponsiveCanvas was limiting canvas size and causing display issues
+        // this.responsiveCanvas = new ResponsiveCanvas(canvas, this.camera);
+        
+        // Settings menu
+        this.settingsMenu = new SettingsMenu(this);
+        
+        // Help overlay
+        this.helpOverlay = new HelpOverlay(this);
         
         // Game entities
         this.player = null;
@@ -139,28 +156,62 @@ export class VampireSurvivorsGame {
     }
     
     setupUI() {
+        // Clean up any artifacts from previous sessions
+        this.initialCleanup();
+        
         // Create UI elements if they don't exist
         this.createUIElements();
     }
     
+    initialCleanup() {
+        // Remove ALL non-essential DOM elements to start fresh
+        document.querySelectorAll('div').forEach(div => {
+            // Keep only essential elements
+            if (div.id === 'gameCanvas' || 
+                div.id === 'game-ui' ||  // CRITICAL: Keep game-ui container
+                div.id === 'performanceMonitor' ||
+                div.id === 'controlsHelp' ||
+                div.classList.contains('game-button')) {
+                return;
+            }
+            
+            // Remove everything else
+            div.remove();
+        });
+        
+        // Also remove any styles that might cause issues
+        document.querySelectorAll('style').forEach(style => {
+            if (style.id && (style.id.includes('wave') || style.id.includes('notification'))) {
+                style.remove();
+            }
+        });
+        
+        console.log('✨ Initial cleanup complete');
+    }
+    
     createUIElements() {
-        // Check if UI container exists
-        let uiContainer = document.getElementById('game-ui');
-        if (!uiContainer) {
-            uiContainer = document.createElement('div');
-            uiContainer.id = 'game-ui';
-            uiContainer.style.cssText = `
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: 100;
-                font-family: Arial, sans-serif;
-            `;
-            document.body.appendChild(uiContainer);
+        // Clean up any existing UI containers first
+        const existingUI = document.getElementById('game-ui');
+        if (existingUI) {
+            existingUI.remove();
         }
+        
+        // Create fresh UI container
+        const uiContainer = document.createElement('div');
+        uiContainer.id = 'game-ui';
+        uiContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            font-family: Arial, sans-serif;
+            background: transparent !important;
+            overflow: hidden !important;  /* CRITICAL: Prevent child elements from extending viewport */
+        `;
+        document.body.appendChild(uiContainer);
         
         // Create HUD
         this.createHUD(uiContainer);
@@ -239,7 +290,7 @@ export class VampireSurvivorsGame {
             <div id="controls-hint" style="font-size: 10px; margin-top: 10px; color: #888; opacity: 0.6; line-height: 1.3;">
                 <span style="color: #FFD700; font-weight: bold;">SHIFT</span>: Manual Aim | 
                 <span style="color: #FFD700; font-weight: bold;">F1</span>: Performance | 
-                <span style="color: #FFD700; font-weight: bold;">F4</span>: Debug
+                <span style="color: #FFD700; font-weight: bold;">G</span>: Debug
             </div>
             
             <!-- Debug Overlay - Technical Metrics Only -->
@@ -379,16 +430,39 @@ export class VampireSurvivorsGame {
                     this.resumeGame();
                 }
                 break;
+            case 'f1':
+                // Toggle settings menu
+                this.settingsMenu.toggle();
+                break;
             case 'f2':
                 // Toggle performance dashboard
                 if (this.performanceDashboard) {
                     this.performanceDashboard.toggle();
                 }
                 break;
-            case 'f4':
+            case 'd':
+                // Toggle projectile debugger (D key to avoid F3 browser find)
+                if (this.inputManager.keys['shift']) {
+                    this.projectileDebugger.toggle();
+                }
+                break;
+            case 'h':
+                // Toggle help overlay
+                this.helpOverlay.toggle();
+                break;
+            case 'g':
+            case 'G':
                 this.showDebug = !this.showDebug;
-                document.getElementById('debug-info').style.display = 
-                    this.showDebug ? 'block' : 'none';
+                if (document.getElementById('debug-info')) {
+                    document.getElementById('debug-info').style.display = 
+                        this.showDebug ? 'block' : 'none';
+                }
+                console.log('Debug overlay:', this.showDebug ? 'ON' : 'OFF');
+                break;
+            case 'f5':
+                // Toggle progression telemetry
+                this.progressionTelemetry.enabled = !this.progressionTelemetry.enabled;
+                console.log(`📊 Progression Telemetry: ${this.progressionTelemetry.enabled ? 'ENABLED' : 'DISABLED'}`);
                 break;
             case ' ':
                 if (this.gameState === 'menu') {
@@ -799,11 +873,35 @@ export class VampireSurvivorsGame {
                 this.performMemoryCleanup();
             }
             
+            // PERFORMANCE THROTTLING for low-end devices
+            // Track FPS and auto-adjust quality
+            if (!this.performanceThrottle) {
+                this.performanceThrottle = {
+                    samples: [],
+                    sampleSize: 60,
+                    qualityLevel: 1.0,
+                    lastAdjust: 0,
+                    adjustInterval: 2000 // Check every 2 seconds
+                };
+            }
+            
             // OPTIMIZED: Ultra-fast deltaTime calculation with minimal operations
             const rawDeltaTime = (currentTime - this.lastTime) * 0.001; // Multiply is faster than divide
             this.deltaTime = rawDeltaTime > 0.033 ? 0.033 : (rawDeltaTime < 0.001 ? 0.001 : rawDeltaTime); // Branchless clamp
             this.lastTime = currentTime;
             this.frameCount++;
+            
+            // Track FPS for throttling
+            this.performanceThrottle.samples.push(rawDeltaTime);
+            if (this.performanceThrottle.samples.length > this.performanceThrottle.sampleSize) {
+                this.performanceThrottle.samples.shift();
+            }
+            
+            // Adjust quality if needed
+            if (currentTime - this.performanceThrottle.lastAdjust > this.performanceThrottle.adjustInterval) {
+                this.adjustPerformanceQuality();
+                this.performanceThrottle.lastAdjust = currentTime;
+            }
             
             // Apply time scale with single multiplication
             const scaledDeltaTime = this.deltaTime * this.timeScale;
@@ -876,6 +974,56 @@ export class VampireSurvivorsGame {
             }, 1000, this);
         }
     }
+    /**
+     * Adjust quality settings based on performance
+     */
+    adjustPerformanceQuality() {
+        if (!this.performanceThrottle || !this.performanceThrottle.samples.length) return;
+        
+        // Calculate average FPS from samples
+        const avgDeltaTime = this.performanceThrottle.samples.reduce((a, b) => a + b, 0) / this.performanceThrottle.samples.length;
+        const avgFPS = 1 / avgDeltaTime;
+        
+        const currentQuality = this.performanceThrottle.qualityLevel;
+        let newQuality = currentQuality;
+        
+        // Auto-adjust quality based on FPS
+        if (avgFPS < 25) {
+            // Very poor performance - reduce quality significantly
+            newQuality = Math.max(0.3, currentQuality - 0.2);
+        } else if (avgFPS < 40) {
+            // Poor performance - reduce quality
+            newQuality = Math.max(0.5, currentQuality - 0.1);
+        } else if (avgFPS > 55) {
+            // Good performance - can increase quality
+            newQuality = Math.min(1.0, currentQuality + 0.05);
+        }
+        
+        // Apply quality changes if needed
+        if (newQuality !== currentQuality) {
+            this.performanceThrottle.qualityLevel = newQuality;
+            
+            // Adjust particle limits
+            if (this.systems.particle) {
+                this.systems.particle.qualityLevel = newQuality;
+                this.systems.particle.maxEffectParticles = Math.floor(50 * newQuality);
+            }
+            
+            // Adjust enemy spawn cap for performance
+            if (this.systems.enemy) {
+                const baseMax = 300;
+                this.systems.enemy.maxActiveEnemies = Math.floor(baseMax * (0.5 + newQuality * 0.5));
+            }
+            
+            // Adjust render distance
+            if (this.camera) {
+                this.camera.renderDistance = 600 * (0.7 + newQuality * 0.3);
+            }
+            
+            console.log(`⚡ Performance auto-adjust: Quality ${(newQuality * 100).toFixed(0)}%, FPS: ${avgFPS.toFixed(1)}`);
+        }
+    }
+    
     /**
      * Perform memory cleanup to prevent crashes at high levels
      */
@@ -1018,6 +1166,9 @@ export class VampireSurvivorsGame {
                     this.player.update(dt);
                     this.camera.follow(this.player.x, this.player.y, dt);
                 }
+                
+                // Update progression telemetry for balance analysis
+                this.progressionTelemetry.update(dt);
             }
             
             // FIXED: Only update game systems when not paused (timeScale > 0)
@@ -1070,6 +1221,12 @@ export class VampireSurvivorsGame {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform matrix
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Ensure no stray fills - clear any white artifacts
+        this.ctx.fillStyle = 'transparent';
+        this.ctx.strokeStyle = 'transparent';
+        
+        // DOM manipulation removed - causes instability and performance issues
+        
         // OPTIMIZED: Single state reset with renderer state tracking
         this.ctx.globalAlpha = 1;
         this.ctx.globalCompositeOperation = 'source-over';
@@ -1105,7 +1262,15 @@ export class VampireSurvivorsGame {
         
         // 4. Player (single entity, high priority)
         if (this.player) {
+            // Debug: ensure player is visible
+            if (!this.player.x || !this.player.y) {
+                console.error('Player position invalid:', this.player.x, this.player.y);
+                this.player.x = this.canvas.width / 2;
+                this.player.y = this.canvas.height / 2;
+            }
             this.player.render(this.renderer);
+        } else {
+            console.error('No player object to render!');
         }
         
         // 5. Projectiles (batch by type and color)
@@ -1130,6 +1295,19 @@ export class VampireSurvivorsGame {
         // Camera effects (flash, shake) - no culling needed
         this.camera.renderFlash(this.ctx);
         this.camera.renderPostEffects(this.ctx);
+        
+        // Debug overlays (render last, on top of everything)
+        if (this.projectileDebugger.enabled) {
+            this.ctx.save();
+            this.camera.apply(this.ctx);
+            this.projectileDebugger.render(this.renderer);
+            this.ctx.restore();
+        }
+        
+        // Progression telemetry overlay (screen space)
+        if (this.progressionTelemetry.enabled) {
+            this.progressionTelemetry.render(this.ctx);
+        }
         
         // Power-ups and UI overlays (screen space)
         this.renderPowerUpDrops(this.renderer);
@@ -1167,17 +1345,21 @@ export class VampireSurvivorsGame {
         const bounds = this.camera.getWorldBounds(100);
         const entityCount = this.performanceStats.entityCount;
         
+        // Calculate actual width and height from bounds
+        const width = bounds.right - bounds.left;
+        const height = bounds.bottom - bounds.top;
+        
         if (entityCount > 100 || this.performanceStats.fps < 50) {
             // Simple solid background for high entity counts
             this.ctx.fillStyle = '#1a1a2e';
-            this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+            this.ctx.fillRect(bounds.left, bounds.top, width, height);
         } else {
             // Simple gradient background
             const gradient = this.ctx.createLinearGradient(bounds.left, bounds.top, bounds.right, bounds.bottom);
             gradient.addColorStop(0, '#1a1a2e');
             gradient.addColorStop(1, '#0f0f23');
             this.ctx.fillStyle = gradient;
-            this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+            this.ctx.fillRect(bounds.left, bounds.top, width, height);
             
             // Optional simple grid for low entity counts
             if (entityCount < 50) {
@@ -1215,8 +1397,146 @@ export class VampireSurvivorsGame {
     }
     
     renderUIOverlays() {
-        // Boundary awareness HUD
-        this.renderBoundaryAwarenessHUD();
+        // UI overlays disabled - no minimap
+    }
+    
+    // Removed cleanupStuckNotifications - DOM manipulation in game loop caused instability
+    
+    // Removed checkForWhiteArtifacts - DOM manipulation in game loop caused instability
+    unusedCheckForWhiteArtifacts() {
+        // Find and remove any problematic elements
+        const problematicElements = [];
+        
+        // Get all elements in the DOM
+        const allElements = document.querySelectorAll('*');
+        
+        allElements.forEach(el => {
+            // Skip essential elements
+            if (el.id === 'gameCanvas' || 
+                el.tagName === 'CANVAS' || 
+                el.tagName === 'HTML' || 
+                el.tagName === 'BODY' ||
+                el.tagName === 'SCRIPT' ||
+                el.tagName === 'STYLE' ||
+                el.id === 'gameHUD' ||
+                el.id === 'performanceMonitor' ||
+                el.id === 'controlsHelp') return;
+            
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            
+            // Check if element is visible and potentially problematic
+            if (style.display !== 'none' && 
+                style.visibility !== 'hidden' && 
+                rect.width > 0 && 
+                rect.height > 0) {
+                
+                let shouldRemove = false;
+                let reason = '';
+                
+                // Check for white or light backgrounds
+                const bg = style.backgroundColor;
+                if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                    // Parse RGB values
+                    const rgbMatch = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                    if (rgbMatch) {
+                        const [_, r, g, b] = rgbMatch;
+                        const rVal = parseInt(r);
+                        const gVal = parseInt(g);
+                        const bVal = parseInt(b);
+                        
+                        // Check if it's white or very light (all values > 240)
+                        if (rVal > 240 && gVal > 240 && bVal > 240) {
+                            shouldRemove = true;
+                            reason = `Light background: ${bg}`;
+                        }
+                        
+                        // Also check for pure white
+                        if (rVal === 255 && gVal === 255 && bVal === 255) {
+                            shouldRemove = true;
+                            reason = `White background: ${bg}`;
+                        }
+                    }
+                }
+                
+                // Check for large overlays positioned on the right side (like in the screenshot)
+                if (rect.width > 100 && rect.height > window.innerHeight * 0.5) {
+                    // Check if it's on the right edge
+                    if (rect.right > window.innerWidth - 50 && rect.left > window.innerWidth * 0.7) {
+                        shouldRemove = true;
+                        reason = `Large right-side overlay: ${rect.width}x${rect.height} at x:${rect.left}`;
+                    }
+                }
+                
+                // Check for elements with white inline styles
+                const inlineStyle = el.getAttribute('style') || '';
+                if (inlineStyle.includes('background: white') || 
+                    inlineStyle.includes('background-color: white') ||
+                    inlineStyle.includes('background: #fff') ||
+                    inlineStyle.includes('background: rgb(255, 255, 255)')) {
+                    shouldRemove = true;
+                    reason = 'White inline style';
+                }
+                
+                // Remove any div without proper game-related IDs/classes
+                if (el.tagName === 'DIV' && !el.id && !el.className && 
+                    (style.position === 'absolute' || style.position === 'fixed')) {
+                    shouldRemove = true;
+                    reason = 'Anonymous positioned div';
+                }
+                
+                if (shouldRemove) {
+                    problematicElements.push({
+                        element: el,
+                        reason: reason,
+                        details: {
+                            id: el.id || 'none',
+                            className: el.className || 'none',
+                            tag: el.tagName,
+                            position: `${rect.left},${rect.top}`,
+                            size: `${rect.width}x${rect.height}`,
+                            bg: style.backgroundColor
+                        }
+                    });
+                }
+            }
+        });
+        
+        // Remove all problematic elements
+        if (problematicElements.length > 0) {
+            console.warn(`Found ${problematicElements.length} problematic elements:`);
+            problematicElements.forEach(item => {
+                console.warn(`  - Removing: ${item.reason}`, item.details);
+                try {
+                    item.element.remove();
+                } catch (e) {
+                    // If remove fails, try to hide it
+                    item.element.style.display = 'none';
+                }
+            });
+        }
+        
+        // Also clean up any notification or warning elements that might be stuck
+        const selectorsToClean = [
+            '.notification',
+            '.warning-text',
+            '[class*="level-up"]',
+            '[class*="game-over"]',
+            '[id*="level-up"]',
+            '[id*="game-over"]'
+        ];
+        
+        selectorsToClean.forEach(selector => {
+            try {
+                document.querySelectorAll(selector).forEach(el => {
+                    if (el.id !== 'gameHUD' && !el.classList.contains('game-button')) {
+                        el.remove();
+                    }
+                });
+            } catch (e) {
+                // Ignore selector errors
+            }
+        });
     }
 
     renderBoundaryAwarenessHUD() {
@@ -1585,7 +1905,13 @@ export class VampireSurvivorsGame {
             document.head.appendChild(style);
         }
         
-        document.body.appendChild(notification);
+        // Add to UI container instead of body to prevent artifacts
+        const uiContainer = document.getElementById('game-ui');
+        if (uiContainer) {
+            uiContainer.appendChild(notification);
+        } else {
+            document.body.appendChild(notification);
+        }
         
         // Remove after animation
         managedSetTimeout(() => {
@@ -1717,7 +2043,13 @@ export class VampireSurvivorsGame {
                     document.head.appendChild(warnStyle);
                 }
                 
-                document.body.appendChild(warningText);
+                // Add to UI container instead of body
+                const uiContainer = document.getElementById('game-ui');
+                if (uiContainer) {
+                    uiContainer.appendChild(warningText);
+                } else {
+                    document.body.appendChild(warningText);
+                }
                 managedSetTimeout(() => warningText.remove(), 2000, this);
             }, 1000, this);
         }

@@ -141,11 +141,11 @@ export class LayeredRenderer {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
         
-        // Add subtle texture/pattern
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-        for (let i = 0; i < width; i += 20) {
-            for (let j = 0; j < height; j += 20) {
-                if ((i + j) % 40 === 0) {
+        // Add subtle texture/pattern - much reduced density
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.015)'; // Even more subtle
+        for (let i = 0; i < width; i += 60) { // Increased spacing from 20 to 60
+            for (let j = 0; j < height; j += 60) { // Increased spacing from 20 to 60
+                if ((i + j) % 120 === 0) { // Increased modulo from 40 to 120
                     ctx.fillRect(i, j, 1, 1);
                 }
             }
@@ -333,13 +333,8 @@ export class LayeredRenderer {
         
         const { width, height } = this.layers.ui.canvas;
         
-        // Health bar removed - using in-game HUD instead
-        
-        // Level and XP
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '16px Arial';
-        ctx.fillText(`Level ${game.player.level}`, width - 150, 30);
-        ctx.fillText(`XP: ${game.player.experience}/${game.player.experienceToNext}`, width - 150, 50);
+        // UI rendering disabled - duplicate HUD was causing display issues
+        // The main game already has a proper HUD in the DOM
     }
     
     clearLayer(layerName) {

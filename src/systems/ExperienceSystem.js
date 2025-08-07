@@ -9,9 +9,9 @@ export class ExperienceSystem {
         this.activeGems = [];
         this.maxActiveGems = 60; // Reduced for visual clarity
         
-        // Collection mechanics
-        this.magnetRange = 80; // Base magnet range
-        this.autoCollectRange = 25; // Auto-collect when very close
+        // Collection mechanics - ENHANCED
+        this.magnetRange = 120; // Base magnet range (was 80) - WIDER VACUUM
+        this.autoCollectRange = 40; // Auto-collect when very close (was 25) - EASIER PICKUP
         
         // Gem spawn mechanics
         this.gemValues = {

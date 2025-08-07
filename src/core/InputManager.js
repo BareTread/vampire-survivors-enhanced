@@ -54,7 +54,7 @@ export class InputManager {
         this.inputValidator = {
             validKeys: new Set(['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 
                                'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                               'Escape', 'F1', 'F2', 'F4', ' ', '1', '2', '3', '4', '5'])
+                               'Escape', 'F1', 'F2', 'g', 'G', ' ', '1', '2', '3', '4', '5'])
         };
         
         // Mouse prediction for smooth movement
@@ -151,7 +151,19 @@ export class InputManager {
         
         // OPTIMIZED: Keyboard events with input buffering and latency tracking
         window.addEventListener('keydown', (e) => {
+            // Only prevent default for game-specific function keys, not system keys
+            // Allow F11 (fullscreen) and F12 (DevTools) to work normally
+            if ((e.key === 'F1' || e.key === 'F4') || // Game-specific F-keys only
+                (e.key === 'Tab' && this.canvas === document.activeElement)) {
+                e.preventDefault();
+            }
+            
             const now = performance.now();
+            
+            // Track shift key separately
+            if (e.key === 'Shift') {
+                this.keys['shift'] = true;
+            }
             
             if (!this.keys[e.key]) {
                 this.keysPressed[e.key] = true;
@@ -170,6 +182,11 @@ export class InputManager {
         
         window.addEventListener('keyup', (e) => {
             const now = performance.now();
+            
+            // Track shift key separately
+            if (e.key === 'Shift') {
+                this.keys['shift'] = false;
+            }
             
             this.keys[e.key] = false;
             this.keysReleased[e.key] = true;

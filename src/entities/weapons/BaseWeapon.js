@@ -11,7 +11,7 @@ export class BaseWeapon {
         
         // Base stats (level 1)
         this.baseStats = {
-            damage: config.damage || 10,
+            damage: config.damage || 7,
             cooldown: config.cooldown || 1.0, // seconds
             range: config.range || 200,
             speed: config.speed || 200,
@@ -526,17 +526,24 @@ export class BaseWeapon {
     }
     
     createProjectile(x, y, angle, config = {}) {
+        // Apply area multiplier to projectile size for consistent AoE scaling
+        const baseSize = config.size || this.size;
+        const effectiveSize = baseSize * this.player.stats.area;
+        
         return this.game.systems.projectile.createProjectile(x, y, {
             direction: angle,
             damage: this.getEffectiveDamage(),
             speed: this.currentStats.speed,
-            size: this.size,
+            size: effectiveSize,
             color: this.color,
             piercing: this.currentStats.piercing,
             lifetime: this.currentStats.duration,
             source: 'player',
             weaponId: this.id,
             sourceWeapon: this, // Reference to this weapon for psychology calculations
+            // Apply area multiplier to damage radius for AoE weapons
+            damageRadius: config.damageRadius ? config.damageRadius * this.player.stats.area : undefined,
+            explosionRadius: config.explosionRadius ? config.explosionRadius * this.player.stats.area : undefined,
             ...config
         });
     }

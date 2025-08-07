@@ -17,6 +17,12 @@ export class AudioManager {
         this.soundPools = new Map(); // For performance
         this.reverb = null;
         
+        // AUDIO THROTTLING - Prevent spam with many enemies
+        this.soundThrottle = new Map(); // Track last played time for each sound type
+        this.throttleInterval = 50; // Minimum ms between same sound type
+        this.maxSimultaneousSounds = 10; // Max sounds playing at once
+        this.currentlyPlaying = 0;
+        
         // Vampire-themed sound definitions
         this.initializeVampireSounds();
         this.initializeAudioContext();
@@ -365,9 +371,36 @@ export class AudioManager {
         }
     }
     
-    // Enhanced play method with vampire-themed processing
+    // Enhanced play method with vampire-themed processing AND THROTTLING
     playVampireSound(name, volume = 1, pitch = 1) {
         if (this.muted) return;
+        
+        // THROTTLING: Check if sound was played too recently
+        const now = performance.now();
+        const lastPlayed = this.soundThrottle.get(name) || 0;
+        
+        // Special throttling for common spam sounds
+        const spamSounds = ['enemyDeath', 'experienceGain', 'weaponFire', 'hitSound'];
+        const isSpamSound = spamSounds.includes(name);
+        const throttleTime = isSpamSound ? 100 : this.throttleInterval; // Longer throttle for spam sounds
+        
+        if (now - lastPlayed < throttleTime) {
+            return; // Skip this sound, played too recently
+        }
+        
+        // Check if too many sounds are playing
+        if (this.currentlyPlaying >= this.maxSimultaneousSounds) {
+            return; // Skip to prevent audio overload
+        }
+        
+        // Update throttle tracking
+        this.soundThrottle.set(name, now);
+        this.currentlyPlaying++;
+        
+        // Decrease counter after sound duration (estimate 500ms)
+        setTimeout(() => {
+            this.currentlyPlaying = Math.max(0, this.currentlyPlaying - 1);
+        }, 500);
         
         const soundConfig = this.vampireSoundMap[name];
         if (!soundConfig) {

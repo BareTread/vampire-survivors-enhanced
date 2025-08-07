@@ -50,9 +50,9 @@ export class Enemy {
     initializeType(type) {
         const types = {
             basic: {
-                maxHealth: 20,
-                speed: 40,
-                damage: 10,
+                maxHealth: 35,  // Increased from 20 - HARDER
+                speed: 60,  // Increased from 40 for more challenge
+                damage: 15,  // Increased from 10 - MORE DANGEROUS
                 size: 8,
                 color: '#FF6B6B',
                 expReward: 3, // REBALANCED: Reduced from 5 to 3
@@ -60,9 +60,9 @@ export class Enemy {
                 attackCooldown: 1.0
             },
             fast: {
-                maxHealth: 10,
-                speed: 80,
-                damage: 8,
+                maxHealth: 20,  // Doubled from 10 - TANKIER
+                speed: 120,  // Increased from 80 for more challenge
+                damage: 12,  // Increased from 8 - MORE DANGEROUS
                 size: 6,
                 color: '#4ECDC4',
                 expReward: 5, // REBALANCED: Reduced from 8 to 5
@@ -70,9 +70,9 @@ export class Enemy {
                 attackCooldown: 0.8
             },
             tank: {
-                maxHealth: 60,
-                speed: 20,
-                damage: 25,
+                maxHealth: 100,  // Increased from 60 - MUCH TANKIER
+                speed: 35,  // Increased from 20 for more challenge
+                damage: 35,  // Increased from 25 - HEAVY HITTER
                 size: 14,
                 color: '#45B7D1',
                 expReward: 8, // REBALANCED: Reduced from 15 to 8
@@ -80,9 +80,9 @@ export class Enemy {
                 attackCooldown: 2.0
             },
             ranged: {
-                maxHealth: 15,
-                speed: 30,
-                damage: 8, // Reduced from 12 to 8 for balance
+                maxHealth: 25,  // Increased from 15 - MORE DURABLE
+                speed: 50,  // Increased from 30 for more challenge
+                damage: 15,  // Increased from 8 - MORE DANGEROUS
                 size: 7,
                 color: '#F39C12',
                 expReward: 6, // REBALANCED: Reduced from 10 to 6
@@ -90,9 +90,9 @@ export class Enemy {
                 attackCooldown: 2.0 // Increased from 1.5 to 2.0 seconds
             },
             elite: {
-                maxHealth: 100,
-                speed: 35,
-                damage: 30,
+                maxHealth: 150,  // Increased from 100 - MINI BOSS
+                speed: 55,  // Increased from 35 for more challenge
+                damage: 45,  // Increased from 30 - DEADLY
                 size: 16,
                 color: '#9B59B6',
                 expReward: 12, // REBALANCED: Reduced from 25 to 12
@@ -100,9 +100,9 @@ export class Enemy {
                 attackCooldown: 1.2
             },
             berserker: {
-                maxHealth: 80,
-                speed: 45,
-                damage: 25,
+                maxHealth: 120,  // Increased from 80 - RAGE MODE
+                speed: 70,  // Increased from 45 for more challenge
+                damage: 40,  // Increased from 25 - BERSERK DAMAGE
                 size: 14,
                 color: '#FF4500',
                 expReward: 15, // REBALANCED: Reduced from 35 to 15
@@ -111,9 +111,9 @@ export class Enemy {
                 rageThreshold: 0.5 // Goes berserk at 50% health
             },
             summoner: {
-                maxHealth: 60,
-                speed: 25,
-                damage: 15,
+                maxHealth: 90,  // Increased from 60 - MORE DURABLE
+                speed: 40,  // Increased from 25 for more challenge
+                damage: 25,  // Increased from 15 - MORE DANGEROUS
                 size: 12,
                 color: '#8A2BE2',
                 expReward: 18, // REBALANCED: Reduced from 40 to 18
@@ -122,9 +122,9 @@ export class Enemy {
                 summonRate: 4.0 // Summons every 4 seconds
             },
             juggernaut: {
-                maxHealth: 200,
-                speed: 15,
-                damage: 40,
+                maxHealth: 300,  // Increased from 200 - BOSS LEVEL
+                speed: 25,  // Increased from 15 for more challenge
+                damage: 60,  // Increased from 40 - DEVASTATING
                 size: 20,
                 color: '#2F4F4F',
                 expReward: 25, // REBALANCED: Reduced from 60 to 25
@@ -500,10 +500,6 @@ export class Enemy {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
         
-        // DEBUG: Log enemy projectile creation after 4 minutes
-        if (this.game.gameTime > 240) {
-            console.log(`Enemy ${this.type} firing projectile at ${this.game.gameTime.toFixed(1)}s`);
-        }
         
         // Create highly visible projectile towards player
         this.game.systems.projectile.createEnemyProjectile(

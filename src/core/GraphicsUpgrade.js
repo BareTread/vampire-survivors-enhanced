@@ -15,8 +15,8 @@ export class GraphicsUpgrade {
             enhancedEffects: true,
             proceduralFallback: true,
             adaptiveQuality: true,
-            layeredRendering: true, // NEW: 15-30% FPS boost
-            performanceDashboard: true // NEW: Real-time performance monitoring
+            layeredRendering: false, // DISABLED: Causes white rectangle bug by creating extra canvases
+            performanceDashboard: false // DISABLED: Can create overlay issues
         };
         
         console.log('🎨 GraphicsUpgrade system ready');

@@ -105,38 +105,43 @@ export class TerrainRenderer {
         
         ctx.save();
         
-        // ENHANCED: Super visible boundary walls - always render regardless of camera position
-        ctx.strokeStyle = '#FF3030'; // Bright red for maximum visibility
-        ctx.lineWidth = 12; // Even thicker
-        ctx.globalAlpha = 1.0; // Fully opaque
-        ctx.shadowColor = '#FF3030';
-        ctx.shadowBlur = 15;
+        // Always draw visible map boundaries
+        ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([20, 10]); // Dashed line for visibility
         
-        // Draw all four boundaries as continuous walls
-        ctx.beginPath();
+        // Draw the map boundary rectangle
+        ctx.strokeRect(
+            -worldHalfWidth, 
+            -worldHalfHeight, 
+            this.worldWidth, 
+            this.worldHeight
+        );
         
-        // Left boundary (vertical line)
-        ctx.moveTo(-worldHalfWidth, -worldHalfHeight);
-        ctx.lineTo(-worldHalfWidth, worldHalfHeight);
+        // Add corner markers for better visibility
+        ctx.fillStyle = 'rgba(255, 150, 150, 0.8)';
+        const markerSize = 20;
         
-        // Top boundary (horizontal line)
-        ctx.moveTo(-worldHalfWidth, -worldHalfHeight);
-        ctx.lineTo(worldHalfWidth, -worldHalfHeight);
+        // Top-left corner
+        ctx.fillRect(-worldHalfWidth - 5, -worldHalfHeight - 5, markerSize, 5);
+        ctx.fillRect(-worldHalfWidth - 5, -worldHalfHeight - 5, 5, markerSize);
         
-        // Right boundary (vertical line)
-        ctx.moveTo(worldHalfWidth, -worldHalfHeight);
-        ctx.lineTo(worldHalfWidth, worldHalfHeight);
+        // Top-right corner
+        ctx.fillRect(worldHalfWidth - markerSize + 5, -worldHalfHeight - 5, markerSize, 5);
+        ctx.fillRect(worldHalfWidth, -worldHalfHeight - 5, 5, markerSize);
         
-        // Bottom boundary (horizontal line)
-        ctx.moveTo(-worldHalfWidth, worldHalfHeight);
-        ctx.lineTo(worldHalfWidth, worldHalfHeight);
+        // Bottom-left corner
+        ctx.fillRect(-worldHalfWidth - 5, worldHalfHeight, markerSize, 5);
+        ctx.fillRect(-worldHalfWidth - 5, worldHalfHeight - markerSize + 5, 5, markerSize);
         
-        ctx.stroke();
+        // Bottom-right corner
+        ctx.fillRect(worldHalfWidth - markerSize + 5, worldHalfHeight, markerSize, 5);
+        ctx.fillRect(worldHalfWidth, worldHalfHeight - markerSize + 5, 5, markerSize);
         
-        // Add animated warning zones for better UX
+        // Calculate player distance to boundaries for warning effect
         const playerX = camera.x;
         const playerY = camera.y;
-        const warningDistance = 200; // Increased warning distance
+        const warningDistance = 300; // Increased warning distance
         
         const distanceToLeft = playerX + worldHalfWidth;
         const distanceToRight = worldHalfWidth - playerX;
@@ -145,74 +150,38 @@ export class TerrainRenderer {
         
         const minDistance = Math.min(distanceToLeft, distanceToRight, distanceToTop, distanceToBottom);
         
-        // Enhanced warning system
+        // Show stronger warning effect when close to boundary
         if (minDistance < warningDistance) {
             const intensity = 1 - (minDistance / warningDistance);
-            const pulseTime = performance.now() * 0.005;
-            const pulseAlpha = (Math.sin(pulseTime) * 0.3 + 0.7) * intensity * 0.4;
+            const pulseTime = performance.now() * 0.003;
+            const pulseAlpha = (Math.sin(pulseTime) * 0.3 + 0.5) * intensity;
             
-            // Screen edge warning overlay
-            ctx.fillStyle = `rgba(255, 48, 48, ${pulseAlpha})`;
+            ctx.setLineDash([]); // Reset line dash for warning zone
             
-            // Draw warning zones on screen edges based on which boundary is closest
+            // Draw warning zones on edges player is approaching
+            ctx.fillStyle = `rgba(255, 50, 50, ${pulseAlpha * 0.3})`;
+            ctx.strokeStyle = `rgba(255, 100, 100, ${pulseAlpha})`;
+            ctx.lineWidth = 2;
+            
+            const edgeThickness = 50;
+            
             if (distanceToLeft === minDistance) {
-                // Left edge warning
-                const screenLeft = camera.x - camera.width/2;
-                ctx.fillRect(screenLeft, camera.y - camera.height/2, 50, camera.height);
+                ctx.fillRect(-worldHalfWidth, -worldHalfHeight, edgeThickness, this.worldHeight);
+                ctx.strokeRect(-worldHalfWidth, -worldHalfHeight, edgeThickness, this.worldHeight);
             }
             if (distanceToRight === minDistance) {
-                // Right edge warning
-                const screenRight = camera.x + camera.width/2 - 50;
-                ctx.fillRect(screenRight, camera.y - camera.height/2, 50, camera.height);
+                ctx.fillRect(worldHalfWidth - edgeThickness, -worldHalfHeight, edgeThickness, this.worldHeight);
+                ctx.strokeRect(worldHalfWidth - edgeThickness, -worldHalfHeight, edgeThickness, this.worldHeight);
             }
             if (distanceToTop === minDistance) {
-                // Top edge warning
-                const screenTop = camera.y - camera.height/2;
-                ctx.fillRect(camera.x - camera.width/2, screenTop, camera.width, 50);
+                ctx.fillRect(-worldHalfWidth, -worldHalfHeight, this.worldWidth, edgeThickness);
+                ctx.strokeRect(-worldHalfWidth, -worldHalfHeight, this.worldWidth, edgeThickness);
             }
             if (distanceToBottom === minDistance) {
-                // Bottom edge warning
-                const screenBottom = camera.y + camera.height/2 - 50;
-                ctx.fillRect(camera.x - camera.width/2, screenBottom, camera.width, 50);
-            }
-            
-            // Enhanced boundary glow when very close
-            if (minDistance < 100) {
-                const glowIntensity = Math.sin(pulseTime * 2) * 0.5 + 1.0;
-                ctx.shadowColor = '#FF6060';
-                ctx.shadowBlur = 25 * glowIntensity;
-                ctx.strokeStyle = '#FF1010';
-                ctx.lineWidth = 16;
-                
-                // Redraw the closest boundary section with extra emphasis
-                ctx.beginPath();
-                if (distanceToLeft === minDistance) {
-                    ctx.moveTo(-worldHalfWidth, playerY - 200);
-                    ctx.lineTo(-worldHalfWidth, playerY + 200);
-                } else if (distanceToRight === minDistance) {
-                    ctx.moveTo(worldHalfWidth, playerY - 200);
-                    ctx.lineTo(worldHalfWidth, playerY + 200);
-                } else if (distanceToTop === minDistance) {
-                    ctx.moveTo(playerX - 200, -worldHalfHeight);
-                    ctx.lineTo(playerX + 200, -worldHalfHeight);
-                } else if (distanceToBottom === minDistance) {
-                    ctx.moveTo(playerX - 200, worldHalfHeight);
-                    ctx.lineTo(playerX + 200, worldHalfHeight);
-                }
-                ctx.stroke();
+                ctx.fillRect(-worldHalfWidth, worldHalfHeight - edgeThickness, this.worldWidth, edgeThickness);
+                ctx.strokeRect(-worldHalfWidth, worldHalfHeight - edgeThickness, this.worldWidth, edgeThickness);
             }
         }
-        
-        // Add corner indicators for better spatial awareness
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#FF4040';
-        const cornerSize = 30;
-        
-        // Four corner markers
-        ctx.fillRect(-worldHalfWidth - cornerSize/2, -worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
-        ctx.fillRect(worldHalfWidth - cornerSize/2, -worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
-        ctx.fillRect(-worldHalfWidth - cornerSize/2, worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
-        ctx.fillRect(worldHalfWidth - cornerSize/2, worldHalfHeight - cornerSize/2, cornerSize, cornerSize);
         
         ctx.restore();
     }

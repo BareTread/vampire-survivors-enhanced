@@ -9,7 +9,7 @@
  */
 
 import { BaseSystem } from './BaseSystem.js';
-import { GameEvents } from '../core/GameEngine.js';
+import { GameEvents } from '../core/GameEvents.js';
 import { Config } from '../core/ConfigManager.js';
 import { LoggerInstance as Logger } from '../core/ErrorHandler.js';
 

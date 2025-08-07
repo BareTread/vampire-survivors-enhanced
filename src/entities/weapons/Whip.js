@@ -7,7 +7,7 @@ export class Whip extends BaseWeapon {
             name: 'Whip',
             description: 'Strikes in an arc, hitting multiple enemies',
             type: 'melee',
-            damage: 25,
+            damage: 16,
             cooldown: 0.8,
             range: 80,
             speed: 0, // Not applicable for melee
@@ -39,14 +39,14 @@ export class Whip extends BaseWeapon {
         
         // Level progression
         this.levelProgression = {
-            1: { damage: 25, cooldown: 0.8, range: 80, arcAngle: Math.PI / 2 },
-            2: { damage: 30, cooldown: 0.75, range: 85, arcAngle: Math.PI / 2 },
-            3: { damage: 36, cooldown: 0.7, range: 90, arcAngle: Math.PI / 1.8 },
-            4: { damage: 43, cooldown: 0.65, range: 95, arcAngle: Math.PI / 1.8 },
-            5: { damage: 52, cooldown: 0.6, range: 100, arcAngle: Math.PI / 1.6 },
-            6: { damage: 62, cooldown: 0.55, range: 105, arcAngle: Math.PI / 1.5 },
-            7: { damage: 75, cooldown: 0.5, range: 110, arcAngle: Math.PI / 1.4 },
-            8: { damage: 90, cooldown: 0.4, range: 120, arcAngle: Math.PI / 1.2 }
+            1: { damage: 16, cooldown: 0.8, range: 80, arcAngle: Math.PI / 2 },
+            2: { damage: 20, cooldown: 0.75, range: 85, arcAngle: Math.PI / 2 },
+            3: { damage: 23, cooldown: 0.7, range: 90, arcAngle: Math.PI / 1.8 },
+            4: { damage: 28, cooldown: 0.65, range: 95, arcAngle: Math.PI / 1.8 },
+            5: { damage: 34, cooldown: 0.6, range: 100, arcAngle: Math.PI / 1.6 },
+            6: { damage: 40, cooldown: 0.55, range: 105, arcAngle: Math.PI / 1.5 },
+            7: { damage: 49, cooldown: 0.5, range: 110, arcAngle: Math.PI / 1.4 },
+            8: { damage: 59, cooldown: 0.4, range: 120, arcAngle: Math.PI / 1.2 }
         };
     }
     

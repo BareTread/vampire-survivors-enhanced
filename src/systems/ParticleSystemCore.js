@@ -467,49 +467,31 @@ export class ParticleSystemCore {
     }
     
     createEnhancedDeathEffect(x, y, color = '#FF4444', size = 1.0) {
-        // IMPROVED: More visible death effect with better timing
-        const particleCount = Math.floor(6 * size); // Increased to 6 particles for better visibility
+        // REDUCED: Less particles, shorter lifetime for better performance
+        const particleCount = Math.floor(3 * size); // Reduced from 6 to 3 particles
         for (let i = 0; i < particleCount; i++) {
             this.createEffectParticle(x, y, {
-                vx: (Math.random() - 0.5) * 150 * size, // Increased spread for visibility
-                vy: (Math.random() - 0.5) * 150 * size,
+                vx: (Math.random() - 0.5) * 100 * size, // Reduced spread from 150
+                vy: (Math.random() - 0.5) * 100 * size,
                 color: color,
-                life: 1.2 * size, // MUCH longer life - was 0.6, now 1.2 seconds
-                size: (3 + Math.random() * 3) * size, // Bigger particles
+                life: 0.4 * size, // Much shorter life - was 1.2, now 0.4 seconds
+                size: (2 + Math.random() * 2) * size, // Smaller particles
                 glow: true,
                 fadeOut: true
             });
         }
         
-        // Enhanced central burst particle
+        // Small central burst particle for impact
         this.createEffectParticle(x, y, {
             vx: 0,
             vy: 0,
-            color: '#FFFFFF',
-            life: 0.8, // Longer central flash - was 0.4
-            size: 8 * size, // Much bigger central effect
+            color: color,
+            life: 0.3,
+            size: 8 * size,
             glow: true,
-            fadeOut: true
+            fadeOut: true,
+            expand: true
         });
-        
-        // Add secondary ring of sparks for better visibility
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
-            const distance = 20 + Math.random() * 10;
-            this.createEffectParticle(
-                x + Math.cos(angle) * distance, 
-                y + Math.sin(angle) * distance, 
-                {
-                    vx: Math.cos(angle) * 80,
-                    vy: Math.sin(angle) * 80,
-                    color: '#FFAA00', // Orange sparks for contrast
-                    life: 0.9,
-                    size: 2,
-                    glow: true,
-                    fadeOut: true
-                }
-            );
-        }
     }
     
     // Additional missing methods for compatibility
@@ -817,10 +799,10 @@ export class ParticleSystemCore {
     }
     
     createBurst(x, y, type, options = {}) {
-        // VISIBILITY FIX: Much smaller particle counts
-        const baseCount = options.count || 4;
-        const count = Math.min(baseCount, 3); // Cap at 3 particles max
-        const spread = options.spread || 60; // Reduced spread
+        // Use adaptive quality for particle counts
+        const baseCount = options.count || 8;
+        const count = Math.floor(baseCount * this.qualityLevel);
+        const spread = options.spread || 120;
         const intensity = options.intensity || 1.0;
         
         for (let i = 0; i < count; i++) {

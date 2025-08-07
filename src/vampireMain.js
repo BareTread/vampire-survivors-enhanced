@@ -44,12 +44,24 @@ class VampireGameBootstrap {
     }
 
     setupCanvas() {
-        this.canvas = document.getElementById('gameCanvas') || this.createCanvas();
+        this.canvas = document.getElementById('gameCanvas');
+        
+        if (!this.canvas) {
+            console.error('❌ Canvas element not found! Creating one...');
+            this.canvas = this.createCanvas();
+        }
+        
         this.ctx = this.canvas.getContext('2d', {
             alpha: false,
             desynchronized: true,
             powerPreference: 'high-performance'
         });
+        
+        if (!this.ctx) {
+            throw new Error('Failed to get 2D context from canvas');
+        }
+        
+        console.log('✅ Canvas setup complete:', this.canvas.width + 'x' + this.canvas.height);
         
         // Set canvas size
         this.resizeCanvas();
@@ -68,37 +80,52 @@ class VampireGameBootstrap {
         canvas.id = 'gameCanvas';
         canvas.style.cssText = `
             display: block;
-            margin: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            margin: 0 !important;
             padding: 0;
             background: #000;
             cursor: crosshair;
         `;
         
-        // Remove existing content and add canvas
-        document.body.innerHTML = '';
-        document.body.style.cssText = `
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #000;
-            font-family: Arial, sans-serif;
-        `;
+        // Clear body content but preserve overflow constraints
+        while (document.body.firstChild) {
+            document.body.removeChild(document.body.firstChild);
+        }
+        
+        // Ensure body maintains overflow hidden to prevent white rectangle bug
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.body.style.overflow = 'hidden';
+        document.body.style.background = '#000';
+        document.body.style.fontFamily = 'Arial, sans-serif';
+        document.body.style.width = '100%';
+        document.body.style.height = '100%';
+        
         document.body.appendChild(canvas);
         
         return canvas;
     }
 
     resizeCanvas() {
-        const displayWidth = window.innerWidth;
-        const displayHeight = window.innerHeight;
+        // Use slightly smaller dimensions to prevent overflow
+        const displayWidth = Math.floor(window.innerWidth);
+        const displayHeight = Math.floor(window.innerHeight);
         
         // Set canvas size
         this.canvas.width = displayWidth;
         this.canvas.height = displayHeight;
         
-        // Update canvas style
-        this.canvas.style.width = displayWidth + 'px';
-        this.canvas.style.height = displayHeight + 'px';
+        // Use viewport units to ensure no overflow
+        this.canvas.style.width = '100vw';
+        this.canvas.style.height = '100vh';
+        this.canvas.style.position = 'fixed';
+        this.canvas.style.top = '0';
+        this.canvas.style.left = '0';
+        this.canvas.style.margin = '0';  // Remove any margin
         
         // Update game camera if game exists
         if (this.game && this.game.camera) {
@@ -131,6 +158,9 @@ class VampireGameBootstrap {
         
         // Start the game
         this.game.start();
+        
+        // Force a resize to ensure canvas fills viewport
+        this.resizeCanvas();
         
         this.isInitialized = true;
     }
@@ -255,11 +285,26 @@ class VampireGameBootstrap {
     }
 }
 
-// Initialize game when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize game when DOM is loaded or immediately if already loaded
+function initializeGame() {
+    console.log('🎮 Initializing Vampire Survivors...');
+    
     const gameBootstrap = new VampireGameBootstrap();
-    gameBootstrap.init().catch(console.error);
-});
+    window.gameBootstrap = gameBootstrap; // Make it globally accessible for debugging
+    
+    gameBootstrap.init().catch(error => {
+        console.error('❌ Failed to initialize game:', error);
+        console.error('Stack trace:', error.stack);
+    });
+}
+
+// Check if DOM is already loaded (important for module scripts)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeGame);
+} else {
+    // DOM is already loaded, initialize immediately
+    initializeGame();
+}
 
 // Global error handling with recovery
 let errorCount = 0;
@@ -316,6 +361,83 @@ window.debugCommands = {
     },
     getDebugInfo: () => {
         return window.gameBootstrap?.game?.getDebugInfo();
+    },
+    cleanupArtifacts: () => {
+        console.log('🧹 Running artifact cleanup...');
+        
+        // Find all visible elements
+        const visibleElements = [];
+        document.querySelectorAll('*').forEach(el => {
+            if (el.id === 'gameCanvas' || el.tagName === 'CANVAS' || 
+                el.tagName === 'HTML' || el.tagName === 'BODY' ||
+                el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+            
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            
+            if (rect.width > 0 && rect.height > 0 && 
+                style.display !== 'none' && style.visibility !== 'hidden') {
+                visibleElements.push({
+                    element: el,
+                    id: el.id || 'none',
+                    class: el.className || 'none',
+                    tag: el.tagName,
+                    position: `${Math.round(rect.left)},${Math.round(rect.top)}`,
+                    size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
+                    bg: style.backgroundColor,
+                    zIndex: style.zIndex
+                });
+            }
+        });
+        
+        console.log(`Found ${visibleElements.length} visible elements:`);
+        console.table(visibleElements.map(e => ({
+            id: e.id,
+            class: e.class,
+            tag: e.tag,
+            position: e.position,
+            size: e.size,
+            bg: e.bg,
+            zIndex: e.zIndex
+        })));
+        
+        // Remove problematic ones
+        let removedCount = 0;
+        visibleElements.forEach(item => {
+            const el = item.element;
+            const bg = item.bg;
+            
+            // Check for white/light backgrounds or large right-side overlays
+            let shouldRemove = false;
+            
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                if (match) {
+                    const [_, r, g, b] = match;
+                    if (parseInt(r) > 240 && parseInt(g) > 240 && parseInt(b) > 240) {
+                        shouldRemove = true;
+                    }
+                }
+            }
+            
+            // Check position (right side overlay)
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 100 && rect.left > window.innerWidth * 0.7) {
+                shouldRemove = true;
+            }
+            
+            if (shouldRemove && el.id !== 'gameHUD' && el.id !== 'performanceMonitor') {
+                console.log(`Removing: ${item.id || item.tag} - ${item.bg} at ${item.position}`);
+                el.remove();
+                removedCount++;
+            }
+        });
+        
+        console.log(`✅ Cleanup complete. Removed ${removedCount} elements.`);
+        
+        // Force redraw - removed DOM manipulation call
+        
+        return removedCount;
     }
 };
 

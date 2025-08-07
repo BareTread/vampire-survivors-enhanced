@@ -10,72 +10,83 @@ export class EnemySystem {
         // Enemy pools for performance
         this.enemyPool = new Map(); // Pool by enemy type
         this.activeEnemies = [];
-        this.maxActiveEnemies = 150; // Reduced performance limit for better FPS
+        this.maxActiveEnemies = 300; // Increased from 150 for more chaos
         
-        // Spawning configuration
-        this.spawnRate = 2.0; // Enemies per second
+        // Spawning configuration - ULTRA AGGRESSIVE
+        this.spawnRate = 5.0; // Starting enemies per second (was 3.0) - MUCH MORE
         this.spawnTimer = 0;
-        this.spawnDistance = 400; // Distance from player to spawn
+        this.spawnDistance = 300; // Even closer spawn for maximum pressure (was 350)
         this.despawnDistance = 600; // Distance at which to despawn enemies
         
-        // Wave system
+        // Wave system - RAPID WAVES
         this.currentWave = 1;
         this.waveTimer = 0;
-        this.waveDuration = 60; // 60 seconds per wave
+        this.waveDuration = 30; // 30 seconds per wave (was 45) - FASTER PROGRESSION
         this.waveProgress = 0;
         
-        // Difficulty scaling
+        // Difficulty scaling - EXTREME
         this.difficultyMultiplier = 1.0;
-        this.eliteSpawnChance = 0.05; // 5% chance for elite enemies
+        this.eliteSpawnChance = 0.15; // 15% chance for elite enemies (was 8%) - MORE ELITES
         
         // Spawn patterns
         this.spawnPatterns = {
             random: this.spawnRandomPattern.bind(this),
             circle: this.spawnCirclePattern.bind(this),
             cluster: this.spawnClusterPattern.bind(this),
-            line: this.spawnLinePattern.bind(this)
+            line: this.spawnLinePattern.bind(this),
+            swarm: this.spawnSwarmPattern.bind(this) // New pattern for overwhelming moments
         };
         this.currentPattern = 'random';
         
-        // Pressure surge multipliers
+        // Pressure surge system - NEW
         this.surgeSpawnMultiplier = 1.0;
         this.surgeEliteBonus = 0;
+        this.pressureSurgeTimer = 0;
+        this.pressureSurgeActive = false;
+        this.nextSurgeTime = 120; // First surge at 2 minutes
         
-        // Enemy type configurations
+        // Enemy type configurations - EARLIER INTRODUCTION
         this.enemyTypes = {
             basic: { weight: 30, minWave: 1 },
-            fast: { weight: 20, minWave: 2 },
-            tank: { weight: 15, minWave: 3 },
-            ranged: { weight: 12, minWave: 4 },
-            wraith: { weight: 8, minWave: 5 },
-            demon: { weight: 10, minWave: 6 },
-            elite: { weight: 5, minWave: 7 },
-            berserker: { weight: 3, minWave: 8 },
-            summoner: { weight: 2, minWave: 9 },
-            juggernaut: { weight: 1, minWave: 10 }
+            fast: { weight: 25, minWave: 1 },  // Available from start (was wave 2)
+            tank: { weight: 20, minWave: 2 },  // Earlier (was wave 3)
+            ranged: { weight: 15, minWave: 2 }, // Earlier (was wave 4)
+            wraith: { weight: 10, minWave: 3 }, // Earlier (was wave 5)
+            demon: { weight: 12, minWave: 4 },  // Earlier (was wave 6)
+            elite: { weight: 8, minWave: 5 },   // Earlier (was wave 7)
+            berserker: { weight: 5, minWave: 6 },
+            summoner: { weight: 3, minWave: 7 },
+            juggernaut: { weight: 2, minWave: 8 }
+        };
+        
+        // Dynamic difficulty adjustment - NEW
+        this.performanceTracking = {
+            playerHealthAverage: 100,
+            timeSinceLastDamage: 0,
+            complacencyMultiplier: 1.0
         };
         
         // OPTIMIZED: Removed redundant spatial grid - now using centralized CollisionSystem
         // Pre-allocated structures for performance
-        this.tempEnemyArray = new Array(300); // Larger reusable array
-        this.nearbyResults = new Array(50);   // Reusable results array
+        this.tempEnemyArray = new Array(500); // Increased for more enemies
+        this.nearbyResults = new Array(100);   // Increased for dense swarms
         
         this.initializePools();
     }
     
     initializePools() {
-        // Pre-create enemy pools
+        // Pre-create LARGER enemy pools for 1000 enemy support
         const poolSizes = {
-            basic: 50,
-            fast: 30,
-            tank: 20,
-            ranged: 25,
-            wraith: 15,
-            demon: 15,
-            elite: 10,
-            berserker: 8,
-            summoner: 6,
-            juggernaut: 4
+            basic: 200,     // Increased from 50 - most common enemy
+            fast: 150,      // Increased from 30 - second most common
+            tank: 100,      // Increased from 20
+            ranged: 100,    // Increased from 25
+            wraith: 50,     // Increased from 15
+            demon: 50,      // Increased from 15
+            elite: 40,      // Increased from 10
+            berserker: 30,  // Increased from 8
+            summoner: 20,   // Increased from 6
+            juggernaut: 10  // Increased from 4 - rare enemy
         };
         
         for (const [type, size] of Object.entries(poolSizes)) {
@@ -114,57 +125,94 @@ export class EnemySystem {
     }
     
     updateDifficulty() {
-        // Increase difficulty over time and waves - REBALANCED FOR LONG-TERM ENGAGEMENT
+        // AGGRESSIVE difficulty scaling for engaging gameplay
         if (!this.game || typeof this.game.gameTime !== 'number') {
             this.difficultyMultiplier = 1.0;
             return;
         }
         
-        // Cap game time to prevent astronomical numbers
         const cappedGameTime = Math.min(this.game.gameTime, 7200); // Max 2 hours
         const cappedWave = Math.min(this.currentWave, 100); // Max wave 100
-        
-        // REBALANCED: Exponential scaling for challenging long-term gameplay
-        // Time scaling: Exponential growth every 60 seconds (was linear every 10)
         const timeMinutes = cappedGameTime / 60;
-        const timeMultiplier = Math.pow(1.4, timeMinutes); // 40% increase every minute
         
-        // Wave scaling: Exponential growth (was linear 8% per wave)  
-        const waveMultiplier = Math.pow(1.12, cappedWave - 1); // 12% increase per wave
+        // MORE AGGRESSIVE time scaling
+        let timeMultiplier;
+        if (timeMinutes <= 2) {
+            // First 2 minutes: Gentle (builds confidence)
+            timeMultiplier = 1.0 + (timeMinutes * 0.25); // 25% increase per minute
+        } else if (timeMinutes <= 8) {
+            // Minutes 2-8: Aggressive ramp-up
+            const earlyMultiplier = 1.5; // Value at 2 minutes
+            const midGameMinutes = timeMinutes - 2;
+            timeMultiplier = earlyMultiplier * Math.pow(1.35, midGameMinutes); // 35% per minute!
+        } else {
+            // Minutes 8+: Still challenging but sustainable
+            const midGameMultiplier = 1.5 * Math.pow(1.35, 6); // Value at 8 minutes
+            const lateGameMinutes = timeMinutes - 8;
+            timeMultiplier = midGameMultiplier * Math.pow(1.15, lateGameMinutes); // 15% per minute
+        }
         
-        // REBALANCED: Remove artificial caps to allow proper scaling
+        // MORE AGGRESSIVE wave scaling
+        const waveMultiplier = Math.pow(1.12, Math.min(cappedWave - 1, 20)) * // 12% per wave (was 8%)
+                              Math.pow(1.08, Math.max(0, cappedWave - 20)); // 8% after wave 20
+        
         const rawMultiplier = timeMultiplier * waveMultiplier;
         
-        // Validate the calculation result and use much higher cap
-        if (isFinite(rawMultiplier) && rawMultiplier > 0) {
-            this.difficultyMultiplier = Math.min(rawMultiplier, 1000.0); // Increased from 100x to 1000x
+        // Apply dynamic performance adjustment
+        this.updatePerformanceTracking();
+        const adjustedMultiplier = rawMultiplier * this.performanceTracking.complacencyMultiplier;
+        
+        if (isFinite(adjustedMultiplier) && adjustedMultiplier > 0) {
+            this.difficultyMultiplier = Math.min(adjustedMultiplier, 500.0); // Increased cap
         } else {
-            console.warn('Invalid difficulty multiplier calculated, using fallback');
-            this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.2, 50.0);
+            this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.15, 50.0);
         }
         
-        // REBALANCED: Aggressive spawn rate scaling for crowded battles
-        // Base spawn rate increases exponentially to create swarm encounters
-        const rawSpawnRate = 2.0 + Math.pow(this.difficultyMultiplier - 1, 0.8) * 2.0;
+        // HYPER AGGRESSIVE spawn rates
+        let baseSpawnRate = 5.0; // Starting at 5 (was 3) - MUCH MORE INTENSE
+        let rawSpawnRate;
         
-        // Validate spawn rate calculation with much higher cap
+        if (timeMinutes <= 1) {
+            // First minute: Ramping up quickly
+            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 1.0;
+        } else if (timeMinutes <= 3) {
+            // Early-mid game: Aggressive growth
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.6) * 4.0;
+        } else if (timeMinutes <= 5) {
+            // Mid game: Very rapid growth
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 6.0;
+        } else {
+            // Late game: ABSOLUTE CHAOS
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.4) * 8.0;
+        }
+        
+        // Apply pressure surge multiplier
+        if (this.pressureSurgeActive) {
+            rawSpawnRate *= 4.0; // Quadruple spawn rate during surges!
+        }
+        
+        // Much higher spawn rate cap for insane late game
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
-            this.spawnRate = Math.min(rawSpawnRate, 25.0); // Increased from 8 to 25 enemies per second
+            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 80.0 : 50.0);
         } else {
-            console.warn('Invalid spawn rate calculated, using fallback');
-            this.spawnRate = 2.0; // Fallback to base rate
+            this.spawnRate = baseSpawnRate;
         }
         
-        // Enhanced elite spawn chance based on player performance
+        // Update elite spawn chance more aggressively
         this.updateEliteSpawnRate();
         
-        // REBALANCED: Update max active enemies based on time for epic battles
-        const baseMaxEnemies = 150;
-        const timeBonus = Math.floor(timeMinutes * 25); // +25 enemies per minute
-        const waveBonus = (cappedWave - 1) * 5; // +5 enemies per wave
-        this.maxActiveEnemies = Math.min(500, baseMaxEnemies + timeBonus + waveBonus); // Cap at 500 for performance
+        // Much higher enemy caps for epic battles
+        const baseMaxEnemies = 300; // Start higher (was 150)
+        const timeBonus = Math.floor(timeMinutes * 50); // +50 per minute (was 25)
+        const waveBonus = (cappedWave - 1) * 10; // +10 per wave (was 5)
+        this.maxActiveEnemies = Math.min(1000, baseMaxEnemies + timeBonus + waveBonus); // Cap at 1000!
         
-        console.log(`REBALANCED: Time ${timeMinutes.toFixed(1)}min, Wave ${this.currentWave}, Difficulty ${this.difficultyMultiplier.toFixed(2)}x, Spawn Rate ${this.spawnRate.toFixed(1)}/s, Max Enemies ${this.maxActiveEnemies}`);
+        // Check for pressure surge activation
+        this.updatePressureSurge();
+        
+        console.log(`AGGRESSIVE: Time ${timeMinutes.toFixed(1)}min, Wave ${this.currentWave}, ` +
+                   `Difficulty ${this.difficultyMultiplier.toFixed(2)}x, Spawn ${this.spawnRate.toFixed(1)}/s, ` +
+                   `Max ${this.maxActiveEnemies}, Surge: ${this.pressureSurgeActive}`);
     }
     
     updateEliteSpawnRate() {
@@ -197,6 +245,86 @@ export class EnemySystem {
         // Apply surge bonus and cap the final elite spawn chance
         baseRate += this.surgeEliteBonus;
         this.eliteSpawnChance = Math.min(baseRate, 0.35); // Increased max from 0.25 to 0.35
+    }
+
+    updatePerformanceTracking() {
+        // Track player performance for dynamic difficulty
+        if (!this.game.player) return;
+        
+        const player = this.game.player;
+        const healthPercent = player.health / player.maxHealth;
+        
+        // Update health average (smoothed over time)
+        this.performanceTracking.playerHealthAverage = 
+            this.performanceTracking.playerHealthAverage * 0.95 + healthPercent * 0.05;
+        
+        // Track time since last damage
+        if (player.health < player.maxHealth) {
+            this.performanceTracking.timeSinceLastDamage = 0;
+        } else {
+            this.performanceTracking.timeSinceLastDamage += 0.016; // Assume 60fps
+        }
+        
+        // Calculate complacency multiplier - punish players who are too comfortable
+        if (this.performanceTracking.playerHealthAverage > 0.7 && 
+            this.performanceTracking.timeSinceLastDamage > 60) {
+            // Player has been above 70% health for over 60 seconds - increase difficulty!
+            this.performanceTracking.complacencyMultiplier = 1.5;
+            console.log('⚠️ Player too comfortable - increasing difficulty!');
+        } else if (this.performanceTracking.playerHealthAverage < 0.25) {
+            // Player struggling - slight mercy
+            this.performanceTracking.complacencyMultiplier = 0.8;
+        } else {
+            // Normal difficulty
+            this.performanceTracking.complacencyMultiplier = 1.0;
+        }
+    }
+    
+    updatePressureSurge() {
+        // Pressure surge system - MORE FREQUENT overwhelming moments
+        const gameTime = this.game.gameTime || 0;
+        
+        // Check if it's time for a surge
+        if (!this.pressureSurgeActive && gameTime >= this.nextSurgeTime) {
+            // Activate INTENSE surge!
+            this.pressureSurgeActive = true;
+            this.pressureSurgeTimer = 20; // 20 second surge (was 30) - MORE INTENSE
+            this.surgeEliteBonus = 0.25; // +25% elite spawn chance during surge (was 15%)
+            
+            // Schedule next surge MORE FREQUENTLY (every 60-90 seconds instead of 2-3 minutes)
+            this.nextSurgeTime = gameTime + 60 + Math.random() * 30;
+            
+            console.log('🔥🔥🔥 PRESSURE SURGE ACTIVATED! SURVIVE THE HORDE!');
+            
+            // More intense visual feedback for surge
+            if (this.game.camera) {
+                this.game.camera.addShake(15, 0.8); // Stronger shake
+                this.game.camera.flash('#FF0000', 0.3); // Red flash
+            }
+            
+            // Spawn pattern changes to swarm during surge
+            this.currentPattern = 'swarm';
+        }
+        
+        // Update surge timer
+        if (this.pressureSurgeActive) {
+            this.pressureSurgeTimer -= 0.016; // Assume 60fps
+            
+            if (this.pressureSurgeTimer <= 0) {
+                // End surge - SHORTER relief period
+                this.pressureSurgeActive = false;
+                this.surgeEliteBonus = 0;
+                this.surgeSpawnMultiplier = 0.7; // Less relief (was 0.5)
+                this.currentPattern = 'random'; // Back to normal pattern
+                
+                console.log('✅ Pressure surge survived! Quick breather...');
+                
+                // Shorter relief period (10 seconds instead of 15)
+                setTimeout(() => {
+                    this.surgeSpawnMultiplier = 1.0;
+                }, 10000);
+            }
+        }
     }
     
     updateSpawning(dt) {
@@ -296,16 +424,21 @@ export class EnemySystem {
         const player = this.game.player;
         const angle = Math.random() * Math.PI * 2;
         
-        // FIXED: Add coordinate validation
-        const x = player.x + Math.cos(angle) * this.spawnDistance;
-        const y = player.y + Math.sin(angle) * this.spawnDistance;
+        // Calculate spawn position
+        let x = player.x + Math.cos(angle) * this.spawnDistance;
+        let y = player.y + Math.sin(angle) * this.spawnDistance;
         
-        // Validate coordinates are finite and reasonable
-        if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1000000 || Math.abs(y) > 1000000) {
+        // Clamp to world boundaries from TerrainSystem
+        const worldBounds = this.game.systems.terrain?.worldBounds || { left: -2000, right: 2000, top: -2000, bottom: 2000 };
+        x = Math.max(worldBounds.left + 150, Math.min(worldBounds.right - 150, x));
+        y = Math.max(worldBounds.top + 150, Math.min(worldBounds.bottom - 150, y));
+        
+        // Validate coordinates are finite
+        if (!isFinite(x) || !isFinite(y)) {
             console.warn('Invalid spawn coordinates detected, using fallback');
             return {
-                x: player.x + (Math.random() - 0.5) * 800,
-                y: player.y + (Math.random() - 0.5) * 800
+                x: player.x + (Math.random() - 0.5) * 400,
+                y: player.y + (Math.random() - 0.5) * 400
             };
         }
         
@@ -322,16 +455,21 @@ export class EnemySystem {
         
         const distance = this.spawnDistance + (Math.random() - 0.5) * 100;
         
-        // FIXED: Add coordinate validation
-        const x = player.x + Math.cos(angle) * distance;
-        const y = player.y + Math.sin(angle) * distance;
+        // Calculate spawn position
+        let x = player.x + Math.cos(angle) * distance;
+        let y = player.y + Math.sin(angle) * distance;
         
-        // Validate coordinates are finite and reasonable
-        if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1000000 || Math.abs(y) > 1000000) {
+        // Clamp to world boundaries from TerrainSystem
+        const worldBounds = this.game.systems.terrain?.worldBounds || { left: -2000, right: 2000, top: -2000, bottom: 2000 };
+        x = Math.max(worldBounds.left + 150, Math.min(worldBounds.right - 150, x));
+        y = Math.max(worldBounds.top + 150, Math.min(worldBounds.bottom - 150, y));
+        
+        // Validate coordinates are finite
+        if (!isFinite(x) || !isFinite(y)) {
             console.warn('Invalid circle spawn coordinates detected, using fallback');
             return {
-                x: player.x + (Math.random() - 0.5) * 800,
-                y: player.y + (Math.random() - 0.5) * 800
+                x: player.x + (Math.random() - 0.5) * 400,
+                y: player.y + (Math.random() - 0.5) * 400
             };
         }
         
@@ -383,6 +521,35 @@ export class EnemySystem {
         // Validate coordinates are finite and reasonable
         if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1000000 || Math.abs(y) > 1000000) {
             console.warn('Invalid line spawn coordinates detected, using fallback');
+            return {
+                x: player.x + (Math.random() - 0.5) * 800,
+                y: player.y + (Math.random() - 0.5) * 800
+            };
+        }
+        
+        return { x, y };
+    }
+
+    spawnSwarmPattern(enemyType) {
+        const player = this.game.player;
+        
+        // Swarm pattern - spawns many enemies from one direction for overwhelming moments
+        const swarmAngle = Math.random() * Math.PI * 2;
+        const swarmSpread = Math.PI / 3; // 60 degree spread
+        
+        // Random angle within the swarm spread
+        const angleVariance = (Math.random() - 0.5) * swarmSpread;
+        const finalAngle = swarmAngle + angleVariance;
+        
+        // Vary the distance for depth
+        const distanceVariance = this.spawnDistance + (Math.random() - 0.5) * 100;
+        
+        const x = player.x + Math.cos(finalAngle) * distanceVariance;
+        const y = player.y + Math.sin(finalAngle) * distanceVariance;
+        
+        // Validate coordinates
+        if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1000000 || Math.abs(y) > 1000000) {
+            console.warn('Invalid swarm spawn coordinates, using fallback');
             return {
                 x: player.x + (Math.random() - 0.5) * 800,
                 y: player.y + (Math.random() - 0.5) * 800
