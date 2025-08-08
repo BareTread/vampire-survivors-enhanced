@@ -23,6 +23,11 @@ export class SettingsMenu {
         this.menuElement = null;
         this.overlay = null;
         
+        // Store handler and element references for proper cleanup
+        this._handlers = {};
+        this._elements = {};
+        this.focusHandlerBound = false;
+        
         this.initialize();
     }
     
@@ -219,53 +224,73 @@ export class SettingsMenu {
     bindEvents() {
         // Close buttons
         const closeButtons = this.menuElement.querySelectorAll('.close-btn, .btn-close');
-        closeButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.hide());
+        this._elements.closeButtons = Array.from(closeButtons);
+        this._handlers.onCloseClick = () => this.hide();
+        this._elements.closeButtons.forEach(btn => {
+            btn.addEventListener('click', this._handlers.onCloseClick);
         });
         
         // Reset button
         const resetBtn = this.menuElement.querySelector('.btn-reset');
-        resetBtn.addEventListener('click', () => this.resetToDefaults());
+        this._elements.resetBtn = resetBtn;
+        this._handlers.onResetClick = () => this.resetToDefaults();
+        if (resetBtn) {
+            resetBtn.addEventListener('click', this._handlers.onResetClick);
+        }
         
         // Overlay click to close
-        this.overlay.addEventListener('click', (e) => {
+        this._handlers.onOverlayClick = (e) => {
             if (e.target === this.overlay) {
                 this.hide();
             }
-        });
+        };
+        this.overlay.addEventListener('click', this._handlers.onOverlayClick);
         
         // Volume sliders
         const volumeInputs = ['masterVolume', 'musicVolume', 'sfxVolume'];
+        this._handlers.volumeInput = new Map();
+        this._elements.volumeInputs = new Map();
         volumeInputs.forEach(id => {
             const input = this.menuElement.querySelector(`#${id}`);
             const valueSpan = this.menuElement.querySelector(`#${id}Value`);
+            if (!input || !valueSpan) return;
             
-            input.addEventListener('input', (e) => {
+            const handler = (e) => {
                 const value = parseFloat(e.target.value);
                 this.settings[id] = value;
                 valueSpan.textContent = Math.round(value * 100) + '%';
                 this.saveSettings();
                 this.apply();
-            });
+            };
+            this._handlers.volumeInput.set(id, handler);
+            this._elements.volumeInputs.set(id, input);
+            input.addEventListener('input', handler);
         });
         
         // Checkboxes
         const checkboxInputs = ['particleEffects', 'screenShake', 'damageNumbers', 'lowFXMode', 'autoQuality', 'showFPS', 'pauseOnFocusLoss'];
+        this._handlers.checkboxChange = new Map();
+        this._elements.checkboxInputs = new Map();
         checkboxInputs.forEach(id => {
             const input = this.menuElement.querySelector(`#${id}`);
-            input.addEventListener('change', (e) => {
+            if (!input) return;
+            const handler = (e) => {
                 this.settings[id] = e.target.checked;
                 this.saveSettings();
                 this.apply();
-            });
+            };
+            this._handlers.checkboxChange.set(id, handler);
+            this._elements.checkboxInputs.set(id, input);
+            input.addEventListener('change', handler);
         });
         
         // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
+        this._handlers.onDocKeydown = (e) => {
             if (e.key === 'Escape' && this.isVisible) {
                 this.hide();
             }
-        });
+        };
+        document.addEventListener('keydown', this._handlers.onDocKeydown);
     }
     
     show() {
@@ -397,19 +422,21 @@ export class SettingsMenu {
         if (!this.focusHandlerBound) {
             this.focusHandlerBound = true;
             
-            window.addEventListener('blur', () => {
+            this._handlers.onWindowBlur = () => {
                 if (this.settings.pauseOnFocusLoss && this.game.isRunning && !this.game.isPaused) {
                     this.game.wasPausedByFocusLoss = true;
                     this.game.togglePause();
                 }
-            });
+            };
+            window.addEventListener('blur', this._handlers.onWindowBlur);
             
-            window.addEventListener('focus', () => {
+            this._handlers.onWindowFocus = () => {
                 if (this.game.wasPausedByFocusLoss && this.game.isPaused) {
                     this.game.togglePause();
                     this.game.wasPausedByFocusLoss = false;
                 }
-            });
+            };
+            window.addEventListener('focus', this._handlers.onWindowFocus);
         }
     }
     
@@ -455,8 +482,52 @@ export class SettingsMenu {
     
     // Cleanup
     destroy() {
+        // Remove button listeners
+        if (this._elements && this._elements.closeButtons && this._handlers.onCloseClick) {
+            this._elements.closeButtons.forEach(btn => btn.removeEventListener('click', this._handlers.onCloseClick));
+        }
+        if (this._elements && this._elements.resetBtn && this._handlers.onResetClick) {
+            this._elements.resetBtn.removeEventListener('click', this._handlers.onResetClick);
+        }
+        
+        // Remove overlay listener
+        if (this.overlay && this._handlers.onOverlayClick) {
+            this.overlay.removeEventListener('click', this._handlers.onOverlayClick);
+        }
+        
+        // Remove inputs listeners
+        if (this._elements && this._elements.volumeInputs && this._handlers.volumeInput) {
+            this._handlers.volumeInput.forEach((handler, id) => {
+                const input = this._elements.volumeInputs.get(id);
+                if (input) input.removeEventListener('input', handler);
+            });
+        }
+        if (this._elements && this._elements.checkboxInputs && this._handlers.checkboxChange) {
+            this._handlers.checkboxChange.forEach((handler, id) => {
+                const input = this._elements.checkboxInputs.get(id);
+                if (input) input.removeEventListener('change', handler);
+            });
+        }
+        
+        // Remove keyboard shortcut listener
+        if (this._handlers.onDocKeydown) {
+            document.removeEventListener('keydown', this._handlers.onDocKeydown);
+        }
+        
+        // Remove focus handlers
+        if (this.focusHandlerBound) {
+            if (this._handlers.onWindowBlur) window.removeEventListener('blur', this._handlers.onWindowBlur);
+            if (this._handlers.onWindowFocus) window.removeEventListener('focus', this._handlers.onWindowFocus);
+            this.focusHandlerBound = false;
+        }
+        
+        // Remove overlay from DOM last
         if (this.overlay && this.overlay.parentNode) {
             this.overlay.parentNode.removeChild(this.overlay);
         }
+        
+        // Clear refs
+        this._handlers = {};
+        this._elements = {};
     }
 }

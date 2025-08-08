@@ -74,7 +74,7 @@ export class Player {
             invincible: { active: false, timer: 0 },
             speedBoost: { active: false, timer: 0, multiplier: 2.0 },
             damageBoost: { active: false, timer: 0, multiplier: 3.0 },
-            magnetBoost: { active: false, timer: 0, multiplier: 5.0 },
+            magnetBoost: { active: false, timer: 0, multiplier: 3.0 },
             fireRate: { active: false, timer: 0, multiplier: 0.3 } // Lower = faster
         };
         
@@ -266,7 +266,8 @@ export class Player {
                 moveY /= inputMagnitude;
             }
             
-            const speed = this.maxSpeed * this.stats.speed;
+            // Use base maxSpeed here; apply all stat multipliers (incl. speedBoost) later via effective stats
+            const speed = this.maxSpeed;
             const desiredVelocityX = moveX * speed;
             const desiredVelocityY = moveY * speed;
             
@@ -1416,6 +1417,21 @@ export class Player {
         
         if (this.powerUps.damageBoost.active) {
             stats.damage *= this.powerUps.damageBoost.currentMultiplier || this.powerUps.damageBoost.multiplier;
+        }
+        
+        // Fire-rate boosts reduce weapon cooldown. Our weapons compute
+        // effective cooldown as: baseCooldown / stats.cooldown.
+        // Interpret fireRate.currentMultiplier as a cooldown reduction fraction (e.g. 0.3 => 30% faster).
+        if (this.powerUps.fireRate.active) {
+            const raw = (this.powerUps.fireRate.currentMultiplier != null)
+                ? this.powerUps.fireRate.currentMultiplier
+                : this.powerUps.fireRate.multiplier;
+            // Clamp to a sane range to avoid extreme values
+            const reduction = Math.max(0.0, Math.min(0.75, raw)); // max 75% faster
+            // Convert reduction fraction to a multiplier for stats.cooldown (bigger => faster firing)
+            // Example: reduction=0.3 -> factor = 1 / (1 - 0.3) = ~1.428x faster
+            const factor = 1.0 / (1.0 - reduction);
+            stats.cooldown *= factor;
         }
         
         // DESPERATION MODE BONUSES - Dramatic comeback mechanics

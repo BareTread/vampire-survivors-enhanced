@@ -634,7 +634,13 @@ export class Enemy {
         
         // Chance for power-up drop on elite kills
         if (this.type === 'elite' || (this.game.player && this.game.player.combo.count >= 20)) {
-            if (Math.random() < 0.3) { // 30% chance
+            const cap = this.game.maxPowerUpDrops || 8;
+            const current = (this.game.powerUpDrops?.length || 0);
+            // Dynamic probability scales down as we approach the cap
+            let chance = 0.2; // base 20%
+            if (current >= cap * 0.75) chance = 0.05;
+            else if (current >= cap * 0.5) chance = 0.12;
+            if (Math.random() < chance) {
                 this.game.spawnPowerUpDrop(this.x, this.y);
             }
         }

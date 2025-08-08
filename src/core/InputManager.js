@@ -54,7 +54,9 @@ export class InputManager {
         this.inputValidator = {
             validKeys: new Set(['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 
                                'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                               'Escape', 'F1', 'F2', 'g', 'G', ' ', '1', '2', '3', '4', '5'])
+                               'Escape', 'F1', 'F2', 'F5',
+                               'g', 'G', 'd', 'D', 'h', 'H', 'm', 'M', 'r', 'R',
+                               ' ', '1', '2', '3', '4', '5'])
         };
         
         // Mouse prediction for smooth movement
@@ -69,12 +71,15 @@ export class InputManager {
         // Event listeners need to be Maps for proper cleanup
         this.listeners = new Map();
         
+        // Store DOM handler references for proper add/remove
+        this._handlers = {};
+        
         this.setupEventListeners();
     }
     
     setupEventListeners() {
         // OPTIMIZED: Mouse events with cached rect and performance tracking
-        this.canvas.addEventListener('mousemove', (e) => {
+        this._handlers.mousemove = (e) => {
             const now = performance.now();
             
             // OPTIMIZED: Use cached canvas rect, update periodically
@@ -99,9 +104,10 @@ export class InputManager {
                 movementX: e.movementX,
                 movementY: e.movementY
             });
-        }, { passive: true }); // Passive for better performance
+        };
+        this.canvas.addEventListener('mousemove', this._handlers.mousemove, { passive: true }); // Passive for better performance
         
-        this.canvas.addEventListener('mousedown', (e) => {
+        this._handlers.mousedown = (e) => {
             this.mouse.down = true;
             this.mouse.button = e.button;
             
@@ -110,9 +116,10 @@ export class InputManager {
                 y: this.mouse.y,
                 button: e.button
             });
-        });
+        };
+        this.canvas.addEventListener('mousedown', this._handlers.mousedown);
         
-        this.canvas.addEventListener('mouseup', (e) => {
+        this._handlers.mouseup = (e) => {
             this.mouse.down = false;
             this.mouse.button = -1;
             
@@ -121,25 +128,28 @@ export class InputManager {
                 y: this.mouse.y,
                 button: e.button
             });
-        });
+        };
+        this.canvas.addEventListener('mouseup', this._handlers.mouseup);
         
-        this.canvas.addEventListener('click', (e) => {
+        this._handlers.click = (e) => {
             this.emit('click', {
                 x: this.mouse.x,
                 y: this.mouse.y,
                 button: e.button
             });
-        });
+        };
+        this.canvas.addEventListener('click', this._handlers.click);
         
-        this.canvas.addEventListener('contextmenu', (e) => {
+        this._handlers.contextmenu = (e) => {
             e.preventDefault();
             this.emit('rightClick', {
                 x: this.mouse.x,
                 y: this.mouse.y
             });
-        });
+        };
+        this.canvas.addEventListener('contextmenu', this._handlers.contextmenu);
         
-        this.canvas.addEventListener('wheel', (e) => {
+        this._handlers.wheel = (e) => {
             e.preventDefault();
             this.emit('wheel', {
                 x: this.mouse.x,
@@ -147,13 +157,14 @@ export class InputManager {
                 deltaY: e.deltaY,
                 deltaX: e.deltaX
             });
-        });
+        };
+        this.canvas.addEventListener('wheel', this._handlers.wheel);
         
         // OPTIMIZED: Keyboard events with input buffering and latency tracking
-        window.addEventListener('keydown', (e) => {
+        this._handlers.keydown = (e) => {
             // Only prevent default for game-specific function keys, not system keys
             // Allow F11 (fullscreen) and F12 (DevTools) to work normally
-            if ((e.key === 'F1' || e.key === 'F4') || // Game-specific F-keys only
+            if ((e.key === 'F1' || e.key === 'F4' || e.key === 'F5') || // Game-specific F-keys only
                 (e.key === 'Tab' && this.canvas === document.activeElement)) {
                 e.preventDefault();
             }
@@ -178,9 +189,10 @@ export class InputManager {
                 this.emit('keyDown', e.key);
             }
             this.keys[e.key] = true;
-        });
+        };
+        window.addEventListener('keydown', this._handlers.keydown);
         
-        window.addEventListener('keyup', (e) => {
+        this._handlers.keyup = (e) => {
             const now = performance.now();
             
             // Track shift key separately
@@ -195,10 +207,11 @@ export class InputManager {
             this.addToInputBuffer('keyUp', e.key, now);
             
             this.emit('keyUp', e.key);
-        });
+        };
+        window.addEventListener('keyup', this._handlers.keyup);
         
         // Touch events
-        this.canvas.addEventListener('touchstart', (e) => {
+        this._handlers.touchstart = (e) => {
             e.preventDefault();
             this.touches = Array.from(e.touches);
             
@@ -215,9 +228,10 @@ export class InputManager {
                     touches: this.touches
                 });
             }
-        });
+        };
+        this.canvas.addEventListener('touchstart', this._handlers.touchstart);
         
-        this.canvas.addEventListener('touchmove', (e) => {
+        this._handlers.touchmove = (e) => {
             e.preventDefault();
             this.touches = Array.from(e.touches);
             
@@ -233,9 +247,10 @@ export class InputManager {
                     touches: this.touches
                 });
             }
-        });
+        };
+        this.canvas.addEventListener('touchmove', this._handlers.touchmove);
         
-        this.canvas.addEventListener('touchend', (e) => {
+        this._handlers.touchend = (e) => {
             e.preventDefault();
             this.touches = Array.from(e.touches);
             
@@ -247,11 +262,14 @@ export class InputManager {
                     y: this.mouse.y
                 });
             }
-        });
+        };
+        this.canvas.addEventListener('touchend', this._handlers.touchend);
         
         // Prevent default behaviors
-        this.canvas.addEventListener('dragstart', (e) => e.preventDefault());
-        this.canvas.addEventListener('selectstart', (e) => e.preventDefault());
+        this._handlers.dragstart = (e) => e.preventDefault();
+        this._handlers.selectstart = (e) => e.preventDefault();
+        this.canvas.addEventListener('dragstart', this._handlers.dragstart);
+        this.canvas.addEventListener('selectstart', this._handlers.selectstart);
     }
     
     on(event, callback) {
@@ -460,6 +478,26 @@ export class InputManager {
     destroy() {
         try {
             console.log('🧹 Cleaning up InputManager...');
+            
+            // Remove DOM event listeners
+            if (this._handlers) {
+                const c = this.canvas;
+                if (c) {
+                    c.removeEventListener('mousemove', this._handlers.mousemove, false);
+                    c.removeEventListener('mousedown', this._handlers.mousedown, false);
+                    c.removeEventListener('mouseup', this._handlers.mouseup, false);
+                    c.removeEventListener('click', this._handlers.click, false);
+                    c.removeEventListener('contextmenu', this._handlers.contextmenu, false);
+                    c.removeEventListener('wheel', this._handlers.wheel, false);
+                    c.removeEventListener('touchstart', this._handlers.touchstart, false);
+                    c.removeEventListener('touchmove', this._handlers.touchmove, false);
+                    c.removeEventListener('touchend', this._handlers.touchend, false);
+                    c.removeEventListener('dragstart', this._handlers.dragstart, false);
+                    c.removeEventListener('selectstart', this._handlers.selectstart, false);
+                }
+                window.removeEventListener('keydown', this._handlers.keydown, false);
+                window.removeEventListener('keyup', this._handlers.keyup, false);
+            }
             
             // Clear all listeners
             this.listeners.clear();

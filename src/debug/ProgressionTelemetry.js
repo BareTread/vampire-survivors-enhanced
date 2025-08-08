@@ -306,24 +306,11 @@ export class ProgressionTelemetry {
     render(ctx) {
         if (!this.enabled) return;
         
-        // Render real-time stats overlay
-        const x = 10;
-        const y = 300;
+        // Render real-time stats overlay (bottom-left, dynamic sizing)
         const lineHeight = 16;
+        const margin = 12;
         
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(x - 5, y - 20, 300, 140);
-        
-        // Title
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 14px monospace';
-        ctx.fillText('📊 PROGRESSION TELEMETRY', x, y);
-        
-        // Stats
-        ctx.font = '12px monospace';
-        ctx.fillStyle = '#00FF00';
-        
+        // Stats content
         const stats = [
             `Time: ${Math.floor(this.currentMetrics.gameTime / 60)}:${String(Math.floor(this.currentMetrics.gameTime % 60)).padStart(2, '0')}`,
             `Level: ${this.currentMetrics.playerLevel}`,
@@ -335,6 +322,24 @@ export class ProgressionTelemetry {
             `Samples: ${this.samples.length}`
         ];
         
+        const width = 300;
+        const height = (stats.length + 2) * lineHeight + 20; // title + padding
+        const canvasHeight = (ctx && ctx.canvas && ctx.canvas.height) ? ctx.canvas.height : 600;
+        const x = margin;
+        const y = canvasHeight - height - margin;
+        
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(x - 5, y - 14, width + 10, height);
+        
+        // Title
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText('📊 PROGRESSION TELEMETRY', x, y + lineHeight);
+        
+        // Stats
+        ctx.font = '12px monospace';
+        ctx.fillStyle = '#00FF00';
         stats.forEach((stat, index) => {
             ctx.fillText(stat, x, y + (index + 2) * lineHeight);
         });

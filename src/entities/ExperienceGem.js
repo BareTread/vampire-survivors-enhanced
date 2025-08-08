@@ -24,7 +24,9 @@ export class ExperienceGem {
         // Collection mechanics - IMPROVED MAGNETISM
         this.magnetRange = 120; // Distance at which gem starts moving toward player (was 80) - WIDER RANGE
         this.magnetStrength = 350; // Attraction force (was 200) - MUCH STRONGER PULL
+        this.baseMagnetStrength = this.magnetStrength; // Keep base for pulses
         this.beingMagnetized = false;
+        this.forceMagnetTimer = 0; // While > 0, ignore range and pull toward player
         this.collectRange = 25; // Distance at which gem is collected (was 15) - EASIER COLLECTION
         
         // Lifetime
@@ -108,7 +110,16 @@ export class ExperienceGem {
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
             this.currentSpawnTime -= dt;
-            return; // Don't update physics during spawn
+            // Allow forced magnetization during spawn (green magnet or pulse)
+            const player = this.game && this.game.player;
+            const globalMagnetActive = !!(player && player.powerUps && player.powerUps.magnetBoost && player.powerUps.magnetBoost.active);
+            const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
+            if (this.forceMagnetTimer > 0 || globalMagnetActive || systemMagnetActive) {
+                this.updateMagnetism(dt);
+                // Allow collection even during spawn when being pulled
+                this.checkCollection();
+            }
+            return; // Don't update normal physics during spawn
         }
         
         // Update lifetime
@@ -143,6 +154,64 @@ export class ExperienceGem {
         
         // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
+        
+        // If a global magnet pulse is active OR the player's Magnet power-up is active, pull regardless of range
+        const globalMagnetActive = !!(player && player.powerUps && player.powerUps.magnetBoost && player.powerUps.magnetBoost.active);
+        const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
+        if (this.forceMagnetTimer > 0 || globalMagnetActive || systemMagnetActive) {
+            if (this.forceMagnetTimer > 0) {
+                this.forceMagnetTimer = Math.max(0, this.forceMagnetTimer - dt);
+            }
+            this.beingMagnetized = true;
+            this.grounded = false; // ensure no ground friction while being magnetized
+            
+            // Prevent division by zero
+            if (distance === 0) {
+                this.velocity.x = 0;
+                this.velocity.y = 0;
+                return;
+            }
+            const nx = dx / distance;
+            const ny = dy / distance;
+            
+            // Strong, distance-aware pull during pulse or global magnet
+            // Ensure gems reach the player before the magnet boost ends
+            let speed;
+            if ((globalMagnetActive || systemMagnetActive)) {
+                // Use player's magnetBoost timer if available, otherwise system timer
+                let cm = 3.0;
+                let remaining = 0;
+                if (globalMagnetActive && player.powerUps && player.powerUps.magnetBoost) {
+                    const mb = player.powerUps.magnetBoost;
+                    cm = (mb.currentMultiplier != null) ? mb.currentMultiplier : (mb.multiplier || 3.0);
+                    remaining = (typeof mb.timer === 'number') ? mb.timer : 0;
+                } else if (systemMagnetActive && this.game && this.game.systems && this.game.systems.experience) {
+                    remaining = this.game.systems.experience.globalMagnetTimer || 0;
+                }
+                const minBase = this.baseMagnetStrength * Math.max(3, cm + 2); // baseline pull strength
+                const timeBudget = Math.max(0.3, Math.min(remaining * 0.9, 3.0)); // arrive before boost ends
+                const requiredSpeed = distance / timeBudget;
+                // Respect per-frame delta safety clamp (< 500)
+                const maxPerFrameDelta = 460;
+                const maxSpeed = maxPerFrameDelta / Math.max(0.001, dt);
+                speed = Math.min(Math.max(minBase, requiredSpeed), maxSpeed);
+            } else {
+                // Forced pulse (forceMagnetTimer only)
+                speed = this.baseMagnetStrength * 5;
+            }
+            this.velocity.x = nx * speed;
+            this.velocity.y = ny * speed;
+            
+            const deltaX = this.velocity.x * dt;
+            const deltaY = this.velocity.y * dt;
+            if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
+                this.x += deltaX;
+                this.y += deltaY;
+            } else {
+                this.velocity = { x: 0, y: 0 };
+            }
+            return; // Skip normal range check while forced
+        }
         
         if (distance <= effectiveMagnetRange) {
             this.beingMagnetized = true;
@@ -508,6 +577,24 @@ export class ExperienceGem {
         // Pulsing glow (faster for lucky gems)
         const pulseRate = this.pulseRate || 1.0;
         const pulseIntensity = 0.7 + 0.3 * Math.sin(performance.now() * 0.005 * pulseRate + this.pulseOffset);
+        
+        // Magnetized halo polish (additive)
+        const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
+        if (this.beingMagnetized || systemMagnetActive) {
+            const haloPulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.006 + this.pulseOffset);
+            const radius = this.size * (this.type === 'rare' ? 6 : 4.5);
+            const grad = ctx.createRadialGradient(this.x, gemY, 0, this.x, gemY, radius);
+            grad.addColorStop(0, `rgba(68,255,68,${0.28 * haloPulse})`);
+            grad.addColorStop(1, 'rgba(68,255,68,0)');
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha *= (0.9 * pulseIntensity);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(this.x, gemY, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
         
         // Enhanced glow for lucky gems
         if (this.isLucky && this.glowEffect) {

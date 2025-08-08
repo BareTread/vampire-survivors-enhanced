@@ -10,6 +10,7 @@ export class DamageNumber {
         this.x = 0;
         this.y = 0;
         this.value = 0;
+        this.text = '0';
         this.color = '#ffffff';
         this.fontSize = 16;
         this.opacity = 1;
@@ -27,7 +28,14 @@ export class DamageNumber {
     init(x, y, value, color = '#ffffff', isCritical = false) {
         this.x = x;
         this.y = y;
-        this.value = value;
+        // Support both numeric values and arbitrary text labels
+        if (typeof value === 'number' && isFinite(value)) {
+            this.value = value;
+            this.text = Math.round(value).toString();
+        } else {
+            this.value = 0;
+            this.text = String(value ?? '');
+        }
         this.color = color;
         this.fontSize = isCritical ? 24 : 16;
         this.opacity = 1;
@@ -94,7 +102,7 @@ export class DamageNumber {
         ctx.shadowOffsetY = 2;
         
         // Draw the damage number
-        ctx.fillText(Math.round(this.value), screenX, screenY);
+        ctx.fillText(this.text, screenX, screenY);
         
         ctx.restore();
     }
@@ -107,6 +115,7 @@ export class DamageNumber {
         this.x = 0;
         this.y = 0;
         this.value = 0;
+        this.text = '0';
         this.elapsed = 0;
     }
 }

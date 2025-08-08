@@ -297,9 +297,11 @@ export class EnemySystem {
             console.log('🔥🔥🔥 PRESSURE SURGE ACTIVATED! SURVIVE THE HORDE!');
             
             // More intense visual feedback for surge
-            if (this.game.camera) {
-                this.game.camera.addShake(15, 0.8); // Stronger shake
-                this.game.camera.flash('#FF0000', 0.3); // Red flash
+            if (this.game.camera && typeof this.game.camera.shake === 'function') {
+                this.game.camera.shake(15, 0.8); // Stronger shake (fixed method name)
+                if (typeof this.game.camera.flash === 'function') {
+                    this.game.camera.flash('#FF0000', 0.3); // Red flash
+                }
             }
             
             // Spawn pattern changes to swarm during surge

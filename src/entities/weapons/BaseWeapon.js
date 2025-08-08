@@ -400,7 +400,9 @@ export class BaseWeapon {
         const levelMultiplier = this.level;
         
         // Apply player stat bonuses
-        const playerStats = this.player.stats;
+        const playerStats = (typeof this.player.getEffectiveStats === 'function')
+            ? this.player.getEffectiveStats()
+            : this.player.stats;
         
         this.currentStats = {
             damage: this.baseStats.damage * levelMultiplier * playerStats.damage,

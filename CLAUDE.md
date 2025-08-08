@@ -115,6 +115,57 @@ src/entities/
 2. Initialize in `VampireSurvivorsGame.systems` object
 3. Call update/render methods in game loop
 
+## Developer Log (most recent first)
+
+### 2025-08-08
+- Global magnet system added in `src/systems/ExperienceSystem.js`.
+  - New methods: `activateGlobalMagnet(duration)`, `isGlobalMagnetActive()`.
+  - Holds `globalMagnetTimer` and forces all gems to magnetize regardless of distance/spawn.
+- `src/entities/ExperienceGem.js`: honors system-level magnet; computes pull speed using remaining time (player magnetBoost vs system timer). Added subtle additive green halo when magnetized.
+- Power-up pickup integration (`src/core/VampireSurvivorsGame.js`): magnet power-up now also calls `experience.activateGlobalMagnet(12.0)` to keep global magnet active for full duration.
+- Developer hotkey: Shift+M in `VampireSurvivorsGame.handleKeyDown()` instantly activates `player.activatePowerUp('magnetBoost', 12)` + `experience.magnetizeAllGems()` + `experience.activateGlobalMagnet(12)`.
+- Input improvements (`src/core/InputManager.js`): extended `validKeys` to include `m/M, d/D, r/R, h/H, F5`; preventDefault on F5 to avoid page refresh during telemetry toggle.
+- HUD buff bar: `VampireSurvivorsGame.updatePowerUpIndicators()` renders compact pills into the `#powerup-indicators` container. Shows active boosts (Speed, Damage, Fire Rate, Invincible, Magnet) with live countdowns. Magnet time = `max(player.magnetBoost.timer, systems.experience.globalMagnetTimer)`.
+- Fixed NaN floating text: `src/core/DamageNumberPool.js` now supports both numbers and strings.
+  - `DamageNumber.init(...)` computes a `text` field; `render()` draws `text` instead of rounding `value`.
+  - Prevents "NaN" when messages like `LEVEL 25` or `FULL HEAL` are displayed.
+- Power-up drops polish: moved rendering to world-space, removed screen-space draw; enforced cap (8), size 14, lifetime 10s; elite/combination drop chance scales with active drop count.
+
+## Debug & Hotkeys
+
+- Shift+M: Activate magnetBoost and global magnet for 12s; instant gem pulse via `magnetizeAllGems()`.
+- F1: Performance monitor.
+- F4: Debug overlay.
+- F5: Toggle progression telemetry (browser refresh prevented).
+
+Quick testing recipe:
+- Start a run, press Shift+M. All gems should stream to the player; HUD shows a Magnet pill with a countdown.
+- Collect standard boosts to see corresponding pills appear with timers.
+
+## System Touchpoints (files/functions)
+
+- `src/core/VampireSurvivorsGame.js`
+  - `handleKeyDown()` → Shift+M handler.
+  - `updateGameUI()` → calls `updatePowerUpIndicators()`.
+  - `updatePowerUpIndicators()` → renders HUD pills into `#powerup-indicators`.
+- `src/core/InputManager.js`
+  - `inputValidator.validKeys`, keydown handler prevents default on F5.
+- `src/systems/ExperienceSystem.js`
+  - `activateGlobalMagnet()`, `isGlobalMagnetActive()`, `globalMagnetTimer`, `magnetizeAllGems()`.
+- `src/entities/ExperienceGem.js`
+  - Respects system magnet; additive halo when magnetized; time-based pull speed.
+- `src/core/DamageNumberPool.js`
+  - `DamageNumber` uses `text` to render numbers/labels safely (no NaN).
+- `src/systems/ParticleSystemCore.js`, `src/systems/VisualEffectsSystem.js`
+  - Route damage text through `globalDamageNumberPool`.
+
+## Notes for Future Work
+
+- Magnet polish: light trail particles and SFX while magnet is active.
+- HUD: optional progress bars on pills and stacking indicators for overlapping durations.
+- Balance: refine magnet pull speed caps for late waves; recheck durations (Damage 10s, Speed 8s, Fire Rate 15s, Invincible 3–5s).
+- Testing: add smoke tests for overlapping player magnet vs system magnet timers.
+
 ## Performance Considerations
 
 - **Entity Limits**: Optimized for 200+ entities at 60+ FPS

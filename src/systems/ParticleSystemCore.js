@@ -799,6 +799,15 @@ export class ParticleSystemCore {
     }
     
     createBurst(x, y, type, options = {}) {
+        // Preserve special handling for common types
+        if (type === 'hit') {
+            this.createHitEffect(x, y, options.color || '#FFFFFF');
+            return;
+        }
+        if (type === 'death') {
+            this.createDeathEffect(x, y);
+            return;
+        }
         // Use adaptive quality for particle counts
         const baseCount = options.count || 8;
         const count = Math.floor(baseCount * this.qualityLevel);
@@ -903,29 +912,9 @@ export class ParticleSystemCore {
         };
     }
     
-    // Helper methods for common effects (optional compatibility)
-    createBurst(x, y, type, options = {}) {
-        if (type === 'hit') {
-            this.createHitEffect(x, y, options.intensity || 1.0);
-        } else if (type === 'death') {
-            this.createDeathEffect(x, y);
-        } else {
-            // Generic burst
-            const count = Math.floor((options.count || 5) * this.particleReduction);
-            for (let i = 0; i < count; i++) {
-                this.createEffectParticle(x, y, {
-                    vx: (Math.random() - 0.5) * 200,
-                    vy: (Math.random() - 0.5) * 200,
-                    life: options.life || 1.0,
-                    size: options.size || 3,
-                    color: options.color || '#FFFFFF'
-                });
-            }
-        }
-    }
-    
     showDamage(x, y, damage, isCritical = false) {
-        this.createDamageNumber(x, y, damage, isCritical);
-        this.createHitEffect(x, y, isCritical ? 1.8 : 1.0);
+        const color = isCritical ? '#FF0000' : '#FFFFFF';
+        this.createDamageNumber(x, y, String(damage), color);
+        this.createHitEffect(x, y, color);
     }
 }

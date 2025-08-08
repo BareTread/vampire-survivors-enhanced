@@ -207,6 +207,12 @@ export class LayeredRenderer {
             game.systems.experience.render(layerRenderer);
         }
         
+        // Render power-ups (world-space)
+        if (game.renderPowerUpDrops) {
+            const layerRenderer = this.createCompatibleRenderer(ctx);
+            game.renderPowerUpDrops(layerRenderer);
+        }
+        
         ctx.restore();
     }
     

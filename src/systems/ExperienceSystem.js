@@ -27,6 +27,9 @@ export class ExperienceSystem {
         this.lastCleanupTime = 0;
         this.cleanupInterval = 2000; // Cleanup every 2 seconds
         
+        // Global magnet timer (system-level). When > 0, all gems are pulled regardless of range
+        this.globalMagnetTimer = 0;
+        
         this.initializePool();
     }
     
@@ -50,6 +53,11 @@ export class ExperienceSystem {
         
         // Auto-collect nearby gems
         this.autoCollectGems();
+        
+        // Decrement global magnet timer
+        if (this.globalMagnetTimer > 0) {
+            this.globalMagnetTimer = Math.max(0, this.globalMagnetTimer - dt);
+        }
         
         // Periodic cleanup
         const currentTime = performance.now();
@@ -293,17 +301,25 @@ export class ExperienceSystem {
         
         for (const gem of this.activeGems) {
             if (gem.active && !gem.collected) {
+                // Start a timed global magnet pulse that ignores range in ExperienceGem.updateMagnetism
+                if (typeof gem.forceMagnetTimer !== 'number') {
+                    gem.forceMagnetTimer = 0;
+                }
+                gem.forceMagnetTimer = Math.max(gem.forceMagnetTimer, 1.5); // seconds of forced pull
                 gem.beingMagnetized = true;
-                gem.magnetStrength = gem.magnetStrength * 5; // 5x magnet strength for level up
+                // Ensure magnet strength baseline is sane (pulse path uses baseMagnetStrength internally)
+                if (typeof gem.baseMagnetStrength === 'number') {
+                    gem.magnetStrength = gem.baseMagnetStrength;
+                }
                 magnetizedCount++;
                 
-                // Reduced sparkle trail effect to every 5th gem only
-                if (this.game.systems.particle && magnetizedCount % 5 === 0) {
+                // Subtler sparkle trail: only every 8th gem
+                if (this.game.systems.particle && magnetizedCount % 8 === 0) {
                     this.game.systems.particle.create(gem.x, gem.y, {
                         vx: (Math.random() - 0.5) * 20,
                         vy: (Math.random() - 0.5) * 20,
-                        life: 0.6, // Shorter life
-                        size: 2, // Smaller size
+                        life: 0.5, // Shorter life
+                        size: 1.5, // Smaller size
                         color: '#00FFFF',
                         glow: true,
                         fadeOut: true
@@ -318,6 +334,17 @@ export class ExperienceSystem {
         }
         
         return magnetizedCount; // Return how many gems were affected
+    }
+    
+    // System-level global magnet activation
+    activateGlobalMagnet(duration = 0) {
+        const d = Math.max(0, duration);
+        this.globalMagnetTimer = Math.max(this.globalMagnetTimer, d);
+        return this.globalMagnetTimer;
+    }
+    
+    isGlobalMagnetActive() {
+        return this.globalMagnetTimer > 0;
     }
     
     // Query methods

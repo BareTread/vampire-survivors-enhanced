@@ -24,6 +24,10 @@ export class ResponsiveCanvas {
         
         // Performance mode for mobile
         this.performanceMode = this.isMobile;
+
+        // Bound handlers to ensure add/removeEventListener use same references
+        this.boundResizeHandler = this.handleResize.bind(this);
+        this.boundOrientationHandler = this.handleOrientationChange.bind(this);
         
         this.initialize();
     }
@@ -33,8 +37,8 @@ export class ResponsiveCanvas {
         this.updateCanvasSize();
         
         // Add event listeners
-        window.addEventListener('resize', this.handleResize.bind(this));
-        window.addEventListener('orientationchange', this.handleOrientationChange.bind(this));
+        window.addEventListener('resize', this.boundResizeHandler);
+        window.addEventListener('orientationchange', this.boundOrientationHandler);
         
         // Apply mobile optimizations if needed
         if (this.isMobile) {
@@ -249,8 +253,8 @@ export class ResponsiveCanvas {
     
     // Cleanup
     destroy() {
-        window.removeEventListener('resize', this.handleResize.bind(this));
-        window.removeEventListener('orientationchange', this.handleOrientationChange.bind(this));
+        window.removeEventListener('resize', this.boundResizeHandler);
+        window.removeEventListener('orientationchange', this.boundOrientationHandler);
         
         if (this.resizeTimeout) {
             clearTimeout(this.resizeTimeout);

@@ -79,6 +79,10 @@ export class VampireSurvivorsGame {
         // Game entities
         this.player = null;
         
+        // Power-up drops management
+        this.powerUpDrops = [];
+        this.maxPowerUpDrops = 8; // Cap to reduce clutter
+        
         // Game loop
         this.lastTime = 0;
         this.deltaTime = 0;
@@ -221,6 +225,9 @@ export class VampireSurvivorsGame {
         
         // Create game over UI
         this.createGameOverUI(uiContainer);
+        
+        // Notifications / toasts overlay
+        this.createNotificationsUI(uiContainer);
     }
     
     createHUD(container) {
@@ -228,8 +235,10 @@ export class VampireSurvivorsGame {
         hud.id = 'game-hud';
         hud.style.cssText = `
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 20px; /* fallback */
+            top: max(20px, env(safe-area-inset-top));
+            left: 20px; /* fallback */
+            left: max(20px, env(safe-area-inset-left));
             color: #E6E6FA;
             font-family: 'Cinzel', 'Times New Roman', serif;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(138, 43, 226, 0.4);
@@ -333,6 +342,7 @@ export class VampireSurvivorsGame {
             text-align: center;
             display: none;
             pointer-events: auto;
+            z-index: 500;
             max-width: 600px;
         `;
         
@@ -354,7 +364,7 @@ export class VampireSurvivorsGame {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%, -50%) scale(0.95);
             background: linear-gradient(145deg, rgba(25, 25, 112, 0.95), rgba(75, 0, 130, 0.95));
             border: 4px solid #8B008B;
             border-radius: 20px;
@@ -364,8 +374,11 @@ export class VampireSurvivorsGame {
             text-align: center;
             display: none;
             pointer-events: auto;
+            z-index: 600;
             box-shadow: 0 0 40px rgba(75, 0, 130, 0.8), inset 0 0 20px rgba(138, 43, 226, 0.3);
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            transition: opacity 200ms ease, transform 200ms ease;
         `;
         
         gameOverUI.innerHTML = `
@@ -407,6 +420,7 @@ export class VampireSurvivorsGame {
                 transition: all 0.3s ease;
                 box-shadow: 0 4px 15px rgba(139, 0, 139, 0.4);
             " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">🏰 Return Home</button>
+            <p style="margin-top: 18px; color: #ccc; font-size: 14px; opacity: 0.9;">Press <strong>R</strong> to Rise Again or <strong>M</strong> to Return Home</p>
         `;
         
         container.appendChild(gameOverUI);
@@ -419,6 +433,91 @@ export class VampireSurvivorsGame {
         document.getElementById('menu-button').addEventListener('click', () => {
             this.returnToMenu();
         });
+    }
+    
+    createNotificationsUI(container) {
+        // Subtle toasts pinned to top-right
+        const notifications = document.createElement('div');
+        notifications.id = 'notifications';
+        notifications.style.cssText = `
+            position: absolute;
+            top: 16px; /* fallback */
+            top: max(16px, env(safe-area-inset-top));
+            right: 16px; /* fallback */
+            right: max(16px, env(safe-area-inset-right));
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 300;
+        `;
+        container.appendChild(notifications);
+    }
+
+    showToast(message, color = '#FFD700', duration = 1500) {
+        const container = document.getElementById('notifications');
+        if (!container) return;
+        const el = document.createElement('div');
+        el.textContent = message;
+        el.style.cssText = `
+            background: rgba(10, 10, 20, 0.55);
+            color: ${color};
+            border: 1px solid rgba(120, 120, 160, 0.35);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            font-size: 12px;
+            letter-spacing: 0.3px;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.35);
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: opacity 160ms ease, transform 160ms ease;
+            pointer-events: none;
+        `;
+        container.appendChild(el);
+        requestAnimationFrame(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0)';
+        });
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-4px)';
+            setTimeout(() => el.remove(), 200);
+        }, duration);
+        
+        // Keep only a few toasts visible
+        while (container.children.length > 4) {
+            container.firstChild.remove();
+        }
+    }
+
+    showPickupToast(text, color = '#FFD700') {
+        this.showToast(text, color, 1400);
+    }
+
+    getPowerUpName(type) {
+        const names = {
+            health: 'Health',
+            invincible: 'Invincibility',
+            speedBoost: 'Speed',
+            damageBoost: 'Damage',
+            magnetBoost: 'Magnet',
+            fireRate: 'Fire Rate'
+        };
+        return names[type] || 'Power-up';
+    }
+
+    getPowerUpPickupHint(type) {
+        const hints = {
+            health: 'Heal 50%',
+            invincible: 'Invincible 5s',
+            speedBoost: 'Speed x2 (8s)',
+            damageBoost: 'Damage x3 (10s)',
+            magnetBoost: 'Pull all gems',
+            fireRate: 'Fire rate +30% (15s)'
+        };
+        return hints[type] || 'Power-up';
     }
     
     handleKeyDown(key) {
@@ -438,6 +537,26 @@ export class VampireSurvivorsGame {
                 // Toggle performance dashboard
                 if (this.performanceDashboard) {
                     this.performanceDashboard.toggle();
+                }
+                break;
+            case 'r':
+                if (this.gameState === 'gameOver') {
+                    this.restartGame();
+                }
+                break;
+            case 'm':
+                if (this.inputManager.keys['shift']) {
+                    // Debug: Activate global magnet and magnet boost for quick testing
+                    if (this.player && this.systems && this.systems.experience) {
+                        this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
+                        this.systems.experience.magnetizeAllGems();
+                        if (typeof this.systems.experience.activateGlobalMagnet === 'function') {
+                            this.systems.experience.activateGlobalMagnet(12.0);
+                        }
+                        console.log('🧲 Debug: Global magnet activated for 12s');
+                    }
+                } else if (this.gameState === 'gameOver') {
+                    this.returnToMenu();
                 }
                 break;
             case 'd':
@@ -480,6 +599,76 @@ export class VampireSurvivorsGame {
         }
     }
     
+    updatePowerUpIndicators() {
+        const container = document.getElementById('powerup-indicators');
+        if (!container || !this.player) return;
+        
+        const entries = [];
+        const p = this.player.powerUps || {};
+        
+        // Helper to push an entry
+        const pushEntry = (key, label, seconds, color, icon) => {
+            if (seconds > 0.05) {
+                entries.push({ key, label, seconds, color, icon });
+            }
+        };
+        
+        // Speed
+        if (p.speedBoost?.active) {
+            pushEntry('speedBoost', 'Speed', p.speedBoost.timer, '#4ade80', '⚡');
+        }
+        // Damage
+        if (p.damageBoost?.active) {
+            pushEntry('damageBoost', 'Damage', p.damageBoost.timer, '#f59e0b', '🗡️');
+        }
+        // Fire rate
+        if (p.fireRate?.active) {
+            pushEntry('fireRate', 'Fire Rate', p.fireRate.timer, '#60a5fa', '🔥');
+        }
+        // Invincibility
+        if (p.invincible?.active) {
+            pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
+        }
+        // Magnet: combine player magnetBoost and system-level global magnet timer
+        const playerMagnet = p.magnetBoost?.active ? (p.magnetBoost.timer || 0) : 0;
+        const systemMagnet = (this.systems && this.systems.experience && this.systems.experience.globalMagnetTimer) ? this.systems.experience.globalMagnetTimer : 0;
+        const magnetTime = Math.max(playerMagnet, systemMagnet);
+        if (magnetTime > 0.05) {
+            pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
+        }
+        
+        // Render compact pills with remaining time (no heavy DOM churn)
+        if (entries.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        const html = entries.map(e => {
+            const secs = Math.max(0, e.seconds).toFixed(1);
+            return `
+                <span 
+                    style="
+                        display:inline-block;
+                        margin-right:8px; margin-bottom:6px;
+                        padding:3px 8px; border-radius:10px;
+                        background: rgba(0,0,0,0.45);
+                        border: 1px solid ${e.color};
+                        color: ${e.color};
+                        font-size: 12px; line-height: 1; letter-spacing: .3px;
+                        text-shadow: 0 0 6px rgba(255,255,255,0.2);
+                        box-shadow: 0 0 10px rgba(0,0,0,0.35), inset 0 0 8px rgba(255,255,255,0.06);
+                        pointer-events: none;
+                    ">
+                    <span style="margin-right:6px;">${e.icon}</span>
+                    <strong style="color:${e.color}">${e.label}</strong>
+                    <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
+                </span>
+            `;
+        }).join('');
+        
+        container.innerHTML = html;
+    }
+
     handleKeyUp(key) {
         // Handle key releases if needed
     }
@@ -497,6 +686,7 @@ export class VampireSurvivorsGame {
     
     startGame() {
         this.gameState = 'playing';
+        this.timeScale = 1.0; // Ensure gameplay resumes after game over
         this.gameTime = 0;
         this.score = 0;
         
@@ -519,6 +709,7 @@ export class VampireSurvivorsGame {
         this.systems.experience.clearAll();
         this.systems.particle.clear();
         this.systems.statusEffect.clearAllEffects();
+        this.powerUpDrops = [];
         
         // Set up camera to follow player
         this.camera.targetX = this.player.x;
@@ -559,8 +750,26 @@ export class VampireSurvivorsGame {
     
     returnToMenu() {
         this.gameState = 'menu';
+        this.timeScale = 1.0;
         this.hideGameOverUI();
+        
+        // Clear world state so the menu is clean
+        try {
+            this.systems.projectile.clearAll();
+            this.systems.experience.clearAll();
+            this.systems.particle.clear();
+            this.systems.enemy.reset();
+            if (this.audioManager && this.audioManager.stopAll) {
+                this.audioManager.stopAll();
+            }
+        } catch (e) {
+            console.warn('Minor cleanup issue on returnToMenu:', e);
+        }
+        this.powerUpDrops = [];
+        this.player = null;
+        
         this.updateUIVisibility();
+        this.showMenuMessage();
     }
     
     gameOver() {
@@ -660,7 +869,7 @@ export class VampireSurvivorsGame {
             { stat: 'speed', name: 'Speed +15%', description: 'Move faster' },
             { stat: 'health', name: 'Max Health +25%', description: 'Increase maximum health' },
             { stat: 'luck', name: 'Luck +10%', description: 'Better experience and drops' },
-            { stat: 'area', name: 'Area +15%', description: 'Increase weapon area' },
+            { stat: 'area', name: 'Area +15%', description: 'Bigger projectiles and AoE radius' },
             { stat: 'cooldown', name: 'Cooldown -10%', description: 'Weapons fire faster' }
         ];
         
@@ -748,6 +957,8 @@ export class VampireSurvivorsGame {
                 if (this.audioManager && this.audioManager.playLevelUp) {
                     this.audioManager.playLevelUp();
                 }
+                // Subtle toast for clarity
+                this.showToast(`${option.name}: ${option.description}`, '#7CF2FF', 1300);
                 break;
         }
         
@@ -793,11 +1004,25 @@ export class VampireSurvivorsGame {
     }
     
     showGameOverUI() {
-        document.getElementById('game-over-ui').style.display = 'block';
+        const el = document.getElementById('game-over-ui');
+        if (!el) return;
+        el.style.display = 'block';
+        // Trigger fade-in
+        requestAnimationFrame(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'translate(-50%, -50%) scale(1)';
+        });
     }
     
     hideGameOverUI() {
-        document.getElementById('game-over-ui').style.display = 'none';
+        const el = document.getElementById('game-over-ui');
+        if (!el) return;
+        // Fade out then hide
+        el.style.opacity = '0';
+        el.style.transform = 'translate(-50%, -50%) scale(0.97)';
+        setTimeout(() => {
+            el.style.display = 'none';
+        }, 200);
     }
     
     updateFinalStats() {
@@ -826,6 +1051,8 @@ export class VampireSurvivorsGame {
     }
     
     showMenuMessage() {
+        // Ensure we don't duplicate the overlay
+        this.hideMenuMessage();
         // Create a simple menu overlay
         const menuMessage = document.createElement('div');
         menuMessage.id = 'menu-message';
@@ -1257,6 +1484,9 @@ export class VampireSurvivorsGame {
         // 2. Experience gems (can be batched by color/size)
         this.systems.experience.render(this.renderer);
         
+        // 2.5 Power-ups (world-space, render with entities)
+        this.renderPowerUpDrops(this.renderer);
+        
         // 3. Enemies (group by type for potential batching)
         this.systems.enemy.render(this.renderer);
         
@@ -1309,8 +1539,7 @@ export class VampireSurvivorsGame {
             this.progressionTelemetry.render(this.ctx);
         }
         
-        // Power-ups and UI overlays (screen space)
-        this.renderPowerUpDrops(this.renderer);
+        // UI overlays (screen space)
         this.renderUIOverlays();
         
         // OPTIMIZED: End frame processing for batching and statistics
@@ -1668,6 +1897,9 @@ export class VampireSurvivorsGame {
         
         // Update manual aiming status
         this.updateManualAimingUI();
+
+        // Update active power-up indicators (timers)
+        this.updatePowerUpIndicators();
         
         
         // Update debug info (technical metrics only)
@@ -2086,6 +2318,13 @@ export class VampireSurvivorsGame {
     }
     
     spawnPowerUpDrop(x, y) {
+        // Ensure storage and respect cap to reduce clutter
+        if (!this.powerUpDrops) this.powerUpDrops = [];
+        const cap = this.maxPowerUpDrops || 8;
+        if (this.powerUpDrops.length >= cap) {
+            return; // Skip spawning when at cap
+        }
+
         // Random power-up type
         const powerUpTypes = ['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate'];
         const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
@@ -2095,8 +2334,8 @@ export class VampireSurvivorsGame {
             x: x + (Math.random() - 0.5) * 100,
             y: y + (Math.random() - 0.5) * 100,
             type: type,
-            size: 16,
-            lifetime: 15.0, // 15 seconds to collect
+            size: 14, // slightly smaller for less visual dominance
+            lifetime: 10.0, // reduced from 15s to 10s
             timer: 0,
             collected: false,
             pulsePhase: Math.random() * Math.PI * 2,
@@ -2104,7 +2343,6 @@ export class VampireSurvivorsGame {
         };
         
         // Add to game systems
-        if (!this.powerUpDrops) this.powerUpDrops = [];
         this.powerUpDrops.push(powerUp);
         
         // Visual spawn effect
@@ -2154,22 +2392,37 @@ export class VampireSurvivorsGame {
                 this.player.activatePowerUp('invincible', 5.0, 1.0);
                 break;
             case 'speedBoost':
-                this.player.activatePowerUp('speedBoost', 8.0, 2.0);
+                // Match label: Speed x2 (base multiplier 2.0, intensity 1.0)
+                this.player.activatePowerUp('speedBoost', 8.0, 1.0);
                 break;
             case 'damageBoost':
-                this.player.activatePowerUp('damageBoost', 10.0, 3.0);
+                // Match label: Damage x3 (base multiplier 3.0, intensity 1.0)
+                this.player.activatePowerUp('damageBoost', 10.0, 1.0);
                 break;
             case 'magnetBoost':
-                this.player.activatePowerUp('magnetBoost', 12.0, 5.0);
+                // Global magnet effect should ignore range but not be excessively strong
+                this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
                 this.systems.experience.magnetizeAllGems();
+                // Ensure continuous global pull for the duration
+                if (this.systems && this.systems.experience && typeof this.systems.experience.activateGlobalMagnet === 'function') {
+                    this.systems.experience.activateGlobalMagnet(12.0);
+                }
                 break;
             case 'fireRate':
-                this.player.activatePowerUp('fireRate', 15.0, 0.3);
+                // Match label: Fire rate +30% (base reduction 0.3, intensity 1.0)
+                this.player.activatePowerUp('fireRate', 15.0, 1.0);
                 break;
         }
         
+         // Subtle pickup toast for clarity
+        try {
+            const name = this.getPowerUpName(powerUp.type);
+            const hint = this.getPowerUpPickupHint(powerUp.type);
+            this.showPickupToast(`${name} — ${hint}`, this.getPowerUpColor(powerUp.type));
+        } catch (_) {}
+        
         // Collection effects
-        this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, powerUp.type);
+        this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, this.getPowerUpColor(powerUp.type));
         
         if (this.audioManager) {
             this.audioManager.playPowerUpCollect();
@@ -2206,6 +2459,36 @@ export class VampireSurvivorsGame {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(this.getPowerUpSymbol(powerUp.type), powerUp.x, powerUp.y);
+            
+            // Nearby hint label to explain the drop
+            if (this.player) {
+                const dx = powerUp.x - this.player.x;
+                const dy = powerUp.y - this.player.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 240) {
+                    const label = this.getPowerUpPickupHint(powerUp.type);
+                    const alpha = Math.max(0.35, 1 - dist / 240);
+                    ctx.globalAlpha = alpha;
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    const textWidth = ctx.measureText(label).width;
+                    const padX = 6, padY = 3;
+                    // Background box above the drop
+                    ctx.fillStyle = 'rgba(10, 10, 20, 0.6)';
+                    ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+                    ctx.lineWidth = 1;
+                    const bx = powerUp.x, by = powerUp.y - size - 8;
+                    ctx.beginPath();
+                    ctx.rect(bx - textWidth / 2 - padX, by - 14, textWidth + padX * 2, 16 + padY);
+                    ctx.fill();
+                    ctx.stroke();
+                    // Text
+                    ctx.fillStyle = '#E6E6FA';
+                    ctx.fillText(label, bx, by - 2);
+                    ctx.globalAlpha = 1;
+                }
+            }
             
             ctx.restore();
         }
