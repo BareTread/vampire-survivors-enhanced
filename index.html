@@ -49,7 +49,7 @@
             box-sizing: border-box;
         }
         
-        /* Performance Monitor (hidden by default, F1 to toggle) */
+        /* Performance Monitor (hidden by default, F2 to toggle) */
         #performanceMonitor {
             position: absolute;
             top: 10px;
@@ -111,7 +111,7 @@
     <!-- Main game canvas -->
     <canvas id="gameCanvas"></canvas>
     
-    <!-- Performance Monitor (F1 to toggle) -->
+    <!-- Performance Monitor (F2 to toggle) -->
     <div id="performanceMonitor">
         <div>FPS: <span id="fpsDisplay">60</span></div>
         <div>Entities: <span id="entityDisplay">0</span></div>
@@ -139,7 +139,7 @@
         
         // Performance monitor toggle
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'F1') {
+            if (e.key === 'F2') {
                 e.preventDefault();
                 const monitor = document.getElementById('performanceMonitor');
                 if (monitor) {
@@ -228,8 +228,8 @@
 WASD / Arrow Keys: Move
 Mouse: Aim
 ESC: Pause
-F1: Performance Monitor
-G: Debug Overlay
+F2: Performance Monitor
+F4/G: Debug Overlay
 ━━━━━━━━━━━━━━━━━━━━━
         `);
     </script>

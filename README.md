@@ -54,9 +54,9 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 | **Mouse** | Look/aim direction |
 | **ESC** | Pause/Resume |
 | **1-5** | Select level-up options |
-| **F1** | Toggle performance monitor |
-| **F2** | Toggle performance dashboard |
-| **F4** | Toggle debug overlay |
+| **F1** | Settings Menu |
+| **F2** | Toggle performance monitor/dashboard |
+| **F4/G** | Toggle debug overlay |
 
 ## 🛠️ Technical Architecture
 

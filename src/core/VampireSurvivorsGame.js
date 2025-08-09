@@ -298,8 +298,8 @@ export class VampireSurvivorsGame {
             <!-- Controls Hint - Minimal and Subtle -->
             <div id="controls-hint" style="font-size: 10px; margin-top: 10px; color: #888; opacity: 0.6; line-height: 1.3;">
                 <span style="color: #FFD700; font-weight: bold;">SHIFT</span>: Manual Aim | 
-                <span style="color: #FFD700; font-weight: bold;">F1</span>: Performance | 
-                <span style="color: #FFD700; font-weight: bold;">G</span>: Debug
+                <span style="color: #FFD700; font-weight: bold;">F2</span>: Performance | 
+                <span style="color: #FFD700; font-weight: bold;">F4/G</span>: Debug
             </div>
             
             <!-- Debug Overlay - Technical Metrics Only -->
@@ -569,6 +569,7 @@ export class VampireSurvivorsGame {
                 // Toggle help overlay
                 this.helpOverlay.toggle();
                 break;
+            case 'f4':
             case 'g':
             case 'G':
                 this.showDebug = !this.showDebug;

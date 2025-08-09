@@ -164,7 +164,7 @@ export class InputManager {
         this._handlers.keydown = (e) => {
             // Only prevent default for game-specific function keys, not system keys
             // Allow F11 (fullscreen) and F12 (DevTools) to work normally
-            if ((e.key === 'F1' || e.key === 'F4' || e.key === 'F5') || // Game-specific F-keys only
+            if ((e.key === 'F1' || e.key === 'F2' || e.key === 'F4' || e.key === 'F5') || // Game-specific F-keys only
                 (e.key === 'Tab' && this.canvas === document.activeElement)) {
                 e.preventDefault();
             }

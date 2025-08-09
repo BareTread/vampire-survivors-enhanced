@@ -9,8 +9,8 @@ This is a **Vampire Survivors-style browser game** built with vanilla JavaScript
 ## Development Commands
 
 ### Running the Game
-- **Local Development**: Open `vampire-survivors.html` in a web browser (requires local server for ES6 modules)
-- **Debugging**: Press F4 in-game to toggle debug overlay, F1 for performance monitor
+- **Local Development**: Open `index.html` in a web browser (requires local server for ES6 modules)
+- **Debugging**: F1 = Settings Menu, F2 = Performance Monitor/Dashboard, F4/G = Debug Overlay
 - **Console Commands**: Available via `window.debugCommands` object
 
 ### No Build System
@@ -94,8 +94,9 @@ src/entities/
 - **1-5**: Select level-up options
 
 ### Debug Features
-- **F1**: Toggle performance monitor (FPS, entity count, memory)
-- **F4**: Toggle debug overlay
+- **F1**: Settings Menu
+- **F2**: Performance monitor/dashboard (FPS, entity count, memory)
+- **F4/G**: Toggle debug overlay
 - **Console Commands**: `debugCommands.getGameState()`, `debugCommands.getDebugInfo()`
 
 ## Adding New Features
@@ -117,6 +118,16 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2025-08-09
+- Hotkey unification and docs alignment:
+  - `index.html`: Performance Monitor toggle moved to F2; updated on-page hints and console help.
+  - `VampireSurvivorsGame.handleKeyDown()`: added F4 alias for Debug Overlay (kept G); F1 remains Settings Menu; F2 continues Performance Dashboard when available.
+  - Docs updated: `CLAUDE.md`, `README.md`, `PERFORMANCE_OPTIMIZATIONS.md` to reflect F1=Settings, F2=Performance, F4/G=Debug.
+- Verified power-up HUD indicator logic:
+  - `updatePowerUpIndicators()` shows Magnet pill using `max(player.magnetBoost.timer, systems.experience.globalMagnetTimer)`.
+- Global magnet system confirmed:
+  - `ExperienceSystem.activateGlobalMagnet()` / `isGlobalMagnetActive()`; gems honor system magnet during spawn/movement.
+
 ### 2025-08-08
 - Global magnet system added in `src/systems/ExperienceSystem.js`.
   - New methods: `activateGlobalMagnet(duration)`, `isGlobalMagnetActive()`.
@@ -134,8 +145,9 @@ src/entities/
 ## Debug & Hotkeys
 
 - Shift+M: Activate magnetBoost and global magnet for 12s; instant gem pulse via `magnetizeAllGems()`.
-- F1: Performance monitor.
-- F4: Debug overlay.
+- F1: Settings Menu.
+- F2: Performance monitor/dashboard.
+- F4/G: Debug overlay.
 - F5: Toggle progression telemetry (browser refresh prevented).
 
 Quick testing recipe:

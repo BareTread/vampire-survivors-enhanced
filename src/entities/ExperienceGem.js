@@ -29,6 +29,11 @@ export class ExperienceGem {
         this.forceMagnetTimer = 0; // While > 0, ignore range and pull toward player
         this.collectRange = 25; // Distance at which gem is collected (was 15) - EASIER COLLECTION
         
+        // Debug instrumentation (magnetization)
+        this.debugNoMoveFrames = 0;
+        this.magnetSource = ''; // '', 'range', 'forced', 'player', 'system'
+        this._debugPrevMagnetized = false;
+        
         // Lifetime
         this.maxLifetime = 30.0; // 30 seconds before disappearing
         this.lifetime = this.maxLifetime;
@@ -151,6 +156,8 @@ export class ExperienceGem {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
+        const _prevX = this.x, _prevY = this.y;
+        const _prevBeingMagnetized = this.beingMagnetized;
         
         // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
@@ -164,6 +171,7 @@ export class ExperienceGem {
             }
             this.beingMagnetized = true;
             this.grounded = false; // ensure no ground friction while being magnetized
+            this.magnetSource = systemMagnetActive ? 'system' : (globalMagnetActive ? 'player' : 'forced');
             
             // Prevent division by zero
             if (distance === 0) {
@@ -210,11 +218,22 @@ export class ExperienceGem {
             } else {
                 this.velocity = { x: 0, y: 0 };
             }
+            // Debug: detect if being magnetized but barely moving
+            const moved = Math.hypot(this.x - _prevX, this.y - _prevY);
+            if (this.beingMagnetized && moved < 0.5) {
+                this.debugNoMoveFrames++;
+            } else {
+                this.debugNoMoveFrames = 0;
+            }
+            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
+                console.log(`Gem ${this.id} magnet ${this.beingMagnetized ? 'START' : 'STOP'} [${this.magnetSource}] d=${distance.toFixed(1)}`);
+            }
             return; // Skip normal range check while forced
         }
         
         if (distance <= effectiveMagnetRange) {
             this.beingMagnetized = true;
+            this.magnetSource = 'range';
             
             // Move toward player with increasing speed as we get closer
             // FIXED: Add zero distance check to prevent division by zero
@@ -238,15 +257,30 @@ export class ExperienceGem {
             // Apply velocity with overflow protection
             const deltaX = this.velocity.x * dt;
             const deltaY = this.velocity.y * dt;
-            
             if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
                 this.x += deltaX;
                 this.y += deltaY;
             } else {
                 this.velocity = { x: 0, y: 0 };
             }
+            
+            // Debug: stuck detection for range magnet
+            const moved2 = Math.hypot(this.x - _prevX, this.y - _prevY);
+            if (this.beingMagnetized && moved2 < 0.5) {
+                this.debugNoMoveFrames++;
+            } else {
+                this.debugNoMoveFrames = 0;
+            }
+            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
+                console.log(`Gem ${this.id} magnet START [${this.magnetSource}] d=${distance.toFixed(1)}`);
+            }
         } else {
             this.beingMagnetized = false;
+            this.magnetSource = '';
+            this.debugNoMoveFrames = 0;
+            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
+                console.log(`Gem ${this.id} magnet STOP`);
+            }
         }
     }
     
@@ -577,6 +611,57 @@ export class ExperienceGem {
         // Pulsing glow (faster for lucky gems)
         const pulseRate = this.pulseRate || 1.0;
         const pulseIntensity = 0.7 + 0.3 * Math.sin(performance.now() * 0.005 * pulseRate + this.pulseOffset);
+        
+        // Debug overlay: draw line/arrow to player when magnetized
+        if (this.game && this.game.showDebug && (this.beingMagnetized || this.magnetSource)) {
+            const player = this.game.player;
+            if (player) {
+                const dx = player.x - this.x;
+                const dy = player.y - gemY;
+                const len = Math.hypot(dx, dy) || 1;
+                const nx = dx / len;
+                const ny = dy / len;
+                
+                let color = '#00FF00'; // default green
+                switch (this.magnetSource) {
+                    case 'system': color = '#44AAFF'; break;
+                    case 'player': color = '#00FF88'; break;
+                    case 'forced': color = '#FFEE00'; break;
+                    case 'range':  color = '#AAAAAA'; break;
+                }
+                
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = color;
+                ctx.fillStyle = color;
+                
+                // Line
+                ctx.beginPath();
+                ctx.moveTo(this.x, gemY);
+                ctx.lineTo(player.x, player.y);
+                ctx.stroke();
+                
+                // Arrow head near gem pointing to player
+                const ax = this.x + nx * 14;
+                const ay = gemY + ny * 14;
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(ax - ny * 4, ay + nx * 4);
+                ctx.lineTo(ax + ny * 4, ay - nx * 4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Stuck indicator
+                if (this.debugNoMoveFrames > 20) {
+                    ctx.globalAlpha = 0.95;
+                    ctx.fillStyle = '#FF3333';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('STUCK', this.x + 6, gemY - 6);
+                }
+                ctx.restore();
+            }
+        }
         
         // Magnetized halo polish (additive)
         const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
