@@ -107,9 +107,9 @@ if (performanceStats.fps < 30) {
 ## 🛠️ Developer Experience
 
 ### Professional Debugging
-- **F1**: Toggle performance metrics
+- **F1**: Settings Menu
 - **F2**: Toggle performance monitor  
-- **F3**: Toggle collision bounds
+- **F4/G**: Toggle debug overlay
 - **Console Access**: `window.game`, `window.gameConfig`, `window.gameLogger`
 
 ### Configuration Examples

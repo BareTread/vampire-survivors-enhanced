@@ -30,6 +30,11 @@ export class ExperienceSystem {
         // Global magnet timer (system-level). When > 0, all gems are pulled regardless of range
         this.globalMagnetTimer = 0;
         
+        // Area magnet (radius-limited timed magnet)
+        this.areaMagnetRadius = 0;
+        this.areaMagnetTimer = 0;
+        this.areaMagnetPulse = 0.25; // seconds per-frame forced pull
+        
         this.initializePool();
     }
     
@@ -45,21 +50,29 @@ export class ExperienceSystem {
     }
     
     update(dt) {
-        // Update all active gems
-        this.updateGems(dt);
-        
-        // Update spatial grid
-        this.updateSpatialGrid();
-        
-        // Auto-collect nearby gems
-        this.autoCollectGems();
-        
-        // Decrement global magnet timer
+        // 1) Decrement timers first
         if (this.globalMagnetTimer > 0) {
             this.globalMagnetTimer = Math.max(0, this.globalMagnetTimer - dt);
         }
-        
-        // Periodic cleanup
+        if (this.areaMagnetTimer > 0) {
+            this.areaMagnetTimer = Math.max(0, this.areaMagnetTimer - dt);
+        }
+
+        // 2) Build spatial grid for efficient pulse queries
+        this.updateSpatialGrid();
+
+        // 3) Apply area magnet pulse before gem updates so movement happens this frame
+        if (this.areaMagnetTimer > 0 && this.areaMagnetRadius > 0 && this.game.player && this.game.player.isAlive()) {
+            this.magnetizeGemsInRadius(this.areaMagnetRadius, this.areaMagnetPulse);
+        }
+
+        // 4) Update all active gems (forced-magnetized gems will move immediately)
+        this.updateGems(dt);
+
+        // 5) Auto-collect nearby gems
+        this.autoCollectGems();
+
+        // 6) Periodic cleanup
         const currentTime = performance.now();
         if (currentTime - this.lastCleanupTime > this.cleanupInterval) {
             this.cleanup();
@@ -336,6 +349,32 @@ export class ExperienceSystem {
         return magnetizedCount; // Return how many gems were affected
     }
     
+    activateAreaMagnet(radius, duration = 0) {
+        // Start/extend a radius-limited magnet effect centered on the player
+        const r = Math.max(0, radius || 0);
+        const d = Math.max(0, duration || 0);
+        this.areaMagnetRadius = Math.max(this.areaMagnetRadius, r);
+        this.areaMagnetTimer = Math.max(this.areaMagnetTimer, d);
+        return { radius: this.areaMagnetRadius, duration: this.areaMagnetTimer };
+    }
+    
+    magnetizeGemsInRadius(radius, pulseDuration = 0.25) {
+        if (!this.game.player) return 0;
+        const player = this.game.player;
+        const r = Math.max(0, radius);
+        let count = 0;
+        const nearby = this.getNearbyGems(player.x, player.y, r);
+        for (const gem of nearby) {
+            if (gem.active && !gem.collected) {
+                if (typeof gem.forceMagnetTimer !== 'number') gem.forceMagnetTimer = 0;
+                gem.forceMagnetTimer = Math.max(gem.forceMagnetTimer, pulseDuration);
+                gem.beingMagnetized = true;
+                count++;
+            }
+        }
+        return count;
+    }
+    
     // System-level global magnet activation
     activateGlobalMagnet(duration = 0) {
         const d = Math.max(0, duration);
@@ -473,6 +512,25 @@ export class ExperienceSystem {
     }
     
     render(renderer) {
+        const ctx = renderer.ctx;
+
+        // Debug: visualize area magnet radius while active (world-space; camera already applied)
+        if (this.game && this.game.showDebug && this.areaMagnetTimer > 0 && this.areaMagnetRadius > 0 && this.game.player) {
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            ctx.fillStyle = '#00FFFF';
+            ctx.beginPath();
+            ctx.arc(this.game.player.x, this.game.player.y, this.areaMagnetRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.35;
+            ctx.strokeStyle = '#00FFFF';
+            ctx.setLineDash([8, 6]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
         // Render all active gems
         for (const gem of this.activeGems) {
             if (gem.active && !gem.collected) {

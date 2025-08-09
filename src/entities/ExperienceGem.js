@@ -115,11 +115,10 @@ export class ExperienceGem {
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
             this.currentSpawnTime -= dt;
-            // Allow forced magnetization during spawn (green magnet or pulse)
+            // Allow forced magnetization during spawn (area magnet pulses or global system magnet)
             const player = this.game && this.game.player;
-            const globalMagnetActive = !!(player && player.powerUps && player.powerUps.magnetBoost && player.powerUps.magnetBoost.active);
             const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
-            if (this.forceMagnetTimer > 0 || globalMagnetActive || systemMagnetActive) {
+            if (this.forceMagnetTimer > 0 || systemMagnetActive) {
                 this.updateMagnetism(dt);
                 // Allow collection even during spawn when being pulled
                 this.checkCollection();
@@ -162,16 +161,15 @@ export class ExperienceGem {
         // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
         
-        // If a global magnet pulse is active OR the player's Magnet power-up is active, pull regardless of range
-        const globalMagnetActive = !!(player && player.powerUps && player.powerUps.magnetBoost && player.powerUps.magnetBoost.active);
+        // If a forced pulse is active OR the system-level global magnet is active, pull regardless of range
         const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
-        if (this.forceMagnetTimer > 0 || globalMagnetActive || systemMagnetActive) {
+        if (this.forceMagnetTimer > 0 || systemMagnetActive) {
             if (this.forceMagnetTimer > 0) {
                 this.forceMagnetTimer = Math.max(0, this.forceMagnetTimer - dt);
             }
             this.beingMagnetized = true;
             this.grounded = false; // ensure no ground friction while being magnetized
-            this.magnetSource = systemMagnetActive ? 'system' : (globalMagnetActive ? 'player' : 'forced');
+            this.magnetSource = systemMagnetActive ? 'system' : 'forced';
             
             // Prevent division by zero
             if (distance === 0) {
@@ -185,17 +183,10 @@ export class ExperienceGem {
             // Strong, distance-aware pull during pulse or global magnet
             // Ensure gems reach the player before the magnet boost ends
             let speed;
-            if ((globalMagnetActive || systemMagnetActive)) {
-                // Use player's magnetBoost timer if available, otherwise system timer
+            if (systemMagnetActive) {
+                // Use system timer to ensure arrival before magnet ends
                 let cm = 3.0;
-                let remaining = 0;
-                if (globalMagnetActive && player.powerUps && player.powerUps.magnetBoost) {
-                    const mb = player.powerUps.magnetBoost;
-                    cm = (mb.currentMultiplier != null) ? mb.currentMultiplier : (mb.multiplier || 3.0);
-                    remaining = (typeof mb.timer === 'number') ? mb.timer : 0;
-                } else if (systemMagnetActive && this.game && this.game.systems && this.game.systems.experience) {
-                    remaining = this.game.systems.experience.globalMagnetTimer || 0;
-                }
+                let remaining = (this.game && this.game.systems && this.game.systems.experience) ? (this.game.systems.experience.globalMagnetTimer || 0) : 0;
                 const minBase = this.baseMagnetStrength * Math.max(3, cm + 2); // baseline pull strength
                 const timeBudget = Math.max(0.3, Math.min(remaining * 0.9, 3.0)); // arrive before boost ends
                 const requiredSpeed = distance / timeBudget;

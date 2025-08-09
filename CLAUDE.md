@@ -119,6 +119,27 @@ src/entities/
 ## Developer Log (most recent first)
 
 ### 2025-08-09
+- Damage numbers clustering fix:
+  - `src/core/DamageNumberPool.js`: render now uses world coordinates (camera already applied by `VampireSurvivorsGame.render()`), preventing double camera offset and on-screen clustering.
+- Area magnet responsiveness + debug:
+  - `src/systems/ExperienceSystem.js`: reordered `update()` to decrement timers, rebuild spatial grid, apply area-magnet pulse, then `updateGems()` so forced pulls move gems the same frame.
+  - Added debug overlay circle (cyan, dashed) for active area magnet radius in `render()` when `game.showDebug` is true.
+- Testing: pick up Magnet power-up; enable Debug overlay (F4/G) to see cyan radius; gems within the circle should stream toward the player; damage/collection numbers should appear near sources, not clumped.
+
+### 2025-08-09
+- Implemented timed Area Magnet effect (large-radius, duration-based gem pull):
+  - `src/systems/ExperienceSystem.js`:
+    - Added `activateAreaMagnet(radius, duration)` and `magnetizeGemsInRadius(radius, pulseDuration)`.
+    - New timers: `areaMagnetTimer`, `areaMagnetRadius`, pulsing each frame to keep gems magnetized while active.
+  - `src/core/VampireSurvivorsGame.js`:
+    - Magnet pickup (`magnetBoost`) now activates Area Magnet for 12s with radius = `max(10× player.size, 20% of screen min dimension)`; optional initial pulse for immediate feedback.
+    - HUD indicator updated in `updatePowerUpIndicators()` to include Area Magnet time in the Magnet pill.
+  - `src/entities/ExperienceGem.js`:
+    - Only forced pulses or system-level global magnet ignore range; player `magnetBoost` no longer acts as a global magnet.
+    - Spawn handling honors forced/system magnet pulls.
+
+
+### 2025-08-09
 - Hotkey unification and docs alignment:
   - `index.html`: Performance Monitor toggle moved to F2; updated on-page hints and console help.
   - `VampireSurvivorsGame.handleKeyDown()`: added F4 alias for Debug Overlay (kept G); F1 remains Settings Menu; F2 continues Performance Dashboard when available.

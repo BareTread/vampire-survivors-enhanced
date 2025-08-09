@@ -54,7 +54,7 @@ export class InputManager {
         this.inputValidator = {
             validKeys: new Set(['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 
                                'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                               'Escape', 'F1', 'F2', 'F5',
+                               'Escape', 'F1', 'F2', 'F4', 'F5',
                                'g', 'G', 'd', 'D', 'h', 'H', 'm', 'M', 'r', 'R',
                                ' ', '1', '2', '3', '4', '5'])
         };

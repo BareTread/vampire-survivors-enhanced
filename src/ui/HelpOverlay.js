@@ -66,7 +66,7 @@ export class HelpOverlay {
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
                     <span style="color: #AAA;">Shift + D</span>
                     <span>Projectile Debug Overlay</span>
-                    <span style="color: #AAA;">F4</span>
+                    <span style="color: #AAA;">F4 / G</span>
                     <span>General Debug Info</span>
                     <span style="color: #AAA;">F5</span>
                     <span>Progression Telemetry</span>

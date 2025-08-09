@@ -127,8 +127,8 @@ The Vampire Survivors game has been comprehensively optimized to maintain **60+ 
 ## 🔍 MONITORING & DEBUGGING
 
 ### **Built-in Performance Tools**:
-- Press **F1**: Toggle performance monitor (FPS, entity count, memory)
-- Press **F3**: Toggle debug overlay with system statistics
+- Press **F2**: Toggle performance monitor (FPS, entity count, memory)
+- Press **F4/G**: Toggle debug overlay with system statistics
 - Console commands: `debugCommands.getPerformanceInfo()`
 
 ### **Performance Statistics Tracked**:

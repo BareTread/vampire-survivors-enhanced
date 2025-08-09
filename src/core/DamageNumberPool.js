@@ -84,9 +84,10 @@ export class DamageNumber {
 
         ctx.save();
         
-        // Apply camera transform
-        const screenX = this.x - camera.x + camera.width / 2;
-        const screenY = this.y - camera.y + camera.height / 2;
+        // Camera transform is already applied by caller (world-space render).
+        // Use world coordinates directly to avoid double-applying camera offset.
+        const screenX = this.x;
+        const screenY = this.y;
         
         // Set text properties
         ctx.globalAlpha = this.opacity;

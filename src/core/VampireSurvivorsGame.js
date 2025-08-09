@@ -630,10 +630,11 @@ export class VampireSurvivorsGame {
         if (p.invincible?.active) {
             pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
         }
-        // Magnet: combine player magnetBoost and system-level global magnet timer
+        // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
         const playerMagnet = p.magnetBoost?.active ? (p.magnetBoost.timer || 0) : 0;
         const systemMagnet = (this.systems && this.systems.experience && this.systems.experience.globalMagnetTimer) ? this.systems.experience.globalMagnetTimer : 0;
-        const magnetTime = Math.max(playerMagnet, systemMagnet);
+        const areaMagnet = (this.systems && this.systems.experience && this.systems.experience.areaMagnetTimer) ? this.systems.experience.areaMagnetTimer : 0;
+        const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
             pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
         }
@@ -2401,12 +2402,17 @@ export class VampireSurvivorsGame {
                 this.player.activatePowerUp('damageBoost', 10.0, 1.0);
                 break;
             case 'magnetBoost':
-                // Global magnet effect should ignore range but not be excessively strong
+                // Timed area magnet: pull gems within a large radius for the duration
                 this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
-                this.systems.experience.magnetizeAllGems();
-                // Ensure continuous global pull for the duration
-                if (this.systems && this.systems.experience && typeof this.systems.experience.activateGlobalMagnet === 'function') {
-                    this.systems.experience.activateGlobalMagnet(12.0);
+                if (this.systems && this.systems.experience && typeof this.systems.experience.activateAreaMagnet === 'function') {
+                    const playerSize = this.player?.size || 12;
+                    const screenMin = (this.camera && this.camera.width && this.camera.height) ? Math.min(this.camera.width, this.camera.height) : 800;
+                    const desiredRadius = Math.max(playerSize * 10, screenMin * 0.2);
+                    this.systems.experience.activateAreaMagnet(desiredRadius, 12.0);
+                    // Optional: small initial pulse to make effect immediately visible
+                    if (typeof this.systems.experience.magnetizeGemsInRadius === 'function') {
+                        this.systems.experience.magnetizeGemsInRadius(desiredRadius, 0.35);
+                    }
                 }
                 break;
             case 'fireRate':
