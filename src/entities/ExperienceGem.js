@@ -144,8 +144,23 @@ export class ExperienceGem {
             this.updatePhysics(dt);
         }
         
+        // Apply final velocity
+        this.applyMovement(dt);
+
         // Check for collection
         this.checkCollection();
+    }
+
+    applyMovement(dt) {
+        const deltaX = this.velocity.x * dt;
+        const deltaY = this.velocity.y * dt;
+
+        if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
+            this.x += deltaX;
+            this.y += deltaY;
+        } else {
+            this.velocity = { x: 0, y: 0 };
+        }
     }
     
     updateMagnetism(dt) {
@@ -200,15 +215,6 @@ export class ExperienceGem {
             }
             this.velocity.x = nx * speed;
             this.velocity.y = ny * speed;
-            
-            const deltaX = this.velocity.x * dt;
-            const deltaY = this.velocity.y * dt;
-            if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
-                this.x += deltaX;
-                this.y += deltaY;
-            } else {
-                this.velocity = { x: 0, y: 0 };
-            }
             // Debug: detect if being magnetized but barely moving
             const moved = Math.hypot(this.x - _prevX, this.y - _prevY);
             if (this.beingMagnetized && moved < 0.5) {
@@ -245,16 +251,6 @@ export class ExperienceGem {
             this.velocity.x = normalizedX * force;
             this.velocity.y = normalizedY * force;
             
-            // Apply velocity with overflow protection
-            const deltaX = this.velocity.x * dt;
-            const deltaY = this.velocity.y * dt;
-            if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
-                this.x += deltaX;
-                this.y += deltaY;
-            } else {
-                this.velocity = { x: 0, y: 0 };
-            }
-            
             // Debug: stuck detection for range magnet
             const moved2 = Math.hypot(this.x - _prevX, this.y - _prevY);
             if (this.beingMagnetized && moved2 < 0.5) {
@@ -279,16 +275,7 @@ export class ExperienceGem {
         // Apply gravity
         this.velocity.y += this.gravity * dt;
         
-        // Apply velocity with overflow protection
-        const deltaX = this.velocity.x * dt;
-        const deltaY = this.velocity.y * dt;
-        
-        if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
-            this.x += deltaX;
-            this.y += deltaY;
-        } else {
-            this.velocity = { x: 0, y: 0 };
-        }
+        // Velocity is applied in the main update loop
         
         // Coordinate overflow protection
         if (!isFinite(this.x) || !isFinite(this.y) || Math.abs(this.x) > 1e6 || Math.abs(this.y) > 1e6) {
