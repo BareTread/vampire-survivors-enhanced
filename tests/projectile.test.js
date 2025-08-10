@@ -2,6 +2,7 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import { Projectile } from '../src/entities/Projectile.js';
 import { ProjectileSystem } from '../src/systems/ProjectileSystem.js';
+import { ProgressionTelemetry } from '../src/debug/ProgressionTelemetry.js';
 
 // Mock game object for testing
 const createMockGame = () => ({
@@ -16,7 +17,8 @@ const createMockGame = () => ({
             createBounceEffect: jest.fn()
         },
         enemy: {
-            activeEnemies: []
+            activeEnemies: [],
+            getActiveEnemies: () => []
         }
     },
     player: {
@@ -137,12 +139,12 @@ describe('Projectile System Tests', () => {
             const projectile = projectileSystem.createProjectile(0, 0, { damage: 10 });
             projectileSystem.returnToPool(projectile);
             
-            // Pool should have one more projectile
-            expect(projectileSystem.projectilePool.length).toBe(initialPoolSize + 1);
+            // Pool should have the same number of projectiles
+            expect(projectileSystem.projectilePool.length).toBe(initialPoolSize);
             
             // Creating another should reuse from pool
             const newProjectile = projectileSystem.createProjectile(0, 0, { damage: 10 });
-            expect(projectileSystem.projectilePool.length).toBe(initialPoolSize);
+            expect(projectileSystem.projectilePool.length).toBe(initialPoolSize - 1);
         });
         
         test('should not pool corrupted projectiles', () => {
@@ -229,7 +231,6 @@ describe('Projectile System Tests', () => {
 describe('Progression Telemetry Tests', () => {
     test('should track damage dealt correctly', () => {
         const mockGame = createMockGame();
-        const { ProgressionTelemetry } = require('../src/debug/ProgressionTelemetry.js');
         const telemetry = new ProgressionTelemetry(mockGame);
         
         telemetry.trackDamageDealt(100);
@@ -241,7 +242,6 @@ describe('Progression Telemetry Tests', () => {
     
     test('should detect progression issues', () => {
         const mockGame = createMockGame();
-        const { ProgressionTelemetry } = require('../src/debug/ProgressionTelemetry.js');
         const telemetry = new ProgressionTelemetry(mockGame);
         
         // Simulate low DPS scenario

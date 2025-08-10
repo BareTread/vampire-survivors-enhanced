@@ -71,11 +71,11 @@ export class Player {
         
         // POWER-UP STATES - Temporary god-mode feelings
         this.powerUps = {
-            invincible: { active: false, timer: 0 },
-            speedBoost: { active: false, timer: 0, multiplier: 2.0 },
-            damageBoost: { active: false, timer: 0, multiplier: 3.0 },
-            magnetBoost: { active: false, timer: 0, multiplier: 3.0 },
-            fireRate: { active: false, timer: 0, multiplier: 0.3 } // Lower = faster
+            invincible: { active: false, timer: 0, maxTimer: 0 },
+            speedBoost: { active: false, timer: 0, maxTimer: 0, multiplier: 2.0 },
+            damageBoost: { active: false, timer: 0, maxTimer: 0, multiplier: 3.0 },
+            magnetBoost: { active: false, timer: 0, maxTimer: 0, multiplier: 3.0 },
+            fireRate: { active: false, timer: 0, maxTimer: 0, multiplier: 0.3 } // Lower = faster
         };
         
         // ENHANCED DESPERATION MODE - Dramatic comeback mechanics
@@ -1062,6 +1062,7 @@ export class Player {
         
         powerUp.active = true;
         powerUp.timer = duration;
+        powerUp.maxTimer = duration;
         if (powerUp.multiplier !== undefined) {
             powerUp.currentMultiplier = powerUp.multiplier * intensity;
         }
@@ -1079,6 +1080,7 @@ export class Player {
         
         powerUp.active = false;
         powerUp.timer = 0;
+        powerUp.maxTimer = 0;
         
         // Update weapon stats
         this.updateWeaponStats();

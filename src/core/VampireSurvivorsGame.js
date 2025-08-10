@@ -603,72 +603,76 @@ export class VampireSurvivorsGame {
     updatePowerUpIndicators() {
         const container = document.getElementById('powerup-indicators');
         if (!container || !this.player) return;
-        
+
         const entries = [];
         const p = this.player.powerUps || {};
-        
+
         // Helper to push an entry
-        const pushEntry = (key, label, seconds, color, icon) => {
+        const pushEntry = (key, label, seconds, maxSeconds, color, icon) => {
             if (seconds > 0.05) {
-                entries.push({ key, label, seconds, color, icon });
+                entries.push({ key, label, seconds, maxSeconds, color, icon });
             }
         };
-        
+
         // Speed
         if (p.speedBoost?.active) {
-            pushEntry('speedBoost', 'Speed', p.speedBoost.timer, '#4ade80', '⚡');
+            pushEntry('speedBoost', 'Speed', p.speedBoost.timer, p.speedBoost.maxTimer, '#4ade80', '⚡');
         }
         // Damage
         if (p.damageBoost?.active) {
-            pushEntry('damageBoost', 'Damage', p.damageBoost.timer, '#f59e0b', '🗡️');
+            pushEntry('damageBoost', 'Damage', p.damageBoost.timer, p.damageBoost.maxTimer, '#f59e0b', '🗡️');
         }
         // Fire rate
         if (p.fireRate?.active) {
-            pushEntry('fireRate', 'Fire Rate', p.fireRate.timer, '#60a5fa', '🔥');
+            pushEntry('fireRate', 'Fire Rate', p.fireRate.timer, p.fireRate.maxTimer, '#60a5fa', '🔥');
         }
         // Invincibility
         if (p.invincible?.active) {
-            pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
+            pushEntry('invincible', 'Invincible', p.invincible.timer, p.invincible.maxTimer, '#fde047', '🛡️');
         }
         // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
         const playerMagnet = p.magnetBoost?.active ? (p.magnetBoost.timer || 0) : 0;
-        const systemMagnet = (this.systems && this.systems.experience && this.systems.experience.globalMagnetTimer) ? this.systems.experience.globalMagnetTimer : 0;
-        const areaMagnet = (this.systems && this.systems.experience && this.systems.experience.areaMagnetTimer) ? this.systems.experience.areaMagnetTimer : 0;
+        const systemMagnet = (this.systems?.experience?.globalMagnetTimer) || 0;
+        const areaMagnet = (this.systems?.experience?.areaMagnetTimer) || 0;
+
         const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
-            pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
+            let maxMagnetTime = 0;
+            if (magnetTime === playerMagnet) {
+                maxMagnetTime = p.magnetBoost.maxTimer;
+            } else {
+                // Both system and area magnets are activated with a 12s duration
+                maxMagnetTime = 12.0;
+            }
+            pushEntry('magnet', 'Magnet', magnetTime, maxMagnetTime, '#22d3ee', '🧲');
         }
-        
+
         // Render compact pills with remaining time (no heavy DOM churn)
         if (entries.length === 0) {
-            container.innerHTML = '';
+            if (container.innerHTML !== '') {
+                container.innerHTML = '';
+            }
             return;
         }
-        
+
         const html = entries.map(e => {
             const secs = Math.max(0, e.seconds).toFixed(1);
+            const progress = (e.maxSeconds > 0) ? (e.seconds / e.maxSeconds) * 100 : 0;
             return `
-                <span 
-                    style="
-                        display:inline-block;
-                        margin-right:8px; margin-bottom:6px;
-                        padding:3px 8px; border-radius:10px;
-                        background: rgba(0,0,0,0.45);
-                        border: 1px solid ${e.color};
-                        color: ${e.color};
-                        font-size: 12px; line-height: 1; letter-spacing: .3px;
-                        text-shadow: 0 0 6px rgba(255,255,255,0.2);
-                        box-shadow: 0 0 10px rgba(0,0,0,0.35), inset 0 0 8px rgba(255,255,255,0.06);
-                        pointer-events: none;
-                    ">
-                    <span style="margin-right:6px;">${e.icon}</span>
-                    <strong style="color:${e.color}">${e.label}</strong>
-                    <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
-                </span>
+                <div style="position: relative; display: inline-block; margin-right: 8px; margin-bottom: 6px; border-radius: 10px; background: rgba(0,0,0,0.45); border: 1px solid ${e.color}; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.35), inset 0 0 8px rgba(255,255,255,0.06); pointer-events: none;">
+                    <div style="position: absolute; left: 0; top: 0; height: 100%; width: ${progress}%; background-color: ${e.color}; opacity: 0.3; z-index: 1; transition: width 0.1s linear;"></div>
+                    <div style="position: relative; z-index: 2; padding: 3px 8px; color: ${e.color}; font-size: 12px; line-height: 1; letter-spacing: .3px; text-shadow: 0 0 6px rgba(255,255,255,0.2);">
+                        <span style="margin-right:6px;">${e.icon}</span>
+                        <strong style="color:${e.color}">${e.label}</strong>
+                        <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
+                    </div>
+                </div>
             `;
         }).join('');
-        
-        container.innerHTML = html;
+
+        if (container.innerHTML !== html) {
+            container.innerHTML = html;
+        }
     }
 
     handleKeyUp(key) {
