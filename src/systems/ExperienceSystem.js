@@ -59,11 +59,15 @@ export class ExperienceSystem {
         }
 
         // 2) Build spatial grid for efficient pulse queries
-        this.updateSpatialGrid();
+        // The grid is now updated when gems are created.
 
         // 3) Apply area magnet pulse before gem updates so movement happens this frame
         if (this.areaMagnetTimer > 0 && this.areaMagnetRadius > 0 && this.game.player && this.game.player.isAlive()) {
-            this.magnetizeGemsInRadius(this.areaMagnetRadius, this.areaMagnetPulse);
+            const magnetizedCount = this.magnetizeGemsInRadius(this.areaMagnetRadius, this.areaMagnetPulse);
+            if (this.game.showDebug) {
+                globalDamageNumberPool.get(this.game.player.x, this.game.player.y - 80, `SysMagnetT: ${this.areaMagnetTimer.toFixed(1)}`, '#FFF', false, 5.0);
+                globalDamageNumberPool.get(this.game.player.x, this.game.player.y - 70, `Gems in Radius: ${magnetizedCount}`, '#FFF', false, 5.0);
+            }
         }
 
         // 4) Update all active gems (forced-magnetized gems will move immediately)
@@ -85,6 +89,18 @@ export class ExperienceSystem {
             const gem = this.activeGems[i];
             
             if (!gem.active) {
+                // Also remove from spatial grid
+                const gridX = Math.floor(gem.x / this.gridSize);
+                const gridY = Math.floor(gem.y / this.gridSize);
+                const key = `${gridX},${gridY}`;
+                if (this.spatialGrid.has(key)) {
+                    const cell = this.spatialGrid.get(key);
+                    const index = cell.indexOf(gem);
+                    if (index > -1) {
+                        cell.splice(index, 1);
+                    }
+                }
+
                 this.activeGems.splice(i, 1);
                 this.returnGemToPool(gem);
                 continue;
@@ -101,6 +117,7 @@ export class ExperienceSystem {
         // Add all active gems to grid
         for (const gem of this.activeGems) {
             if (!gem.active) continue;
+            if (this.game.showDebug && gem === this.activeGems[0]) { gem.color = '#FF0000'; } // Red for grid add
             
             const gridX = Math.floor(gem.x / this.gridSize);
             const gridY = Math.floor(gem.y / this.gridSize);
@@ -112,6 +129,18 @@ export class ExperienceSystem {
             this.spatialGrid.get(key).push(gem);
         }
     }
+
+addGemToGrid(gem) {
+    if (!gem || !gem.active) return;
+    const gridX = Math.floor(gem.x / this.gridSize);
+    const gridY = Math.floor(gem.y / this.gridSize);
+    const key = `${gridX},${gridY}`;
+
+    if (!this.spatialGrid.has(key)) {
+        this.spatialGrid.set(key, []);
+    }
+    this.spatialGrid.get(key).push(gem);
+}
     
     autoCollectGems() {
         if (!this.game.player || !this.game.player.isAlive()) return;
@@ -403,6 +432,9 @@ export class ExperienceSystem {
             }
         }
         
+        if (result.length > 0 && this.game.showDebug) {
+            this.game.player.color = '#FFFFFF'; // Turn player white if gems are found
+        }
         return result;
     }
     
@@ -507,7 +539,7 @@ export class ExperienceSystem {
             this.returnGemToPool(gem);
         }
         
-        this.activeGems = [];
+        this.activeGems.length = 0;
         this.spatialGrid.clear();
     }
     

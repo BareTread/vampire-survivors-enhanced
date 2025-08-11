@@ -595,11 +595,14 @@ export class Enemy {
         }
         
         // Drop experience gem with combo bonus
-        this.game.systems.experience.createGem(
+        const gem = this.game.systems.experience.createGem(
             this.x + (Math.random() - 0.5) * 20,
             this.y + (Math.random() - 0.5) * 20,
             expReward
         );
+        if (gem) {
+            this.game.systems.experience.addGemToGrid(gem);
+        }
         
         // NOW mark as inactive after all effects are created
         this.active = false;

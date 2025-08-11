@@ -1,4 +1,5 @@
 import { managedSetTimeout } from '../core/TimerManager.js';
+import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 
 export class ExperienceGem {
     constructor(game, x, y, value = 5) {
@@ -69,85 +70,63 @@ export class ExperienceGem {
             this.size = 8;
             this.color = '#9B59B6';
             this.glowColor = '#E74C3C';
-            this.sparkleCount = 4; // Reduced from 8 to 4
+            this.sparkleCount = 4;
         } else if (this.value >= 20) {
             // Uncommon gem
             this.type = 'uncommon';
             this.size = 6;
             this.color = '#3498DB';
             this.glowColor = '#2ECC71';
-            this.sparkleCount = 2; // Reduced from 4 to 2
+            this.sparkleCount = 2;
         } else {
             // Common gem
             this.type = 'common';
             this.size = 4;
             this.color = '#F1C40F';
             this.glowColor = '#E67E22';
-            this.sparkleCount = 1; // Reduced from 2 to 1
+            this.sparkleCount = 1;
         }
     }
     
     update(dt) {
         if (!this.active || this.collected) return;
         
-        // FIXED: Validate gem coordinates and reset if corrupted (screen-space gems)
-        // Gems should be in world space, not screen space
         if (this.game.camera && this.game.player) {
-            const screenBounds = {
-                left: this.game.camera.x - this.game.camera.width / 2,
-                right: this.game.camera.x + this.game.camera.width / 2,
-                top: this.game.camera.y - this.game.camera.height / 2,
-                bottom: this.game.camera.y + this.game.camera.height / 2
-            };
-            
-            // Check if gem is suspiciously close to screen coordinates (0-800 range typically)
-            // While player is far from origin - indicates screen-space coordinates
             if (Math.abs(this.game.player.x) > 500 || Math.abs(this.game.player.y) > 500) {
                 if (Math.abs(this.x) < 400 && Math.abs(this.y) < 400) {
-                    // This gem has screen-space coordinates, fix it
-                    console.log(`Fixing corrupted gem coordinates: (${this.x}, ${this.y}) -> world space`);
-                    this.active = false; // Remove corrupted gem
+                    this.active = false;
                     return;
                 }
             }
         }
         
-        // Update spawn animation
         if (this.currentSpawnTime > 0) {
             this.currentSpawnTime -= dt;
-            // Allow forced magnetization during spawn (area magnet pulses or global system magnet)
             const player = this.game && this.game.player;
             const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
             if (this.forceMagnetTimer > 0 || systemMagnetActive) {
                 this.updateMagnetism(dt);
-                // Allow collection even during spawn when being pulled
                 this.checkCollection();
             }
-            return; // Don't update normal physics during spawn
+            return;
         }
         
-        // Update lifetime
         this.lifetime -= dt;
         if (this.lifetime <= 0) {
             this.destroy();
             return;
         }
         
-        // Update rotation
         this.rotation += this.rotationSpeed * dt;
         
-        // Check for player magnetism
         this.updateMagnetism(dt);
         
-        // Update physics if not being magnetized
         if (!this.beingMagnetized) {
             this.updatePhysics(dt);
         }
         
-        // Apply final velocity
         this.applyMovement(dt);
 
-        // Check for collection
         this.checkCollection();
     }
 
@@ -173,20 +152,17 @@ export class ExperienceGem {
         const _prevX = this.x, _prevY = this.y;
         const _prevBeingMagnetized = this.beingMagnetized;
         
-        // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
         
-        // If a forced pulse is active OR the system-level global magnet is active, pull regardless of range
         const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
         if (this.forceMagnetTimer > 0 || systemMagnetActive) {
             if (this.forceMagnetTimer > 0) {
                 this.forceMagnetTimer = Math.max(0, this.forceMagnetTimer - dt);
             }
             this.beingMagnetized = true;
-            this.grounded = false; // ensure no ground friction while being magnetized
+            this.grounded = false;
             this.magnetSource = systemMagnetActive ? 'system' : 'forced';
             
-            // Prevent division by zero
             if (distance === 0) {
                 this.velocity.x = 0;
                 this.velocity.y = 0;
@@ -195,27 +171,22 @@ export class ExperienceGem {
             const nx = dx / distance;
             const ny = dy / distance;
             
-            // Strong, distance-aware pull during pulse or global magnet
-            // Ensure gems reach the player before the magnet boost ends
             let speed;
             if (systemMagnetActive) {
-                // Use system timer to ensure arrival before magnet ends
                 let cm = 3.0;
                 let remaining = (this.game && this.game.systems && this.game.systems.experience) ? (this.game.systems.experience.globalMagnetTimer || 0) : 0;
-                const minBase = this.baseMagnetStrength * Math.max(3, cm + 2); // baseline pull strength
-                const timeBudget = Math.max(0.3, Math.min(remaining * 0.9, 3.0)); // arrive before boost ends
+                const minBase = this.baseMagnetStrength * Math.max(3, cm + 2);
+                const timeBudget = Math.max(0.3, Math.min(remaining * 0.9, 3.0));
                 const requiredSpeed = distance / timeBudget;
-                // Respect per-frame delta safety clamp (< 500)
                 const maxPerFrameDelta = 460;
                 const maxSpeed = maxPerFrameDelta / Math.max(0.001, dt);
                 speed = Math.min(Math.max(minBase, requiredSpeed), maxSpeed);
             } else {
-                // Forced pulse (forceMagnetTimer only)
                 speed = this.baseMagnetStrength * 5;
             }
             this.velocity.x = nx * speed;
             this.velocity.y = ny * speed;
-            // Debug: detect if being magnetized but barely moving
+
             const moved = Math.hypot(this.x - _prevX, this.y - _prevY);
             if (this.beingMagnetized && moved < 0.5) {
                 this.debugNoMoveFrames++;
@@ -225,17 +196,14 @@ export class ExperienceGem {
             if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
                 console.log(`Gem ${this.id} magnet ${this.beingMagnetized ? 'START' : 'STOP'} [${this.magnetSource}] d=${distance.toFixed(1)}`);
             }
-            return; // Skip normal range check while forced
+            return;
         }
         
         if (distance <= effectiveMagnetRange) {
             this.beingMagnetized = true;
             this.magnetSource = 'range';
             
-            // Move toward player with increasing speed as we get closer
-            // FIXED: Add zero distance check to prevent division by zero
             if (distance === 0) {
-                // If exactly on player, just set zero velocity
                 this.velocity.x = 0;
                 this.velocity.y = 0;
                 return;
@@ -244,14 +212,12 @@ export class ExperienceGem {
             const normalizedX = dx / distance;
             const normalizedY = dy / distance;
             
-            // Stronger attraction when closer
             const attractionMultiplier = 1 + (1 - distance / effectiveMagnetRange);
             const force = this.magnetStrength * attractionMultiplier;
             
             this.velocity.x = normalizedX * force;
             this.velocity.y = normalizedY * force;
             
-            // Debug: stuck detection for range magnet
             const moved2 = Math.hypot(this.x - _prevX, this.y - _prevY);
             if (this.beingMagnetized && moved2 < 0.5) {
                 this.debugNoMoveFrames++;
@@ -272,35 +238,28 @@ export class ExperienceGem {
     }
     
     updatePhysics(dt) {
-        // Apply gravity
         this.velocity.y += this.gravity * dt;
         
-        // Velocity is applied in the main update loop
-        
-        // Coordinate overflow protection
         if (!isFinite(this.x) || !isFinite(this.y) || Math.abs(this.x) > 1e6 || Math.abs(this.y) > 1e6) {
             console.warn('ExperienceGem coordinate overflow, deactivating');
             this.active = false;
             return;
         }
         
-        // Ground collision (simple)
-        const groundY = this.startY + 50; // Rough ground level
+        const groundY = this.startY + 50;
         if (this.y > groundY && this.velocity.y > 0) {
             this.y = groundY;
             this.velocity.y *= -this.bounce;
             this.velocity.x *= this.friction;
             
-            // Stop small bounces
             if (Math.abs(this.velocity.y) < 20) {
                 this.velocity.y = 0;
                 this.grounded = true;
             }
         }
         
-        // Apply friction when grounded
         if (this.grounded) {
-            this.velocity.x *= Math.pow(this.friction, dt * 60); // Frame-rate independent
+            this.velocity.x *= Math.pow(this.friction, dt * 60);
         }
     }
     
@@ -322,24 +281,19 @@ export class ExperienceGem {
         
         this.collected = true;
         
-        // Give experience to player
         this.game.player.gainExperience(this.value);
         
-        // Enhanced collection effects
         this.createCollectionEffects();
         
-        // Remove from world
         this.destroy();
     }
     
     createCollectionEffects() {
         if (!this.game.systems.particle) return;
         
-        // Lucky gems get special effects
         if (this.isLucky) {
             this.createLuckyCollectionEffect();
         } else {
-            // Enhanced collection effect based on gem rarity
             switch (this.type) {
                 case 'rare':
                     this.createRareCollectionEffect();
@@ -352,100 +306,84 @@ export class ExperienceGem {
             }
         }
         
-        // Audio feedback
         this.playCollectionSound();
         
-        // Experience number display
         this.showExperienceGain();
     }
     
     createLuckyCollectionEffect() {
-        // Spectacular effects for lucky gems - reduced for clarity!
         this.game.systems.particle.createBurst(this.x, this.y, 'gemExplosion', {
             color: '#FFD700',
-            count: 8, // Reduced from 35
+            count: 8,
             spread: 80,
             intensity: 2.0
         });
         
-        // Single secondary explosion only
         managedSetTimeout(() => {
             this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
                 color: '#FFD700',
-                count: 6, // Reduced from 20
-                spread: 60 // Reduced spread
+                count: 6,
+                spread: 60
             });
         }, 100, this);
         
-        // Screen flash for lucky gems
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.5);
         }
         
-        // Enhanced screen shake
         if (this.game.camera) {
             this.game.camera.shakeLuckyGem();
         }
         
-        // Pickup camera shake for tactile feedback
         if (this.game.camera) {
             this.game.camera.shakePickupGem();
         }
     }
     
     createRareCollectionEffect() {
-        // Moderate burst for rare gems - reduced for clarity
         this.game.systems.particle.createBurst(this.x, this.y, 'gemExplosion', {
             color: this.color,
-            count: 6, // Reduced from 25
+            count: 6,
             spread: 60,
             intensity: 1.5
         });
         
-        // Single secondary explosion
         managedSetTimeout(() => {
             this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
                 color: this.glowColor,
-                count: 4, // Reduced from 15
+                count: 4,
                 spread: 50
             });
         }, 100, this);
         
-        // Screen flash for rare gems
         if (this.game.camera) {
             this.game.camera.flash(this.color, 0.3);
         }
         
-        // Brief screen shake
         if (this.game.camera) {
             this.game.camera.shake(3, 0.2);
         }
     }
     
     createUncommonCollectionEffect() {
-        // Medium burst for uncommon gems - reduced for clarity
         this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
             color: this.color,
-            count: 4, // Reduced from 15
+            count: 4,
             spread: 40,
             intensity: 1.2
         });
-        
-        // Skip sparkle trail - too many particles
     }
     
     createCommonCollectionEffect() {
-        // Simple burst for common gems - reduced for clarity
         this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
             color: this.color,
-            count: 3, // Reduced from 8
+            count: 3,
             spread: 25,
             intensity: 1.0
         });
     }
     
     createSparkleTrail() {
-        // Create sparkle trail from gem to player
         const player = this.game.player;
         if (!player) return;
         
@@ -476,9 +414,7 @@ export class ExperienceGem {
     playCollectionSound() {
         if (!this.game.audioManager || !this.game.audioManager.playVampireSound) return;
         
-        // Lucky gems get special sound treatment
         if (this.isLucky) {
-            // Multiple layered sounds for lucky gems
             this.game.audioManager.playVampireSound('experienceGain', 0.9, 1.5);
             managedSetTimeout(() => {
                 this.game.audioManager.playVampireSound('levelUp', 0.4, 2.0);
@@ -489,7 +425,6 @@ export class ExperienceGem {
             return;
         }
         
-        // Different sounds for different rarities
         let volume = 0.4;
         let pitch = 1.0;
         
@@ -498,7 +433,6 @@ export class ExperienceGem {
                 volume = 0.8;
                 pitch = 1.3;
                 this.game.audioManager.playVampireSound('experienceGain', volume, pitch);
-                // Add bonus sound
                 managedSetTimeout(() => {
                     this.game.audioManager.playVampireSound('levelUp', 0.3, 1.8);
                 }, 100, this);
@@ -516,7 +450,6 @@ export class ExperienceGem {
     }
     
     showExperienceGain() {
-        // Show floating experience number
         if (this.game.systems.particle && this.game.systems.particle.createEnhancedDamageNumber) {
             let color, size, intensity;
             
@@ -524,7 +457,6 @@ export class ExperienceGem {
                 color = '#FFD700';
                 size = 24;
                 intensity = 3.0;
-                // Show "LUCKY!" text above the number
                 managedSetTimeout(() => {
                     this.game.systems.particle.createEnhancedDamageNumber(
                         this.x, this.y - 20, 
@@ -557,7 +489,6 @@ export class ExperienceGem {
     destroy() {
         this.active = false;
         
-        // Return to object pool
         this.game.systems.experience.returnGemToPool(this);
     }
     
@@ -567,30 +498,24 @@ export class ExperienceGem {
         const ctx = renderer.ctx;
         ctx.save();
         
-        // Spawn animation
         if (this.currentSpawnTime > 0) {
             const spawnProgress = 1 - (this.currentSpawnTime / this.spawnTime);
             ctx.globalAlpha = spawnProgress;
             
-            // Scale in effect
             const scale = 0.3 + 0.7 * spawnProgress;
             ctx.scale(scale, scale);
         }
         
-        // Fade out near end of lifetime
         if (this.lifetime < this.fadeTime) {
             ctx.globalAlpha *= this.lifetime / this.fadeTime;
         }
         
-        // Floating animation
         const floatY = Math.sin(performance.now() * 0.003 + this.floatOffset) * 2;
         const gemY = this.y + floatY;
         
-        // Pulsing glow (faster for lucky gems)
         const pulseRate = this.pulseRate || 1.0;
         const pulseIntensity = 0.7 + 0.3 * Math.sin(performance.now() * 0.005 * pulseRate + this.pulseOffset);
         
-        // Debug overlay: draw line/arrow to player when magnetized
         if (this.game && this.game.showDebug && (this.beingMagnetized || this.magnetSource)) {
             const player = this.game.player;
             if (player) {
@@ -600,7 +525,7 @@ export class ExperienceGem {
                 const nx = dx / len;
                 const ny = dy / len;
                 
-                let color = '#00FF00'; // default green
+                let color = '#00FF00';
                 switch (this.magnetSource) {
                     case 'system': color = '#44AAFF'; break;
                     case 'player': color = '#00FF88'; break;
@@ -614,13 +539,11 @@ export class ExperienceGem {
                 ctx.strokeStyle = color;
                 ctx.fillStyle = color;
                 
-                // Line
                 ctx.beginPath();
                 ctx.moveTo(this.x, gemY);
                 ctx.lineTo(player.x, player.y);
                 ctx.stroke();
                 
-                // Arrow head near gem pointing to player
                 const ax = this.x + nx * 14;
                 const ay = gemY + ny * 14;
                 ctx.beginPath();
@@ -630,7 +553,6 @@ export class ExperienceGem {
                 ctx.closePath();
                 ctx.fill();
                 
-                // Stuck indicator
                 if (this.debugNoMoveFrames > 20) {
                     ctx.globalAlpha = 0.95;
                     ctx.fillStyle = '#FF3333';
@@ -641,7 +563,6 @@ export class ExperienceGem {
             }
         }
         
-        // Magnetized halo polish (additive)
         const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
         if (this.beingMagnetized || systemMagnetActive) {
             const haloPulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.006 + this.pulseOffset);
@@ -659,7 +580,6 @@ export class ExperienceGem {
             ctx.restore();
         }
         
-        // Enhanced glow for lucky gems
         if (this.isLucky && this.glowEffect) {
             ctx.shadowColor = '#FFD700';
             ctx.shadowBlur = this.size * 5 * pulseIntensity;
@@ -668,17 +588,15 @@ export class ExperienceGem {
             ctx.shadowBlur = this.size * 3 * pulseIntensity;
         }
         
-        // Draw main gem
         ctx.translate(this.x, gemY);
         ctx.rotate(this.rotation);
         
         this.renderGem(ctx);
         
-        // Enhanced sparkles for lucky gems
         if (this.isLucky) {
-            this.renderLuckySparkles(ctx, pulseIntensity);
+            this.renderLuckySparkles(ctx, intensity);
         } else {
-            this.renderSparkles(ctx, pulseIntensity);
+            this.renderSparkles(ctx, intensity);
         }
         
         ctx.restore();
@@ -699,7 +617,6 @@ export class ExperienceGem {
     }
     
     renderCommonGem(ctx) {
-        // Simple hexagon
         ctx.fillStyle = this.color;
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -716,7 +633,6 @@ export class ExperienceGem {
         ctx.closePath();
         ctx.fill();
         
-        // Inner highlight
         ctx.fillStyle = '#FFFFFF';
         ctx.globalAlpha = 0.3;
         ctx.beginPath();
@@ -726,10 +642,8 @@ export class ExperienceGem {
     }
     
     renderUncommonGem(ctx) {
-        // Diamond shape with facets
         ctx.fillStyle = this.color;
         
-        // Main diamond
         ctx.beginPath();
         ctx.moveTo(0, -this.size);
         ctx.lineTo(this.size * 0.7, 0);
@@ -738,7 +652,6 @@ export class ExperienceGem {
         ctx.closePath();
         ctx.fill();
         
-        // Facets
         ctx.fillStyle = this.glowColor;
         ctx.globalAlpha = 0.6;
         ctx.beginPath();
@@ -750,7 +663,6 @@ export class ExperienceGem {
         ctx.fill();
         ctx.globalAlpha = 1;
         
-        // Highlight
         ctx.fillStyle = '#FFFFFF';
         ctx.globalAlpha = 0.4;
         ctx.beginPath();
@@ -760,7 +672,6 @@ export class ExperienceGem {
     }
     
     renderRareGem(ctx) {
-        // Complex star gem
         const spikes = 8;
         const outerRadius = this.size;
         const innerRadius = this.size * 0.5;
@@ -783,13 +694,11 @@ export class ExperienceGem {
         ctx.closePath();
         ctx.fill();
         
-        // Inner core
         ctx.fillStyle = this.glowColor;
         ctx.beginPath();
         ctx.arc(0, 0, innerRadius * 0.6, 0, Math.PI * 2);
         ctx.fill();
         
-        // Bright highlight
         ctx.fillStyle = '#FFFFFF';
         ctx.globalAlpha = 0.7;
         ctx.beginPath();
@@ -819,7 +728,6 @@ export class ExperienceGem {
     renderLuckySparkles(ctx, intensity) {
         const time = performance.now() * 0.01;
         
-        // More sparkles for lucky gems - reduced from 2x to 1.5x
         const luckySparkleCount = Math.ceil(this.sparkleCount * 1.5);
         
         for (let i = 0; i < luckySparkleCount; i++) {
@@ -828,7 +736,6 @@ export class ExperienceGem {
             const x = Math.cos(angle) * distance;
             const y = Math.sin(angle) * distance;
             
-            // Alternating gold and white sparkles
             ctx.fillStyle = i % 2 === 0 ? '#FFD700' : '#FFFFFF';
             ctx.globalAlpha = intensity * 0.9;
             ctx.beginPath();
@@ -836,7 +743,6 @@ export class ExperienceGem {
             ctx.fill();
         }
         
-        // Add outer ring of sparkles
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2 + time * 0.5;
             const distance = this.size * 2.5;
@@ -853,7 +759,6 @@ export class ExperienceGem {
         ctx.globalAlpha = 1;
     }
     
-    // Helper methods
     getPosition() {
         return { x: this.x, y: this.y };
     }
@@ -871,7 +776,6 @@ export class ExperienceGem {
         return this.active && !this.collected;
     }
     
-    // Reset method for object pooling
     reset(x, y, value = 5) {
         this.x = x;
         this.y = y;
@@ -879,27 +783,22 @@ export class ExperienceGem {
         this.startY = y;
         this.value = value;
         
-        // Reset lucky gem properties
         this.isLucky = false;
         this.glowEffect = false;
         this.pulseRate = 1.0;
         
-        // Reset visuals
         this.initializeVisuals();
         
-        // Reset physics
         this.velocity = { x: 0, y: 0 };
         this.grounded = false;
         this.beingMagnetized = false;
         
-        // Reset state
         this.lifetime = this.maxLifetime;
         this.currentSpawnTime = this.spawnTime;
         this.rotation = 0;
         this.floatOffset = Math.random() * Math.PI * 2;
         this.pulseOffset = Math.random() * Math.PI * 2;
         
-        // Initial burst
         const angle = Math.random() * Math.PI * 2;
         const force = 50 + Math.random() * 50;
         this.velocity.x = Math.cos(angle) * force;
