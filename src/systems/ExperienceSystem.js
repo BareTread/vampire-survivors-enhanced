@@ -81,17 +81,21 @@ export class ExperienceSystem {
     }
     
     updateGems(dt) {
-        for (let i = this.activeGems.length - 1; i >= 0; i--) {
+        // Use write-index pattern to avoid expensive splice operations
+        let writeIndex = 0;
+        for (let i = 0; i < this.activeGems.length; i++) {
             const gem = this.activeGems[i];
-            
+
             if (!gem.active) {
-                this.activeGems.splice(i, 1);
                 this.returnGemToPool(gem);
                 continue;
             }
-            
+
             gem.update(dt);
+            this.activeGems[writeIndex++] = gem;
         }
+        // Trim array to new size
+        this.activeGems.length = writeIndex;
     }
     
     updateSpatialGrid() {
@@ -285,15 +289,18 @@ export class ExperienceSystem {
     }
     
     cleanup() {
-        // Remove inactive gems
-        for (let i = this.activeGems.length - 1; i >= 0; i--) {
+        // Remove inactive gems using write-index pattern
+        let writeIndex = 0;
+        for (let i = 0; i < this.activeGems.length; i++) {
             const gem = this.activeGems[i];
-            
+
             if (!gem.active) {
-                this.activeGems.splice(i, 1);
                 this.returnGemToPool(gem);
+            } else {
+                this.activeGems[writeIndex++] = gem;
             }
         }
+        this.activeGems.length = writeIndex;
     }
     
     // Collection abilities

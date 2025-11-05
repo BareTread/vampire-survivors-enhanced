@@ -105,7 +105,6 @@ export class ExperienceGem {
             if (Math.abs(this.game.player.x) > 500 || Math.abs(this.game.player.y) > 500) {
                 if (Math.abs(this.x) < 400 && Math.abs(this.y) < 400) {
                     // This gem has screen-space coordinates, fix it
-                    console.log(`Fixing corrupted gem coordinates: (${this.x}, ${this.y}) -> world space`);
                     this.active = false; // Remove corrupted gem
                     return;
                 }
@@ -151,16 +150,16 @@ export class ExperienceGem {
     updateMagnetism(dt) {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
-        
+
         const dx = player.x - this.x;
         const dy = player.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const distanceSquared = dx * dx + dy * dy;
         const _prevX = this.x, _prevY = this.y;
         const _prevBeingMagnetized = this.beingMagnetized;
-        
+
         // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
-        
+
         // If a forced pulse is active OR the system-level global magnet is active, pull regardless of range
         const systemMagnetActive = !!(this.game && this.game.systems && this.game.systems.experience && typeof this.game.systems.experience.isGlobalMagnetActive === 'function' && this.game.systems.experience.isGlobalMagnetActive());
         if (this.forceMagnetTimer > 0 || systemMagnetActive) {
@@ -170,13 +169,14 @@ export class ExperienceGem {
             this.beingMagnetized = true;
             this.grounded = false; // ensure no ground friction while being magnetized
             this.magnetSource = systemMagnetActive ? 'system' : 'forced';
-            
-            // Prevent division by zero
-            if (distance === 0) {
+
+            // Prevent division by zero (check squared distance)
+            if (distanceSquared < 0.01) {
                 this.velocity.x = 0;
                 this.velocity.y = 0;
                 return;
             }
+            const distance = Math.sqrt(distanceSquared);
             const nx = dx / distance;
             const ny = dy / distance;
             
@@ -210,35 +210,36 @@ export class ExperienceGem {
                 this.velocity = { x: 0, y: 0 };
             }
             // Debug: detect if being magnetized but barely moving
-            const moved = Math.hypot(this.x - _prevX, this.y - _prevY);
-            if (this.beingMagnetized && moved < 0.5) {
+            const movedSquared = (this.x - _prevX) * (this.x - _prevX) + (this.y - _prevY) * (this.y - _prevY);
+            if (this.beingMagnetized && movedSquared < 0.25) {
                 this.debugNoMoveFrames++;
             } else {
                 this.debugNoMoveFrames = 0;
             }
-            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
-                console.log(`Gem ${this.id} magnet ${this.beingMagnetized ? 'START' : 'STOP'} [${this.magnetSource}] d=${distance.toFixed(1)}`);
-            }
+            // Debug output removed for performance
             return; // Skip normal range check while forced
         }
-        
-        if (distance <= effectiveMagnetRange) {
+
+        // Use squared distance for range check (avoid sqrt)
+        const effectiveMagnetRangeSquared = effectiveMagnetRange * effectiveMagnetRange;
+        if (distanceSquared <= effectiveMagnetRangeSquared) {
             this.beingMagnetized = true;
             this.magnetSource = 'range';
-            
+
             // Move toward player with increasing speed as we get closer
             // FIXED: Add zero distance check to prevent division by zero
-            if (distance === 0) {
+            if (distanceSquared < 0.01) {
                 // If exactly on player, just set zero velocity
                 this.velocity.x = 0;
                 this.velocity.y = 0;
                 return;
             }
-            
+
+            const distance = Math.sqrt(distanceSquared);
             const normalizedX = dx / distance;
             const normalizedY = dy / distance;
-            
-            // Stronger attraction when closer
+
+            // Stronger attraction when closer (reciprocal precomputed)
             const attractionMultiplier = 1 + (1 - distance / effectiveMagnetRange);
             const force = this.magnetStrength * attractionMultiplier;
             
@@ -255,23 +256,19 @@ export class ExperienceGem {
                 this.velocity = { x: 0, y: 0 };
             }
             
-            // Debug: stuck detection for range magnet
-            const moved2 = Math.hypot(this.x - _prevX, this.y - _prevY);
-            if (this.beingMagnetized && moved2 < 0.5) {
+            // Debug: stuck detection for range magnet (use squared distance)
+            const moved2Squared = (this.x - _prevX) * (this.x - _prevX) + (this.y - _prevY) * (this.y - _prevY);
+            if (this.beingMagnetized && moved2Squared < 0.25) {
                 this.debugNoMoveFrames++;
             } else {
                 this.debugNoMoveFrames = 0;
             }
-            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
-                console.log(`Gem ${this.id} magnet START [${this.magnetSource}] d=${distance.toFixed(1)}`);
-            }
+            // Debug output removed for performance
         } else {
             this.beingMagnetized = false;
             this.magnetSource = '';
             this.debugNoMoveFrames = 0;
-            if (this.game && this.game.showDebug && _prevBeingMagnetized !== this.beingMagnetized) {
-                console.log(`Gem ${this.id} magnet STOP`);
-            }
+            // Debug output removed for performance
         }
     }
     
@@ -292,7 +289,6 @@ export class ExperienceGem {
         
         // Coordinate overflow protection
         if (!isFinite(this.x) || !isFinite(this.y) || Math.abs(this.x) > 1e6 || Math.abs(this.y) > 1e6) {
-            console.warn('ExperienceGem coordinate overflow, deactivating');
             this.active = false;
             return;
         }

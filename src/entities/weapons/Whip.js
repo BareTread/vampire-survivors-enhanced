@@ -167,20 +167,22 @@ export class Whip extends BaseWeapon {
     
     updateAttackAnimations(dt) {
         const currentTime = performance.now();
-        
-        for (let i = this.attackAnimations.length - 1; i >= 0; i--) {
+
+        // Use write-index pattern for performance
+        let writeIndex = 0;
+        for (let i = 0; i < this.attackAnimations.length; i++) {
             const attack = this.attackAnimations[i];
             const elapsed = currentTime - attack.startTime;
             attack.progress = elapsed / attack.duration;
-            
-            if (elapsed >= attack.duration) {
-                // Attack finished
-                this.attackAnimations.splice(i, 1);
-            } else {
+
+            if (elapsed < attack.duration) {
                 // Update whip position for animation
                 this.updateWhipAnimation(attack);
+                this.attackAnimations[writeIndex++] = attack;
             }
+            // Attack finished - just don't copy to writeIndex
         }
+        this.attackAnimations.length = writeIndex;
     }
     
     updateWhipAnimation(attack) {
@@ -234,16 +236,17 @@ export class Whip extends BaseWeapon {
     hitEnemy(enemy, attack) {
         // Apply damage
         enemy.takeDamage(attack.damage, this.player);
-        
-        // Apply knockback
+
+        // Apply knockback (optimized with squared distance check)
         const dx = enemy.x - this.player.x;
         const dy = enemy.y - this.player.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance > 0) {
+        const distanceSquared = dx * dx + dy * dy;
+
+        if (distanceSquared > 0.01) {
+            const distance = Math.sqrt(distanceSquared);
             const knockbackX = (dx / distance) * this.knockback;
             const knockbackY = (dy / distance) * this.knockback;
-            
+
             enemy.velocity.x += knockbackX;
             enemy.velocity.y += knockbackY;
         }

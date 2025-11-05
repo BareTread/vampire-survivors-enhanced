@@ -168,20 +168,23 @@ export class DamageNumberPool {
      * Update all active damage numbers
      */
     update(deltaTime) {
-        for (let i = this.activeNumbers.length - 1; i >= 0; i--) {
+        // Use write-index pattern for performance (avoid expensive splice)
+        let writeIndex = 0;
+        for (let i = 0; i < this.activeNumbers.length; i++) {
             const damageNumber = this.activeNumbers[i];
             damageNumber.update(deltaTime);
-            
+
             // Return inactive numbers to pool
             if (!damageNumber.active) {
-                this.activeNumbers.splice(i, 1);
                 damageNumber.reset();
                 this.pool.push(damageNumber);
-                
                 this.stats.inUse--;
                 this.stats.available++;
+            } else {
+                this.activeNumbers[writeIndex++] = damageNumber;
             }
         }
+        this.activeNumbers.length = writeIndex;
     }
 
     /**
