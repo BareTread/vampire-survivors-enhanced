@@ -1147,24 +1147,46 @@ export class Player {
     enterNearDeathState() {
         // Activate full desperation mode
         this.desperationMode.active = true;
-        
+
         // Track near-death survival for achievements
         if (this.game.systems.achievement) {
             this.game.systems.achievement.onNearDeathSurvival();
         }
-        
-        // Dramatic 'desperation mode' effect
+
+        // Dramatic 'desperation mode' effect with larger text
         this.addDamageNumber('DESPERATION MODE!', '#FF0000', 'LAST STAND');
-        
-        // Visual drama
-        if (this.game && this.game.camera && typeof this.game.camera.addVignette === 'function') {
-            this.game.camera.addVignette(0.6);
+
+        // ENHANCED Visual drama - dramatic screen shake
+        if (this.game && this.game.camera) {
+            if (typeof this.game.camera.shake === 'function') {
+                this.game.camera.shake(8, 0.6); // Strong shake on activation
+            }
+            if (typeof this.game.camera.addVignette === 'function') {
+                this.game.camera.addVignette(0.6);
+            }
+            if (typeof this.game.camera.flash === 'function') {
+                this.game.camera.flash('#FF0000', 0.4); // Red flash
+            }
         }
-        
+
+        // Enhanced particle effects
         if (this.game.systems.particle) {
             this.game.systems.particle.createLastStandEffect(this.x, this.y);
+            // Add explosion burst for impact
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                this.game.systems.particle.create(this.x, this.y, {
+                    vx: Math.cos(angle) * 200,
+                    vy: Math.sin(angle) * 200,
+                    life: 0.8,
+                    size: 4,
+                    color: '#FF0000',
+                    glow: true,
+                    fadeOut: true
+                });
+            }
         }
-        
+
         // Audio drama
         if (this.game.audioManager && typeof this.game.audioManager.playLastStandActivation === 'function') {
             this.game.audioManager.playLastStandActivation();
@@ -1177,24 +1199,51 @@ export class Player {
     exitNearDeathState() {
         // Deactivate desperation mode
         this.desperationMode.active = false;
-        
+
         // Triumphant recovery
         this.addDamageNumber('RECOVERED!', '#00FF88', 'TRIUMPH');
-        
+
         // Massive XP reward for surviving desperation mode
         const bonusXP = 150;
         this.gainExperience(bonusXP);
-        
-        // Celebration effects
-        if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
-            this.game.camera.flash('#00FF88', 0.5);
+
+        // ENHANCED Celebration effects
+        if (this.game && this.game.camera) {
+            if (typeof this.game.camera.flash === 'function') {
+                this.game.camera.flash('#00FF88', 0.6);
+            }
+            if (typeof this.game.camera.shake === 'function') {
+                this.game.camera.shake(4, 0.3); // Celebratory shake
+            }
         }
-        
+
+        // Enhanced recovery particles - victory burst
         if (this.game.systems.particle) {
             this.game.systems.particle.createRecoveryEffect(this.x, this.y);
+            // Healing aura particles
+            for (let i = 0; i < 24; i++) {
+                const angle = (i / 24) * Math.PI * 2;
+                const distance = 30 + Math.random() * 20;
+                this.game.systems.particle.create(
+                    this.x + Math.cos(angle) * distance,
+                    this.y + Math.sin(angle) * distance,
+                    {
+                        vx: Math.cos(angle) * 80,
+                        vy: Math.sin(angle) * 80,
+                        life: 1.0,
+                        size: 3,
+                        color: '#00FF88',
+                        glow: true,
+                        fadeOut: true
+                    }
+                );
+            }
         }
-        
-        console.log('💪 Player survived desperation mode! Bonus XP granted.');
+
+        // Audio celebration
+        if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
+            this.game.audioManager.playVampireSound('experienceGain', 1.0, 1.5);
+        }
     }
     
     updateStreaks(dt) {

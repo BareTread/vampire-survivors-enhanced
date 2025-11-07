@@ -12,21 +12,21 @@ export class EnemySystem {
         this.activeEnemies = [];
         this.maxActiveEnemies = 300; // Increased from 150 for more chaos
         
-        // Spawning configuration - ULTRA AGGRESSIVE
-        this.spawnRate = 5.0; // Starting enemies per second (was 3.0) - MUCH MORE
+        // Spawning configuration - BALANCED FOR FUN
+        this.spawnRate = 1.5; // Starting enemies per second - gradual ramp-up
         this.spawnTimer = 0;
-        this.spawnDistance = 300; // Even closer spawn for maximum pressure (was 350)
+        this.spawnDistance = 350; // Balanced spawn distance for visibility
         this.despawnDistance = 600; // Distance at which to despawn enemies
-        
-        // Wave system - RAPID WAVES
+
+        // Wave system - SMOOTH PROGRESSION
         this.currentWave = 1;
         this.waveTimer = 0;
-        this.waveDuration = 30; // 30 seconds per wave (was 45) - FASTER PROGRESSION
+        this.waveDuration = 45; // 45 seconds per wave - comfortable pacing
         this.waveProgress = 0;
-        
-        // Difficulty scaling - EXTREME
+
+        // Difficulty scaling - PROGRESSIVE CHALLENGE
         this.difficultyMultiplier = 1.0;
-        this.eliteSpawnChance = 0.15; // 15% chance for elite enemies (was 8%) - MORE ELITES
+        this.eliteSpawnChance = 0.08; // 8% chance for elite enemies - rare but exciting
         
         // Spawn patterns
         this.spawnPatterns = {
@@ -135,26 +135,26 @@ export class EnemySystem {
         const cappedWave = Math.min(this.currentWave, 100); // Max wave 100
         const timeMinutes = cappedGameTime / 60;
         
-        // MORE AGGRESSIVE time scaling
+        // BALANCED time scaling for engaging but fair progression
         let timeMultiplier;
-        if (timeMinutes <= 2) {
-            // First 2 minutes: Gentle (builds confidence)
-            timeMultiplier = 1.0 + (timeMinutes * 0.25); // 25% increase per minute
-        } else if (timeMinutes <= 8) {
-            // Minutes 2-8: Aggressive ramp-up
-            const earlyMultiplier = 1.5; // Value at 2 minutes
-            const midGameMinutes = timeMinutes - 2;
-            timeMultiplier = earlyMultiplier * Math.pow(1.35, midGameMinutes); // 35% per minute!
+        if (timeMinutes <= 3) {
+            // First 3 minutes: Gradual warmup
+            timeMultiplier = 1.0 + (timeMinutes * 0.12); // 12% increase per minute
+        } else if (timeMinutes <= 10) {
+            // Minutes 3-10: Steady challenge increase
+            const earlyMultiplier = 1.36; // Value at 3 minutes
+            const midGameMinutes = timeMinutes - 3;
+            timeMultiplier = earlyMultiplier * Math.pow(1.15, midGameMinutes); // 15% per minute
         } else {
-            // Minutes 8+: Still challenging but sustainable
-            const midGameMultiplier = 1.5 * Math.pow(1.35, 6); // Value at 8 minutes
-            const lateGameMinutes = timeMinutes - 8;
-            timeMultiplier = midGameMultiplier * Math.pow(1.15, lateGameMinutes); // 15% per minute
+            // Minutes 10+: Sustainable endgame challenge
+            const midGameMultiplier = 1.36 * Math.pow(1.15, 7); // Value at 10 minutes
+            const lateGameMinutes = timeMinutes - 10;
+            timeMultiplier = midGameMultiplier * Math.pow(1.08, lateGameMinutes); // 8% per minute
         }
-        
-        // MORE AGGRESSIVE wave scaling
-        const waveMultiplier = Math.pow(1.12, Math.min(cappedWave - 1, 20)) * // 12% per wave (was 8%)
-                              Math.pow(1.08, Math.max(0, cappedWave - 20)); // 8% after wave 20
+
+        // BALANCED wave scaling
+        const waveMultiplier = Math.pow(1.08, Math.min(cappedWave - 1, 20)) * // 8% per wave
+                              Math.pow(1.05, Math.max(0, cappedWave - 20)); // 5% after wave 20
         
         const rawMultiplier = timeMultiplier * waveMultiplier;
         
@@ -168,32 +168,32 @@ export class EnemySystem {
             this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.15, 50.0);
         }
         
-        // HYPER AGGRESSIVE spawn rates
-        let baseSpawnRate = 5.0; // Starting at 5 (was 3) - MUCH MORE INTENSE
+        // BALANCED spawn rates for fun progression
+        let baseSpawnRate = 1.5; // Starting at comfortable level
         let rawSpawnRate;
-        
-        if (timeMinutes <= 1) {
-            // First minute: Ramping up quickly
-            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 1.0;
-        } else if (timeMinutes <= 3) {
-            // Early-mid game: Aggressive growth
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.6) * 4.0;
+
+        if (timeMinutes <= 2) {
+            // First 2 minutes: Gentle introduction
+            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 0.8;
         } else if (timeMinutes <= 5) {
-            // Mid game: Very rapid growth
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 6.0;
+            // Early-mid game: Steady growth
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.7) * 2.5;
+        } else if (timeMinutes <= 10) {
+            // Mid game: Meaningful challenge
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.6) * 4.0;
         } else {
-            // Late game: ABSOLUTE CHAOS
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.4) * 8.0;
+            // Late game: Intense but manageable
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 5.5;
         }
-        
+
         // Apply pressure surge multiplier
         if (this.pressureSurgeActive) {
-            rawSpawnRate *= 4.0; // Quadruple spawn rate during surges!
+            rawSpawnRate *= 2.5; // 2.5x spawn rate during surges (not 4x)
         }
-        
-        // Much higher spawn rate cap for insane late game
+
+        // Balanced spawn rate cap
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
-            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 80.0 : 50.0);
+            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 35.0 : 20.0);
         } else {
             this.spawnRate = baseSpawnRate;
         }
