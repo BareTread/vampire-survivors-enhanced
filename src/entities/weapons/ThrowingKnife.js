@@ -275,8 +275,54 @@ export class ThrowingKnife extends BaseWeapon {
     }
     
     render(renderer) {
-        // Throwing knives are rendered as projectiles
-        // Could add a charging effect or show next throw preview here
+        const ctx = renderer.ctx;
+        const chargeProgress = 1 - (this.cooldownTimer / this.getEffectiveCooldown());
+        if (chargeProgress < 0.5) return; // Only show when close to ready
+
+        const px = this.player.x;
+        const py = this.player.y;
+        const time = performance.now() * 0.004;
+        const intensity = (chargeProgress - 0.5) / 0.5; // 0→1
+        const count = Math.floor(this.currentStats.projectiles);
+
+        ctx.save();
+        ctx.globalAlpha = 0.35 * intensity;
+
+        for (let i = 0; i < count; i++) {
+            // Floating knives orbit slightly behind player
+            const baseAngle = this.player.direction || 0;
+            const spread = count > 1 ? (i - (count - 1) / 2) * 0.6 : 0;
+            const angle = baseAngle + spread + Math.PI; // Behind player
+            const dist = 16 + 4 * Math.sin(time * 3 + i * 2);
+            const kx = px + Math.cos(angle) * dist;
+            const ky = py + Math.sin(angle) * dist;
+
+            // Knife blade (rotated rectangle pointing at fire direction)
+            const knifeAngle = baseAngle + spread;
+            ctx.save();
+            ctx.translate(kx, ky);
+            ctx.rotate(knifeAngle);
+
+            // Blade
+            ctx.fillStyle = this.bladeColor;
+            ctx.beginPath();
+            ctx.moveTo(6, 0);
+            ctx.lineTo(-2, -2.5);
+            ctx.lineTo(-2, 2.5);
+            ctx.closePath();
+            ctx.fill();
+
+            // Metallic glint
+            if (intensity > 0.7) {
+                const glint = 0.3 + 0.7 * Math.abs(Math.sin(time * 6 + i * 1.5));
+                ctx.fillStyle = `rgba(255, 255, 255, ${glint * intensity * 0.4})`;
+                ctx.fillRect(-1, -0.5, 4, 1);
+            }
+
+            ctx.restore();
+        }
+
+        ctx.restore();
     }
     
     // Serialization

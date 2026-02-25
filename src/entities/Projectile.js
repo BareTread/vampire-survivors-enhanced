@@ -602,6 +602,12 @@ export class Projectile {
             case 'explosive':
                 this.renderExplosiveProjectile(ctx);
                 break;
+            case 'knife':
+                this.renderKnifeProjectile(ctx);
+                break;
+            case 'fireball':
+                this.renderFireballProjectile(ctx);
+                break;
             default:
                 this.renderBasicProjectile(ctx);
                 break;
@@ -669,6 +675,75 @@ export class Projectile {
         ctx.fill();
     }
     
+    renderKnifeProjectile(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.direction);
+
+        const len = this.size * 2.5;
+        const w = this.size * 0.6;
+
+        // Blade body (silver/steel)
+        ctx.fillStyle = '#C0C0C0';
+        ctx.beginPath();
+        ctx.moveTo(len * 0.5, 0);        // Tip
+        ctx.lineTo(-len * 0.3, -w);      // Upper back
+        ctx.lineTo(-len * 0.5, 0);       // Handle notch
+        ctx.lineTo(-len * 0.3, w);       // Lower back
+        ctx.closePath();
+        ctx.fill();
+
+        // Metallic highlight along blade edge
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(len * 0.5, 0);
+        ctx.lineTo(-len * 0.2, -w * 0.5);
+        ctx.stroke();
+
+        // Glint effect
+        const glint = Math.abs(Math.sin(performance.now() * 0.008));
+        if (glint > 0.7) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${(glint - 0.7) * 3})`;
+            ctx.beginPath();
+            ctx.arc(len * 0.2, -w * 0.2, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    renderFireballProjectile(ctx) {
+        const flicker = Math.sin(performance.now() * 0.02) * 1.5;
+        const size = this.size + flicker;
+
+        // Outer glow
+        ctx.save();
+        ctx.shadowColor = '#FF4500';
+        ctx.shadowBlur = size * 2;
+
+        // Main fireball gradient
+        const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, size);
+        grad.addColorStop(0, '#FFFACD');   // Bright yellow-white core
+        grad.addColorStop(0.3, '#FFA500'); // Orange mid
+        grad.addColorStop(0.7, '#FF4500'); // Red-orange outer
+        grad.addColorStop(1, 'rgba(255, 69, 0, 0)'); // Fade out
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner bright core
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255, 255, 220, 0.8)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
     renderTrail(ctx) {
         if (this.trailPoints.length < 2) return;
         

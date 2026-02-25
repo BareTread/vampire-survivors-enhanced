@@ -121,7 +121,13 @@ export class ExperienceSystem {
         if (!this.game.player || !this.game.player.isAlive()) return;
         
         const player = this.game.player;
-        const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
+        // Read pickupRange from PassiveItemSystem (Attractorb)
+        let pickupBonus = 1;
+        if (this.game.systems && this.game.systems.passiveItems) {
+            const mods = this.game.systems.passiveItems.getStatModifiers();
+            if (mods.pickupRange) pickupBonus = mods.pickupRange;
+        }
+        const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1) * pickupBonus;
         
         // Check gems near player for collection
         const nearbyGems = this.getGemsInRange(

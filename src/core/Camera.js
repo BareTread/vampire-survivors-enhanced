@@ -10,6 +10,16 @@ export class Camera {
         this.targetZoom = 1;
         this.smoothing = 0.1;
         this.bounds = null;
+
+        // Camera Juice — movement lead + dynamic zoom
+        this.leadFactor = 0.3; // How far ahead the camera looks in movement direction
+        this.leadX = 0;
+        this.leadY = 0;
+        this.leadSmoothing = 0.04; // Slower than main smoothing for gentle drift
+        this.dynamicZoomEnabled = true;
+        this.baseZoom = 1;
+        this.dynamicZoomTarget = 1;
+        this.dynamicZoomSmoothing = 0.02; // Very slow zoom transitions
         this.shakeEffect = {
             intensity: 0,
             duration: 0,
@@ -59,11 +69,40 @@ export class Camera {
         this.effectsEnabled = true;
         this.performanceMode = 'high'; // high, medium, low
     }
-    
+
     follow(x, y, dt) {
-        this.targetX = x;
-        this.targetY = y;
-        
+        // Camera Juice: movement lead
+        // Compute player velocity from position delta
+        const dx = x - (this._lastPlayerX || x);
+        const dy = y - (this._lastPlayerY || y);
+        this._lastPlayerX = x;
+        this._lastPlayerY = y;
+
+        // Lead target: offset camera ahead of movement direction
+        const targetLeadX = dx * this.leadFactor * 60; // Scale for ~60fps feel
+        const targetLeadY = dy * this.leadFactor * 60;
+        this.leadX += (targetLeadX - this.leadX) * this.leadSmoothing;
+        this.leadY += (targetLeadY - this.leadY) * this.leadSmoothing;
+
+        this.targetX = x + this.leadX;
+        this.targetY = y + this.leadY;
+
+        // Camera Juice: dynamic zoom-out when many enemies nearby
+        if (this.dynamicZoomEnabled && this._game) {
+            const enemies = this._game.systems && this._game.systems.enemies;
+            if (enemies) {
+                const nearbyCount = enemies.getEnemiesInRange
+                    ? enemies.getEnemiesInRange(x, y, 350).length : 0;
+                if (nearbyCount >= 30) {
+                    // Zoom out proportionally, cap at 0.85x
+                    this.dynamicZoomTarget = Math.max(0.85, 1.0 - (nearbyCount - 30) * 0.003);
+                } else {
+                    this.dynamicZoomTarget = this.baseZoom;
+                }
+            }
+            this.targetZoom += (this.dynamicZoomTarget - this.targetZoom) * this.dynamicZoomSmoothing;
+        }
+
         // Smooth camera movement
         this.x += (this.targetX - this.x) * this.smoothing;
         this.y += (this.targetY - this.y) * this.smoothing;
@@ -90,10 +129,16 @@ export class Camera {
             this.shakeEffect.intensity *= this.shakeEffect.decay;
             
             if (this.shakeEffect.duration <= 0 || this.shakeEffect.intensity < 0.1) {
-                this.shakeEffect.intensity = 0;
-                this.shakeEffect.offsetX = 0;
-                this.shakeEffect.offsetY = 0;
-                this.shakeEffect.duration = 0;
+                // Smooth recovery: lerp offsets to zero instead of snapping
+                this.shakeEffect.offsetX *= 0.7;
+                this.shakeEffect.offsetY *= 0.7;
+                this.shakeEffect.intensity *= 0.7;
+                if (Math.abs(this.shakeEffect.offsetX) < 0.05 && Math.abs(this.shakeEffect.offsetY) < 0.05) {
+                    this.shakeEffect.intensity = 0;
+                    this.shakeEffect.offsetX = 0;
+                    this.shakeEffect.offsetY = 0;
+                    this.shakeEffect.duration = 0;
+                }
             }
         }
         

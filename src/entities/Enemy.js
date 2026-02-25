@@ -6,47 +6,54 @@ export class Enemy {
         this.x = x;
         this.y = y;
         this.type = type;
-        
+
         // Movement properties
         this.velocity = { x: 0, y: 0 };
         this.direction = 0;
-        
+
         // Initialize stats based on type
         this.initializeType(type);
-        
+
         // Current health
         this.health = this.maxHealth;
-        
+
         // Collision
         this.hitbox = {
             width: this.size * 1.5,
             height: this.size * 1.5
         };
-        
+
         // AI properties
         this.target = null;
         this.lastDamageTime = 0;
         this.attackCooldown = 0;
-        
+
         // Visual effects
         // Note: Damage numbers now handled by globalDamageNumberPool
         this.deathEffect = false;
         this.flashTime = 0;
-        
+        this.freezeTimer = 0; // Hit freeze-frame timer
+
         // Spawning animation
         this.spawnTime = 0.3;
         this.currentSpawnTime = this.spawnTime;
-        
+
         // Unique ID for object pooling
         this.id = Math.random().toString(36).substr(2, 9);
         this.active = true;
-        
+
         // Elite-specific properties
         this.isBerserk = false;
         this.summonTimer = 0;
         this.lastShockwaveTime = 0;
+
+        // Elite ability properties
+        this.eliteAbility = null; // 'shield' | 'teleport' | 'healNearby' | 'explodeOnDeath'
+        this.shieldHits = 0;
+        this.teleportCooldown = 0;
+        this.healTimer = 0;
     }
-    
+
     initializeType(type) {
         const types = {
             basic: {
@@ -133,28 +140,28 @@ export class Enemy {
                 shockwaveRange: 80
             }
         };
-        
+
         let stats = types[type] || types.basic;
-        
+
         // ENEMY VARIANTS SYSTEM - Add visual and stat diversity
         const variant = this.generateVariant(type, stats);
         if (variant) {
             stats = { ...stats, ...variant };
             this.variant = variant.name; // Store variant name for rendering
         }
-        
+
         // Apply difficulty scaling based on game time
         const difficultyMultiplier = this.getDifficultyMultiplier();
-        
+
         this.maxHealth = Math.floor(stats.maxHealth * difficultyMultiplier);
         this.speed = stats.speed;
-        
+
         // Apply adaptive damage from flow state
         let finalDamageMultiplier = difficultyMultiplier;
         if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
             finalDamageMultiplier *= this.game.systems.flowState.adaptiveDamageMultiplier;
         }
-        
+
         this.damage = Math.floor(stats.damage * finalDamageMultiplier);
         this.size = stats.size;
         this.color = stats.color;
@@ -164,19 +171,28 @@ export class Enemy {
         this.expReward = Math.floor(stats.expReward * xpScalingFactor);
         this.attackRange = stats.attackRange;
         this.baseAttackCooldown = stats.attackCooldown;
+
+        // Assign random elite ability
+        if (type === 'elite') {
+            const abilities = ['shield', 'teleport', 'healNearby', 'explodeOnDeath'];
+            this.eliteAbility = abilities[Math.floor(Math.random() * abilities.length)];
+            if (this.eliteAbility === 'shield') this.shieldHits = 3;
+            if (this.eliteAbility === 'teleport') this.teleportCooldown = 3.0;
+            if (this.eliteAbility === 'healNearby') this.healTimer = 4.0;
+        }
     }
 
-    
+
     generateVariant(type, baseStats) {
         // Only generate variants for certain types and with low probability
         const variantChance = 0.15; // 15% chance for variant
         if (Math.random() > variantChance) return null;
-        
+
         // Skip variants for special enemy types
         if (['elite', 'berserker', 'summoner', 'juggernaut'].includes(type)) {
             return null;
         }
-        
+
         const variants = {
             basic: [
                 {
@@ -252,79 +268,85 @@ export class Enemy {
                 }
             ]
         };
-        
+
         const typeVariants = variants[type];
         if (!typeVariants || typeVariants.length === 0) return null;
-        
+
         // Select random variant
         const selectedVariant = typeVariants[Math.floor(Math.random() * typeVariants.length)];
-        
+
         return selectedVariant;
     }
-    
+
     getDifficultyMultiplier() {
         // REBALANCED: Exponential enemy scaling for challenging long-term gameplay
         if (!this.game || typeof this.game.gameTime !== 'number') {
             return 1.0; // Default multiplier during initialization
         }
-        
+
         const gameTime = this.game.gameTime;
         const baseMultiplier = 1.0;
-        
+
         // REBALANCED: Exponential health scaling to match weapon power growth
         // Every 2 minutes, enemies get significantly tougher to maintain challenge
         const timeMinutes = gameTime / 120; // Scale every 2 minutes (was 30 seconds)
         const exponentialScaling = Math.pow(1.6, timeMinutes); // 60% increase every 2 minutes (was 5% every 30s)
-        
+
         // Additional wave-based scaling for continuous challenge
         const currentWave = this.game.systems?.enemy?.currentWave || 1;
         const waveScaling = Math.pow(1.08, currentWave - 1); // 8% per wave
-        
+
         const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling;
-        
+
         // Much higher cap to allow proper scaling (was 3.0)
         const cappedMultiplier = Math.min(finalMultiplier, 50.0);
-        
+
         // Debug logging for balance verification
         if (gameTime > 240 && Math.random() < 0.01) { // Log occasionally after 4 minutes
             console.log(`ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`);
         }
-        
+
         return cappedMultiplier;
     }
-    
+
     update(dt) {
         if (!this.active) return;
-        
+
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
             this.currentSpawnTime -= dt;
             return; // Don't update AI during spawn
         }
-        
+
         // Update attack cooldown
         if (this.attackCooldown > 0) {
             this.attackCooldown -= dt;
         }
-        
+
+        // Hit freeze-frame: skip AI update while frozen
+        if (this.freezeTimer > 0) {
+            this.freezeTimer -= dt;
+            return; // Don't move or act during freeze
+        }
+
         // Update flash effect from damage
         if (this.flashTime > 0) {
             this.flashTime -= dt;
         }
-        
+
         // Note: Damage numbers now updated by globalDamageNumberPool
-        
+
         // AI behavior
         this.updateAI(dt);
-        
+
         // Elite-specific behaviors
         this.updateEliteBehaviors(dt);
-        
+
         // Apply movement with coordinate validation
         // FIXED: Validate movement delta before applying
         const deltaX = this.velocity.x * dt;
         const deltaY = this.velocity.y * dt;
-        
+
         if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
             this.x += deltaX;
             this.y += deltaY;
@@ -332,7 +354,12 @@ export class Enemy {
             console.warn('Invalid enemy movement delta detected, zeroing velocity');
             this.velocity = { x: 0, y: 0 };
         }
-        
+
+        // Obstacle collision
+        if (this.game.systems.terrain && this.game.systems.terrain.pushOutOfObstacles) {
+            this.game.systems.terrain.pushOutOfObstacles(this);
+        }
+
         // FIXED: Prevent coordinate overflow
         if (!isFinite(this.x) || !isFinite(this.y) || Math.abs(this.x) > 1e6 || Math.abs(this.y) > 1e6) {
             console.warn('Enemy coordinate overflow detected, resetting position');
@@ -347,19 +374,19 @@ export class Enemy {
             this.velocity = { x: 0, y: 0 };
         }
     }
-    
+
     updateAI(dt) {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
-        
+
         // Calculate distance to player
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Update direction
         this.direction = Math.atan2(dy, dx);
-        
+
         // Different behaviors based on type
         switch (this.type) {
             case 'ranged':
@@ -370,7 +397,7 @@ export class Enemy {
                 break;
         }
     }
-    
+
     updateMeleeAI(dx, dy, distance, dt) {
         if (distance > this.attackRange) {
             // Move towards player - FIXED: Add zero distance check
@@ -381,18 +408,20 @@ export class Enemy {
                 this.velocity.y = Math.sin(randomAngle) * this.speed;
                 return;
             }
-            
+
             const normalizedX = dx / distance;
             const normalizedY = dy / distance;
-            
+
             // Apply separation from other enemies
             const separation = this.getSeparationForce();
-            
-            this.velocity.x = (normalizedX * this.speed) + separation.x;
-            this.velocity.y = (normalizedY * this.speed) + separation.y;
-            
+
+            // Blood Moon speed buff
+            const speedMult = this.game.systems.dynamicEvents?.bloodMoonSpeedMult ?? 1;
+            this.velocity.x = (normalizedX * this.speed * speedMult) + separation.x;
+            this.velocity.y = (normalizedY * this.speed * speedMult) + separation.y;
+
             // FIXED: Clamp velocity to prevent runaway acceleration
-            const maxVelocity = this.speed * 2; // Allow 2x speed as max
+            const maxVelocity = this.speed * speedMult * 2; // Allow 2x speed as max
             const velocityMagnitude = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
             if (velocityMagnitude > maxVelocity) {
                 this.velocity.x = (this.velocity.x / velocityMagnitude) * maxVelocity;
@@ -402,16 +431,16 @@ export class Enemy {
             // In attack range - stop and attack
             this.velocity.x *= 0.1; // Quick deceleration
             this.velocity.y *= 0.1;
-            
+
             if (this.attackCooldown <= 0) {
                 this.attack();
             }
         }
     }
-    
+
     updateRangedAI(dx, dy, distance, dt) {
         const optimalRange = this.attackRange * 0.8; // Stay at 80% of max range
-        
+
         // FIXED: Add zero distance check for all ranged AI calculations
         if (distance === 0) {
             // If exactly on player, move in random direction
@@ -420,48 +449,49 @@ export class Enemy {
             this.velocity.y = Math.sin(randomAngle) * this.speed * 0.5;
             return;
         }
-        
+
+        const rangedSpeedMult = this.game.systems.dynamicEvents?.bloodMoonSpeedMult ?? 1;
         if (distance > this.attackRange) {
             // Move closer
             const normalizedX = dx / distance;
             const normalizedY = dy / distance;
-            this.velocity.x = normalizedX * this.speed;
-            this.velocity.y = normalizedY * this.speed;
+            this.velocity.x = normalizedX * this.speed * rangedSpeedMult;
+            this.velocity.y = normalizedY * this.speed * rangedSpeedMult;
         } else if (distance < optimalRange) {
             // Move away to maintain distance
             const normalizedX = -dx / distance;
             const normalizedY = -dy / distance;
-            this.velocity.x = normalizedX * this.speed * 0.5;
-            this.velocity.y = normalizedY * this.speed * 0.5;
+            this.velocity.x = normalizedX * this.speed * rangedSpeedMult * 0.5;
+            this.velocity.y = normalizedY * this.speed * rangedSpeedMult * 0.5;
         } else {
             // In optimal range - strafe and attack
             const strafeDirection = this.direction + Math.PI / 2;
-            this.velocity.x = Math.cos(strafeDirection) * this.speed * 0.3;
-            this.velocity.y = Math.sin(strafeDirection) * this.speed * 0.3;
-            
+            this.velocity.x = Math.cos(strafeDirection) * this.speed * rangedSpeedMult * 0.3;
+            this.velocity.y = Math.sin(strafeDirection) * this.speed * rangedSpeedMult * 0.3;
+
             if (this.attackCooldown <= 0) {
                 this.rangedAttack();
             }
         }
     }
-    
+
     getSeparationForce() {
         const separationRadius = this.size * 3;
         const separationStrength = 50;
         let forceX = 0;
         let forceY = 0;
         let neighbors = 0;
-        
+
         // Get nearby enemies from spatial grid
         const nearbyEnemies = this.game.systems.enemy.getNearbyEnemies(this.x, this.y, separationRadius);
-        
+
         for (const enemy of nearbyEnemies) {
             if (enemy === this || !enemy.active) continue;
-            
+
             const dx = this.x - enemy.x;
             const dy = this.y - enemy.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            
+
             if (distance < separationRadius && distance > 0) {
                 const strength = (separationRadius - distance) / separationRadius;
                 // FIXED: Additional safety check for distance
@@ -472,65 +502,87 @@ export class Enemy {
                 neighbors++;
             }
         }
-        
+
         if (neighbors > 0) {
             forceX /= neighbors;
             forceY /= neighbors;
         }
-        
+
         return { x: forceX, y: forceY };
     }
-    
+
     attack() {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
-        
-        // Deal damage to player
-        player.takeDamage(this.damage);
-        
+
+        // Deal damage to player (Blood Moon buff)
+        const dmgMult = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
+        player.takeDamage(Math.round(this.damage * dmgMult));
+
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
-        
+
         // Visual effect
         this.game.systems.particle.createImpactEffect(this.x, this.y, '#FF4444');
-        
+
     }
-    
+
     rangedAttack() {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
-        
-        
+
+        // Blood Moon damage buff for ranged attacks
+        const dmgMult = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
+
         // Create highly visible projectile towards player
         this.game.systems.projectile.createEnemyProjectile(
             this.x, this.y,
             player.x, player.y,
-            this.damage,
+            Math.round(this.damage * dmgMult),
             150, // projectile speed
             '#FF4444' // bright red for visibility
         );
-        
+
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
-        
+
     }
-    
+
     takeDamage(amount, source = null, isCritical = false) {
         if (!this.active || this.health <= 0) return false;
-        
+
+        // Elite shield: absorb hits
+        if (this.eliteAbility === 'shield' && this.shieldHits > 0) {
+            this.shieldHits--;
+            this.flashTime = 0.15;
+            if (this.game.systems.particle) {
+                this.game.systems.particle.create(this.x, this.y, {
+                    vx: 0, vy: -30, life: 0.5, size: 8, color: '#4FC3F7', glow: true, fadeOut: true
+                });
+                this.game.systems.particle.create(this.x + 8, this.y - 5, {
+                    vx: 15, vy: -20, life: 0.3, size: 5, color: '#81D4FA', glow: true, fadeOut: true
+                });
+                this.game.systems.particle.create(this.x - 8, this.y - 5, {
+                    vx: -15, vy: -20, life: 0.3, size: 5, color: '#81D4FA', glow: true, fadeOut: true
+                });
+            }
+            this.addDamageNumber('BLOCKED', '#4FC3F7');
+            return false;
+        }
+
         const damage = Math.max(1, Math.floor(amount));
         this.health = Math.max(0, this.health - damage);
-        
+
         // Track damage for psychology feedback
         this.lastDamageAmount = damage;
         this.lastDamageWasCritical = isCritical;
         this.lastDamageTime = performance.now();
-        
+
         // Enhanced visual feedback based on damage
         this.flashTime = isCritical ? 0.2 : 0.1;
         const damageColor = isCritical ? '#FF0000' : '#FFFF00';
         this.addDamageNumber(damage, damageColor);
-        
+
         // Hit effect particles
         if (this.game.systems.particle) {
             if (isCritical) {
@@ -539,76 +591,297 @@ export class Enemy {
                 this.game.systems.particle.createHitEffect(this.x, this.y, '#FFFF00');
             }
         }
-        
-        // Knockback effect
+
+        // Hit freeze-frame: brief pause on hit for juicy feel
+        this.freezeTimer = isCritical ? 0.06 : 0.03; // ~2 frames for crit, ~1 for normal
+
+        // Enhanced knockback: scale with damage (not just flat)
         if (source) {
             const dx = this.x - source.x;
             const dy = this.y - source.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            // FIXED: More robust distance check for knockback
-            if (distance > 0.001) { // Avoid near-zero divisions
-                const knockbackStrength = isCritical ? 150 : 100;
+            const damageScale = Math.min(2.0, damage / 20); // Scale up to 2x for big hits
+            if (distance > 0.001) {
+                const knockbackStrength = (isCritical ? 180 : 100) * damageScale;
                 this.velocity.x += (dx / distance) * knockbackStrength;
                 this.velocity.y += (dy / distance) * knockbackStrength;
             } else {
-                // If exactly on source, apply random knockback
                 const randomAngle = Math.random() * Math.PI * 2;
-                const knockbackStrength = isCritical ? 150 : 100;
+                const knockbackStrength = (isCritical ? 180 : 100) * damageScale;
                 this.velocity.x += Math.cos(randomAngle) * knockbackStrength;
                 this.velocity.y += Math.sin(randomAngle) * knockbackStrength;
             }
         }
-        
+
+        // Hit-spark particles at impact point
+        if (this.game.systems.particle) {
+            const sparkCount = isCritical ? 6 : 3;
+            for (let i = 0; i < sparkCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 80 + Math.random() * 120;
+                this.game.systems.particle.create({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: isCritical ? '#FFFFFF' : '#FFDD44',
+                    size: isCritical ? 2 + Math.random() * 3 : 1.5 + Math.random() * 2,
+                    lifetime: 0.15 + Math.random() * 0.1,
+                    decay: 0.9,
+                    type: 'circle'
+                });
+            }
+        }
+
+        // Camera shake proportional to damage
+        if (this.game.camera) {
+            const shakeIntensity = Math.min(10, damage * 0.08);
+            if (isCritical) {
+                this.game.camera.shake(shakeIntensity * 1.5, 0.12, 'critical');
+            } else if (damage > 15) {
+                this.game.camera.shake(shakeIntensity, 0.08, 'subtle');
+            }
+        }
+
         // Death check
         if (this.health <= 0) {
             this.die();
             return true;
         }
-        
+
         return true;
     }
-    
+
     die() {
         if (!this.active) return;
-        
+
         // CRITICAL FIX: Create all visual effects BEFORE marking inactive
         // This ensures particles have proper context and timing
-        
+
         // ADDICTION MECHANICS: Trigger combo system and psychological rewards
         const finalDamage = this.lastDamageAmount || this.maxHealth;
         const wasCritical = this.lastDamageWasCritical || false;
-        
+
         // Enhanced experience rewards based on combo
         let expReward = this.expReward;
         if (this.game.player && this.game.player.combo) {
             expReward = Math.floor(expReward * this.game.player.combo.multiplier);
         }
-        
+
+        // Golden Swarm: 3x XP + bonus gold drop
+        if (this.game.systems.dynamicEvents?.goldenSwarmActive) {
+            expReward *= 3;
+            if (this.game.systems.gold) {
+                this.game.systems.gold.spawnCoin(this.x, this.y, 2 + Math.floor(Math.random() * 4));
+            }
+        }
+
         // Death particle effect with enhanced feedback for combos - CREATE FIRST
         const comboLevel = this.game.player ? Math.min(this.game.player.combo.count / 10, 3.0) : 1.0;
-        this.game.systems.particle.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
-        
+
+        // ── PER-TYPE DEATH ANIMATIONS ──
+        const ps = this.game.systems.particle;
+        if (ps) {
+            switch (this.type) {
+                case 'fast': {
+                    // Fast scatter: quick burst of small particles radiating outward
+                    const count = 8 + Math.floor(comboLevel * 3);
+                    for (let i = 0; i < count; i++) {
+                        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+                        const speed = 120 + Math.random() * 80;
+                        ps.create(this.x, this.y, {
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            life: 0.3 + Math.random() * 0.2,
+                            size: 2 + Math.random() * 2,
+                            color: this.color,
+                            fadeOut: true
+                        });
+                    }
+                    break;
+                }
+
+                case 'tank': {
+                    // Dissolve: particles float upward like ash
+                    const count = 14 + Math.floor(comboLevel * 4);
+                    for (let i = 0; i < count; i++) {
+                        const offsetX = (Math.random() - 0.5) * this.size * 2;
+                        const offsetY = (Math.random() - 0.5) * this.size * 2;
+                        ps.create(this.x + offsetX, this.y + offsetY, {
+                            vx: (Math.random() - 0.5) * 30,
+                            vy: -(40 + Math.random() * 60),
+                            life: 0.8 + Math.random() * 0.6,
+                            size: 3 + Math.random() * 3,
+                            color: this.color,
+                            fadeOut: true,
+                            glow: true
+                        });
+                    }
+                    // Ground debris
+                    for (let i = 0; i < 5; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        ps.create(this.x, this.y, {
+                            vx: Math.cos(angle) * (50 + Math.random() * 40),
+                            vy: Math.sin(angle) * (50 + Math.random() * 40),
+                            life: 0.4 + Math.random() * 0.3,
+                            size: 4 + Math.random() * 2,
+                            color: '#666666',
+                            fadeOut: true
+                        });
+                    }
+                    break;
+                }
+
+                case 'ranged': {
+                    // Explosion: outward debris burst + flash
+                    const count = 10 + Math.floor(comboLevel * 3);
+                    for (let i = 0; i < count; i++) {
+                        const angle = (i / count) * Math.PI * 2;
+                        const speed = 80 + Math.random() * 100;
+                        ps.create(this.x, this.y, {
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            life: 0.5 + Math.random() * 0.3,
+                            size: 2 + Math.random() * 3,
+                            color: this.color,
+                            fadeOut: true,
+                            glow: true
+                        });
+                    }
+                    // Central flash
+                    ps.create(this.x, this.y, {
+                        vx: 0, vy: 0,
+                        life: 0.15,
+                        size: this.size * 2,
+                        color: '#FFFFFF',
+                        fadeOut: true,
+                        glow: true
+                    });
+                    break;
+                }
+
+                case 'elite': {
+                    // Multi-stage dramatic death
+                    // Stage 1: Freeze-frame ring
+                    ps.create(this.x, this.y, {
+                        vx: 0, vy: 0,
+                        life: 0.3,
+                        size: this.size * 3,
+                        color: '#FFD700',
+                        fadeOut: true,
+                        glow: true
+                    });
+                    // Stage 2: Delayed colored trail burst
+                    const count = 20 + Math.floor(comboLevel * 5);
+                    for (let i = 0; i < count; i++) {
+                        const angle = (i / count) * Math.PI * 2;
+                        const speed = 60 + Math.random() * 120;
+                        const delay = 0.05 + Math.random() * 0.1;
+                        ps.create(this.x, this.y, {
+                            vx: Math.cos(angle) * speed * delay * 10,
+                            vy: Math.sin(angle) * speed * delay * 10,
+                            life: 0.8 + Math.random() * 0.5,
+                            size: 3 + Math.random() * 4,
+                            color: i % 2 === 0 ? '#FFD700' : this.color,
+                            fadeOut: true,
+                            glow: true
+                        });
+                    }
+                    // Stage 3: Rising sparkles
+                    for (let i = 0; i < 8; i++) {
+                        ps.create(
+                            this.x + (Math.random() - 0.5) * 20,
+                            this.y + (Math.random() - 0.5) * 20,
+                            {
+                                vx: (Math.random() - 0.5) * 20,
+                                vy: -(60 + Math.random() * 40),
+                                life: 1.0 + Math.random() * 0.5,
+                                size: 2,
+                                color: '#FFFFFF',
+                                fadeOut: true,
+                                glow: true,
+                                pulse: true
+                            }
+                        );
+                    }
+                    break;
+                }
+
+                default: {
+                    // Basic enemies: simple radial burst
+                    const count = 6 + Math.floor(comboLevel * 2);
+                    for (let i = 0; i < count; i++) {
+                        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+                        const speed = 60 + Math.random() * 60;
+                        ps.create(this.x, this.y, {
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            life: 0.4 + Math.random() * 0.2,
+                            size: 2 + Math.random() * 2,
+                            color: this.color,
+                            fadeOut: true
+                        });
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Also call existing enhanced death effect for VFX stacking
+        if (ps && ps.createEnhancedDeathEffect) {
+            ps.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
+        }
+
         // Escalating screen shake based on combo
         const shakeIntensity = Math.min(5, 2 + comboLevel);
         if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
             this.game.camera.shake(shakeIntensity, 0.1 + comboLevel * 0.05);
         }
-        
+
         // Drop experience gem with combo bonus
         this.game.systems.experience.createGem(
             this.x + (Math.random() - 0.5) * 20,
             this.y + (Math.random() - 0.5) * 20,
             expReward
         );
-        
+
+        // Elite explodeOnDeath: damage player if nearby
+        if (this.eliteAbility === 'explodeOnDeath') {
+            const player = this.game.player;
+            if (player) {
+                const edx = player.x - this.x;
+                const edy = player.y - this.y;
+                if (Math.sqrt(edx * edx + edy * edy) <= 80) {
+                    player.takeDamage(30);
+                }
+            }
+            // Red/orange explosion particles
+            if (ps) {
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i / 12) * Math.PI * 2;
+                    const speed = 60 + Math.random() * 80;
+                    ps.create(this.x, this.y, {
+                        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        life: 0.4 + Math.random() * 0.3,
+                        size: 4 + Math.random() * 3,
+                        color: Math.random() > 0.5 ? '#FF4500' : '#FF0000',
+                        glow: true, fadeOut: true
+                    });
+                }
+            }
+            if (this.game.camera && typeof this.game.camera.shake === 'function') {
+                this.game.camera.shake(8, 0.3);
+            }
+        }
+
         // NOW mark as inactive after all effects are created
         this.active = false;
-        
+
         // Update player's combo count and kill streak
         if (this.game.player) {
             this.game.player.addKillToCombo();
             this.game.player.addKillToStreak(); // Add kill streak tracking
-            
+
             // Track kill for achievements and flow state
             if (this.game.systems.achievement) {
                 this.game.systems.achievement.onEnemyKilled(this, wasCritical);
@@ -619,7 +892,7 @@ export class Enemy {
             if (this.game.systems.microChallenge) {
                 this.game.systems.microChallenge.onEnemyKilled(this);
             }
-            
+
             // Bonus rewards for critical kills
             if (wasCritical) {
                 this.game.player.streaks.criticalHits++;
@@ -631,7 +904,7 @@ export class Enemy {
                 }
             }
         }
-        
+
         // Chance for power-up drop on elite kills
         if (this.type === 'elite' || (this.game.player && this.game.player.combo.count >= 20)) {
             const cap = this.game.maxPowerUpDrops || 8;
@@ -644,17 +917,37 @@ export class Enemy {
                 this.game.spawnPowerUpDrop(this.x, this.y);
             }
         }
-        
+
+        // Track kill for rewards system (kill streaks, XP multiplier)
+        if (this.game.systems.rewards) {
+            this.game.systems.rewards.onEnemyKilled();
+        }
+
+        // Track kill for milestones system (kill counts, celebrations)
+        if (this.game.systems.killMilestone) {
+            this.game.systems.killMilestone.onEnemyKilled();
+        }
+
+        // Gold drop chance
+        if (this.game.systems.gold) {
+            this.game.systems.gold.onEnemyKilled(this);
+        }
+
+        // Audio: enemy death sound (throttled by AudioManager)
+        if (this.game.audioManager && this.game.audioManager.playEnemyDeath) {
+            this.game.audioManager.playEnemyDeath();
+        }
+
         // Update game score
         this.game.score += Math.floor(this.expReward * (this.game.player ? this.game.player.combo.multiplier : 1.0));
     }
-    
+
     addDamageNumber(amount, color) {
         // Skip zero or invalid damage numbers unless it's a text message
         if (typeof amount === 'number' && (!isFinite(amount) || amount <= 0)) {
             return;
         }
-        
+
         // Use centralized damage number pool
         const isCritical = color === '#FF0000' || color === '#FF69B4';
         return globalDamageNumberPool.get(
@@ -665,53 +958,64 @@ export class Enemy {
             isCritical
         );
     }
-    
+
     // updateDamageNumbers removed - now handled by globalDamageNumberPool
-    
+
     render(renderer) {
         if (!this.active) return;
-        
+
         const ctx = renderer.ctx;
         ctx.save();
-        
+
         // Spawn animation
         if (this.currentSpawnTime > 0) {
             const spawnProgress = 1 - (this.currentSpawnTime / this.spawnTime);
             ctx.globalAlpha = spawnProgress;
             ctx.scale(spawnProgress, spawnProgress);
         }
-        
+
         // Flash effect when damaged
         if (this.flashTime > 0) {
             ctx.shadowColor = '#FFFFFF';
             ctx.shadowBlur = 10;
         }
-        
-        // Draw enemy body
-        ctx.fillStyle = this.color;
+
+        // Draw enemy body (Golden Swarm tint)
+        const isGoldenSwarm = this.game.systems.dynamicEvents?.goldenSwarmActive;
+        if (isGoldenSwarm) {
+            ctx.fillStyle = '#FFD700';
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = 6;
+        } else {
+            ctx.fillStyle = this.color;
+        }
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
-        
+        if (isGoldenSwarm) {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+        }
+
         // Draw type-specific details
         this.renderTypeDetails(ctx);
-        
+
         // Health bar for damaged enemies
         if (this.health < this.maxHealth) {
             this.renderHealthBar(ctx);
         }
-        
+
         ctx.restore();
-        
+
         // Note: Damage numbers now rendered by globalDamageNumberPool
     }
-    
+
     renderTypeDetails(ctx) {
         // Render variant indicators first
         if (this.variant) {
             this.renderVariantIndicator(ctx);
         }
-        
+
         switch (this.type) {
             case 'fast':
                 // Draw speed lines
@@ -723,14 +1027,14 @@ export class Enemy {
                     const startY = this.y + Math.sin(angle) * this.size * 0.5;
                     const endX = startX + Math.cos(angle) * this.size * 0.8;
                     const endY = startY + Math.sin(angle) * this.size * 0.8;
-                    
+
                     ctx.beginPath();
                     ctx.moveTo(startX, startY);
                     ctx.lineTo(endX, endY);
                     ctx.stroke();
                 }
                 break;
-                
+
             case 'tank':
                 // Draw armor plating
                 ctx.strokeStyle = '#333333';
@@ -739,7 +1043,7 @@ export class Enemy {
                 ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2);
                 ctx.stroke();
                 break;
-                
+
             case 'ranged':
                 // Draw targeting reticle
                 if (this.attackCooldown <= 0.5) {
@@ -753,22 +1057,118 @@ export class Enemy {
                     ctx.stroke();
                 }
                 break;
-                
+
             case 'elite':
                 // Draw crown/elite marker
                 ctx.fillStyle = '#FFD700';
                 ctx.beginPath();
                 ctx.arc(this.x, this.y - this.size - 3, 3, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Elite ability visual telegraphs
+                if (this.eliteAbility) {
+                    this.renderEliteAbilityIndicator(ctx);
+                }
                 break;
         }
     }
 
-    
+    renderEliteAbilityIndicator(ctx) {
+        const time = performance.now() * 0.001;
+
+        switch (this.eliteAbility) {
+            case 'shield': {
+                if (this.shieldHits <= 0) break;
+                // Translucent blue shield ring
+                ctx.save();
+                ctx.strokeStyle = '#4FC3F7';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.4 + 0.15 * Math.sin(time * 3);
+                ctx.shadowColor = '#4FC3F7';
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size + 6, 0, Math.PI * 2);
+                ctx.stroke();
+                // Shield hit count indicator (small dots)
+                for (let i = 0; i < this.shieldHits; i++) {
+                    const dotAngle = -Math.PI / 2 + (i - (this.shieldHits - 1) / 2) * 0.5;
+                    ctx.fillStyle = '#4FC3F7';
+                    ctx.beginPath();
+                    ctx.arc(
+                        this.x + Math.cos(dotAngle) * (this.size + 10),
+                        this.y + Math.sin(dotAngle) * (this.size + 10),
+                        2, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+                ctx.restore();
+                break;
+            }
+            case 'teleport': {
+                // Alpha flicker when teleport is nearly ready
+                if (this.teleportCooldown < 1.0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#CE93D8';
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = 0.3 * Math.abs(Math.sin(time * 10));
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size + 4, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                }
+                break;
+            }
+            case 'healNearby': {
+                // Green pulse when about to heal
+                if (this.healTimer < 1.5) {
+                    ctx.save();
+                    const pulseAlpha = 0.2 + 0.15 * Math.sin(time * 5);
+                    ctx.strokeStyle = '#4CAF50';
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = pulseAlpha;
+                    ctx.shadowColor = '#4CAF50';
+                    ctx.shadowBlur = 4;
+                    const pulseRadius = this.size + 4 + Math.sin(time * 4) * 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, pulseRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    // Small cross indicator
+                    ctx.globalAlpha = pulseAlpha * 1.5;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x - 3, this.y - this.size - 6);
+                    ctx.lineTo(this.x + 3, this.y - this.size - 6);
+                    ctx.moveTo(this.x, this.y - this.size - 9);
+                    ctx.lineTo(this.x, this.y - this.size - 3);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                break;
+            }
+            case 'explodeOnDeath': {
+                // Faint red inner glow
+                ctx.save();
+                ctx.globalAlpha = 0.15 + 0.08 * Math.sin(time * 2);
+                const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                grad.addColorStop(0, '#FF4500');
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                break;
+            }
+        }
+    }
+
+
     renderVariantIndicator(ctx) {
         // Draw variant indicators to show enemy is special
         const time = performance.now() * 0.01;
-        
+
         switch (this.variant) {
             case 'Crimson':
                 // Pulsing red aura
@@ -782,7 +1182,7 @@ export class Enemy {
                 ctx.fill();
                 ctx.restore();
                 break;
-                
+
             case 'Jade':
                 // Green energy rings
                 ctx.save();
@@ -797,7 +1197,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Shadow':
                 // Dark wisps
                 ctx.save();
@@ -814,7 +1214,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Lightning':
                 // Electric sparks
                 ctx.save();
@@ -829,7 +1229,7 @@ export class Enemy {
                         const startY = this.y + Math.sin(angle) * this.size;
                         const endX = startX + Math.cos(angle) * length;
                         const endY = startY + Math.sin(angle) * length;
-                        
+
                         ctx.beginPath();
                         ctx.moveTo(startX, startY);
                         ctx.lineTo(endX, endY);
@@ -838,7 +1238,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Frost':
                 // Ice crystals
                 ctx.save();
@@ -849,7 +1249,7 @@ export class Enemy {
                     const distance = this.size * 1.4;
                     const crystalX = this.x + Math.cos(angle) * distance;
                     const crystalY = this.y + Math.sin(angle) * distance;
-                    
+
                     // Draw small diamond
                     ctx.beginPath();
                     ctx.moveTo(crystalX, crystalY - 3);
@@ -861,7 +1261,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Iron':
                 // Metallic shine
                 ctx.save();
@@ -873,7 +1273,7 @@ export class Enemy {
                 ctx.stroke();
                 ctx.restore();
                 break;
-                
+
             case 'Molten':
                 // Lava bubbles
                 ctx.save();
@@ -888,7 +1288,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Sniper':
                 // Scope glint
                 ctx.save();
@@ -901,7 +1301,7 @@ export class Enemy {
                 }
                 ctx.restore();
                 break;
-                
+
             case 'Poison':
                 // Toxic bubbles
                 ctx.save();
@@ -920,21 +1320,21 @@ export class Enemy {
                 break;
         }
     }
-    
+
     renderHealthBar(ctx) {
         const barWidth = Math.max(24, this.size * 2.5); // Wider bars
         const barHeight = 4; // Taller bars
         const barX = this.x - barWidth / 2;
         const barY = this.y - this.size - 10;
-        
+
         // Background with border
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
-        
+
         // Dark background
         ctx.fillStyle = '#222222';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-        
+
         // Health fill with color coding
         const healthRatio = this.health / this.maxHealth;
         let healthColor;
@@ -945,10 +1345,10 @@ export class Enemy {
         } else {
             healthColor = '#FF0000'; // Red
         }
-        
+
         ctx.fillStyle = healthColor;
         ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-        
+
         // Add subtle glow for better visibility
         if (healthRatio < 0.5) {
             ctx.shadowColor = healthColor;
@@ -957,9 +1357,9 @@ export class Enemy {
             ctx.shadowBlur = 0;
         }
     }
-    
+
     // renderDamageNumbers removed - now handled by globalDamageNumberPool
-    
+
     // Helper methods
     getBounds() {
         return {
@@ -969,15 +1369,15 @@ export class Enemy {
             bottom: this.y + this.hitbox.height / 2
         };
     }
-    
+
     getPosition() {
         return { x: this.x, y: this.y };
     }
-    
+
     isAlive() {
         return this.active && this.health > 0;
     }
-    
+
     // Reset method for object pooling
     reset(x, y, type = 'basic') {
         this.x = x;
@@ -987,14 +1387,21 @@ export class Enemy {
         this.direction = 0;
         this.attackCooldown = 0;
         this.flashTime = 0;
+        this.freezeTimer = 0;
         this.currentSpawnTime = this.spawnTime;
         // Note: Damage numbers now managed by globalDamageNumberPool
         this.active = true;
-        
+
+        // Reset elite ability state
+        this.eliteAbility = null;
+        this.shieldHits = 0;
+        this.teleportCooldown = 0;
+        this.healTimer = 0;
+
         this.initializeType(type);
         this.health = this.maxHealth;
     }
-    
+
     updateEliteBehaviors(dt) {
         // Berserker: Gains speed and damage as health decreases
         if (this.type === 'berserker') {
@@ -1007,7 +1414,7 @@ export class Enemy {
                 console.log('💀 Berserker entering rage mode!');
             }
         }
-        
+
         // Summoner: Spawns minions periodically
         else if (this.type === 'summoner') {
             this.summonTimer += dt;
@@ -1016,7 +1423,7 @@ export class Enemy {
                 this.summonMinions();
             }
         }
-        
+
         // Juggernaut: Creates shockwaves periodically
         else if (this.type === 'juggernaut') {
             const timeSinceShockwave = this.game.gameTime - this.lastShockwaveTime;
@@ -1025,18 +1432,101 @@ export class Enemy {
                 this.lastShockwaveTime = this.game.gameTime;
             }
         }
+
+        // Base elite type: special abilities
+        else if (this.type === 'elite' && this.eliteAbility) {
+            this.updateEliteAbility(dt);
+        }
     }
-    
+
+    updateEliteAbility(dt) {
+        const player = this.game.player;
+        if (!player || !player.isAlive()) return;
+
+        switch (this.eliteAbility) {
+            case 'teleport': {
+                this.teleportCooldown -= dt;
+                if (this.teleportCooldown <= 0) {
+                    const dx = player.x - this.x;
+                    const dy = player.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 100) {
+                        // Shimmer particles at old position
+                        if (this.game.systems.particle) {
+                            for (let i = 0; i < 8; i++) {
+                                const angle = (i / 8) * Math.PI * 2;
+                                this.game.systems.particle.create(this.x, this.y, {
+                                    vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40,
+                                    life: 0.4, size: 4, color: '#CE93D8', glow: true, fadeOut: true
+                                });
+                            }
+                        }
+                        // Teleport to random point 200-300px from player
+                        const teleAngle = Math.random() * Math.PI * 2;
+                        const teleDist = 200 + Math.random() * 100;
+                        this.x = player.x + Math.cos(teleAngle) * teleDist;
+                        this.y = player.y + Math.sin(teleAngle) * teleDist;
+                        // Shimmer particles at new position
+                        if (this.game.systems.particle) {
+                            for (let i = 0; i < 6; i++) {
+                                const angle = (i / 6) * Math.PI * 2;
+                                this.game.systems.particle.create(this.x, this.y, {
+                                    vx: Math.cos(angle) * 30, vy: Math.sin(angle) * 30,
+                                    life: 0.3, size: 5, color: '#AB47BC', glow: true, fadeOut: true
+                                });
+                            }
+                        }
+                    }
+                    this.teleportCooldown = 5.0;
+                }
+                break;
+            }
+            case 'healNearby': {
+                this.healTimer -= dt;
+                if (this.healTimer <= 0) {
+                    const nearby = this.game.systems.enemy.getEnemiesInRange(this.x, this.y, 150);
+                    let healed = 0;
+                    for (const ally of nearby) {
+                        if (ally === this || !ally.active || healed >= 3) continue;
+                        if (ally.health < ally.maxHealth) {
+                            ally.health = Math.min(ally.maxHealth, ally.health + 20);
+                            healed++;
+                            // Green heal particle on ally
+                            if (this.game.systems.particle) {
+                                this.game.systems.particle.create(ally.x, ally.y - ally.size, {
+                                    vx: 0, vy: -25, life: 0.6, size: 6, color: '#66BB6A', glow: true, fadeOut: true
+                                });
+                            }
+                        }
+                    }
+                    // Green pulse at healer
+                    if (healed > 0 && this.game.systems.particle) {
+                        for (let i = 0; i < 6; i++) {
+                            const angle = (i / 6) * Math.PI * 2;
+                            this.game.systems.particle.create(this.x, this.y, {
+                                vx: Math.cos(angle) * 50, vy: Math.sin(angle) * 50,
+                                life: 0.5, size: 4, color: '#4CAF50', glow: true, fadeOut: true
+                            });
+                        }
+                    }
+                    this.healTimer = 6.0;
+                }
+                break;
+            }
+            // shield and explodeOnDeath have no per-frame logic
+        }
+    }
+
     summonMinions() {
         if (!this.game.systems.enemy) return;
-        
+
         // Spawn 2 basic enemies near the summoner
         for (let i = 0; i < 2; i++) {
             const angle = (i / 2) * Math.PI * 2;
             const distance = 40;
             const x = this.x + Math.cos(angle) * distance;
             const y = this.y + Math.sin(angle) * distance;
-            
+
             // Don't exceed enemy limits
             if (this.game.systems.enemy.activeEnemies.length < this.game.systems.enemy.maxActiveEnemies) {
                 const enemy = this.game.systems.enemy.createEnemyByType('fast');
@@ -1047,42 +1537,42 @@ export class Enemy {
                 }
             }
         }
-        
+
         // Visual effect
         if (this.game.systems.particle) {
             this.game.systems.particle.createEvolutionEffect(this.x, this.y);
         }
     }
-    
+
     createShockwave() {
         if (!this.game.player) return;
-        
+
         const player = this.game.player;
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Damage player if in range
         if (distance <= 80) {
             const damage = this.damage * 0.8; // 80% of normal damage
             player.takeDamage(damage);
-            
+
             // Knockback effect
             const knockbackForce = 200;
             const normalizedX = dx / distance;
             const normalizedY = dy / distance;
-            
+
             if (player.velocity) {
                 player.velocity.x += normalizedX * knockbackForce;
                 player.velocity.y += normalizedY * knockbackForce;
             }
         }
-        
+
         // Visual effect
         if (this.game.systems.particle) {
             this.game.systems.particle.createExplosionEffect(this.x, this.y, 80, '#2F4F4F');
         }
-        
+
         console.log('💥 Juggernaut shockwave!');
     }
 }

@@ -171,29 +171,60 @@ export class MagicMissile extends BaseWeapon {
     renderChargingEffect(renderer) {
         const ctx = renderer.ctx;
         const chargeProgress = 1 - (this.cooldownTimer / this.getEffectiveCooldown());
-        
-        if (chargeProgress > 0.7) {
-            // Draw sparkles around player when almost ready to fire
-            ctx.save();
-            
-            const sparkleCount = 4;
-            const time = performance.now() * 0.005;
-            
-            for (let i = 0; i < sparkleCount; i++) {
-                const angle = (i / sparkleCount) * Math.PI * 2 + time;
-                const distance = 20 + Math.sin(time * 3 + i) * 5;
-                const x = this.player.x + Math.cos(angle) * distance;
-                const y = this.player.y + Math.sin(angle) * distance;
-                
+        const time = performance.now() * 0.003;
+        const px = this.player.x;
+        const py = this.player.y;
+
+        ctx.save();
+
+        // Phase 1 (30-70%): Faint orbiting motes gathering
+        if (chargeProgress > 0.3) {
+            const moteAlpha = Math.min(1, (chargeProgress - 0.3) / 0.4) * 0.5;
+            const moteCount = 6 + Math.floor(this.level / 2);
+            for (let i = 0; i < moteCount; i++) {
+                const a = (i / moteCount) * Math.PI * 2 + time * (1 + i * 0.15);
+                const r = 22 - 8 * chargeProgress + Math.sin(time * 4 + i) * 3;
+                const mx = px + Math.cos(a) * r;
+                const my = py + Math.sin(a) * r;
+                ctx.globalAlpha = moteAlpha;
                 ctx.fillStyle = this.color;
-                ctx.globalAlpha = 0.6 * chargeProgress;
                 ctx.beginPath();
-                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.arc(mx, my, 1.5 + chargeProgress, 0, Math.PI * 2);
                 ctx.fill();
             }
-            
-            ctx.restore();
         }
+
+        // Phase 2 (70-100%): Glowing arcane ring + central orb
+        if (chargeProgress > 0.7) {
+            const intensity = (chargeProgress - 0.7) / 0.3; // 0→1
+
+            // Outer ring glow
+            ctx.globalAlpha = 0.15 * intensity;
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2 + intensity * 2;
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 10 * intensity;
+            ctx.beginPath();
+            ctx.arc(px, py, 18 + 4 * Math.sin(time * 5), 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Central orb
+            const orbRadius = 4 + 3 * intensity;
+            const gradient = ctx.createRadialGradient(px, py, 0, px, py, orbRadius);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${0.7 * intensity})`);
+            gradient.addColorStop(0.5, this.color);
+            gradient.addColorStop(1, 'rgba(155, 89, 182, 0)');
+            ctx.globalAlpha = 0.6 * intensity;
+            ctx.shadowBlur = 15 * intensity;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(px, py, orbRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.restore();
     }
     
     // Override targeting to prefer different enemy types

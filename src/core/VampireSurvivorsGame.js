@@ -6,6 +6,27 @@ import { ParticleSystemCore } from '../systems/ParticleSystemCore.js';
 import { StatusEffectSystem } from '../systems/StatusEffectSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
+import { FlowStateSystem } from '../systems/FlowStateSystem.js';
+import { AchievementSystem } from '../systems/AchievementSystem.js';
+import { RewardsSystem } from '../systems/RewardsSystem.js';
+import { MicroChallengeSystem } from '../systems/MicroChallengeSystem.js';
+import { AdaptiveMusicSystem } from '../systems/AdaptiveMusicSystem.js';
+import { PassiveItemSystem } from '../systems/PassiveItemSystem.js';
+import { KillMilestoneSystem } from '../systems/KillMilestoneSystem.js';
+import { ScreenEffectsSystem } from '../systems/ScreenEffectsSystem.js';
+import { RunTimerSystem } from '../systems/RunTimerSystem.js';
+import { PersistenceSystem } from '../systems/PersistenceSystem.js';
+import { GoldSystem } from '../systems/GoldSystem.js';
+import { WeaponEvolutionSystem } from '../systems/WeaponEvolutionSystem.js';
+import { SynergySystem } from '../systems/SynergySystem.js';
+import { RaritySystem } from '../systems/RaritySystem.js';
+import { BossSystem } from '../systems/BossSystem.js';
+import { DynamicEventSystem } from '../systems/DynamicEventSystem.js';
+import { AmbientParticleSystem } from '../systems/AmbientParticleSystem.js';
+import { TitleScreenSystem } from '../systems/TitleScreenSystem.js';
+import { RunSummarySystem } from '../systems/RunSummarySystem.js';
+import { CanvasHUD } from '../systems/CanvasHUD.js';
+import { CHARACTERS } from '../data/characters.js';
 import { globalDamageNumberPool } from './DamageNumberPool.js';
 import { Camera } from './Camera.js';
 import { Renderer } from './Renderer.js';
@@ -17,6 +38,11 @@ import { globalTimerManager, managedSetTimeout } from './TimerManager.js';
 import { MagicMissile } from '../entities/weapons/MagicMissile.js';
 import { Whip } from '../entities/weapons/Whip.js';
 import { ThrowingKnife } from '../entities/weapons/ThrowingKnife.js';
+import { LightningChain } from '../entities/weapons/LightningChain.js';
+import { GarlicAura } from '../entities/weapons/GarlicAura.js';
+import { HolyBible } from '../entities/weapons/HolyBible.js';
+import { FireWand } from '../entities/weapons/FireWand.js';
+import { BoneBoomerang } from '../entities/weapons/BoneBoomerang.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
@@ -28,29 +54,30 @@ export class VampireSurvivorsGame {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.config = config;
-        
+
         // Game state
-        this.gameState = 'menu'; // menu, playing, paused, levelUp, gameOver
+        this.gameState = 'menu'; // menu, characters, upgrades, statistics, playing, paused, levelUp, gameOver, summary
         this.timeScale = 1.0;
         this.gameTime = 0;
         this.score = 0;
-        
+
         // Core systems
         this.world = new World(); // ECS World for entity management
         this.camera = new Camera(canvas.width, canvas.height);
+        this.camera._game = this; // Reference for dynamic zoom
         this.renderer = new Renderer(canvas, this.ctx);
-        
+
         this.inputManager = config.inputManager;
         this.audioManager = config.audioManager;
-        
+
         // Graphics upgrade system
         this.graphicsUpgrade = new GraphicsUpgrade(this);
-        
+
         // These will be initialized by GraphicsUpgrade
         this.spriteManager = null;
         this.visualEffects = null;
         this.qualitySettings = null;
-        
+
         // Game systems
         this.systems = {
             terrain: new TerrainSystem(this),
@@ -60,40 +87,61 @@ export class VampireSurvivorsGame {
             experience: new ExperienceSystem(this),
             particle: new ParticleSystemCore(this),
             statusEffect: new StatusEffectSystem(this),
+            // FOUNDATION systems — activate 20+ dormant callsites across the codebase
+            flowState: new FlowStateSystem(this),
+            achievement: new AchievementSystem(this),
+            rewards: new RewardsSystem(this),
+            microChallenge: new MicroChallengeSystem(this),
+            adaptiveMusic: new AdaptiveMusicSystem(this),
+            passiveItems: new PassiveItemSystem(this),
+            killMilestone: new KillMilestoneSystem(this),
+            screenEffects: new ScreenEffectsSystem(this),
+            runTimer: new RunTimerSystem(this),
+            persistence: new PersistenceSystem(this),
+            gold: new GoldSystem(this),
+            weaponEvolution: new WeaponEvolutionSystem(this),
+            synergy: new SynergySystem(this),
+            rarity: new RaritySystem(this),
+            boss: new BossSystem(this),
+            dynamicEvents: new DynamicEventSystem(this),
+            ambientParticles: new AmbientParticleSystem(this),
+            titleScreen: new TitleScreenSystem(this),
+            runSummary: new RunSummarySystem(this),
+            canvasHUD: new CanvasHUD(this)
         };
-        
+
         // Debug systems
         this.projectileDebugger = new ProjectileDebugger(this);
         this.progressionTelemetry = new ProgressionTelemetry(this);
-        
+
         // Responsive canvas
         // DISABLED: ResponsiveCanvas was limiting canvas size and causing display issues
         // this.responsiveCanvas = new ResponsiveCanvas(canvas, this.camera);
-        
+
         // Settings menu
         this.settingsMenu = new SettingsMenu(this);
-        
+
         // Help overlay
         this.helpOverlay = new HelpOverlay(this);
-        
+
         // Game entities
         this.player = null;
-        
+
         // Power-up drops management
         this.powerUpDrops = [];
         this.maxPowerUpDrops = 8; // Cap to reduce clutter
-        
+
         // Game loop
         this.lastTime = 0;
         this.deltaTime = 0;
         this.running = false;
         this.frameCount = 0;
-        
+
         // OPTIMIZED: Frame rate management
         this.targetFrameTime = 16.67; // 60 FPS target
         this.frameSkipThreshold = 33.33; // 30 FPS minimum
         this.lastRenderTime = 0;
-        
+
         // OPTIMIZED: Enhanced performance monitoring with adaptive scaling
         this.performanceStats = {
             fps: 0,
@@ -111,7 +159,7 @@ export class VampireSurvivorsGame {
             adaptiveMode: false,
             lastQualityAdjustment: 0
         };
-        
+
         // OPTIMIZED: Quality scaling parameters
         this.qualitySettings = {
             particleReduction: 1.0,
@@ -120,86 +168,105 @@ export class VampireSurvivorsGame {
             animationDetail: 1.0,
             shadowQuality: 1.0
         };
-        
+
         // Performance thresholds
         this.targetFrameTime = 16.67; // 60 FPS
         this.warningFrameTime = 33.33; // 30 FPS
         this.lastPerformanceReport = 0;
         this.performanceReportInterval = 5000; // Report every 5 seconds
-        
+
         // UI state
         this.showDebug = false;
         this.levelUpOptions = [];
         this.levelUpActive = false;
-        
+
         // Weapon registry
         this.weaponClasses = new Map([
             ['magic_missile', MagicMissile],
             ['whip', Whip],
-            ['throwing_knife', ThrowingKnife]
+            ['throwing_knife', ThrowingKnife],
+            ['lightning_chain', LightningChain],
+            ['garlic_aura', GarlicAura],
+            ['holy_bible', HolyBible],
+            ['fire_wand', FireWand],
+            ['bone_boomerang', BoneBoomerang]
         ]);
-        
+
         this.setupInput();
         this.setupUI();
     }
-    
+
     setupInput() {
         // Game controls
         this.inputManager.on('keyDown', (key) => {
             this.handleKeyDown(key);
         });
-        
+
         this.inputManager.on('keyUp', (key) => {
             this.handleKeyUp(key);
         });
-        
+
         // Mouse controls (handled by player when active)
         this.inputManager.on('click', (e) => {
             this.handleClick(e);
         });
+
+        // Mouse move for title/summary hover detection
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+                this.systems.titleScreen.handleMouseMove(x, y);
+            } else if (this.gameState === 'summary') {
+                this.systems.runSummary.handleMouseMove(x, y);
+            }
+        });
     }
-    
+
     setupUI() {
         // Clean up any artifacts from previous sessions
         this.initialCleanup();
-        
+
         // Create UI elements if they don't exist
         this.createUIElements();
     }
-    
+
     initialCleanup() {
         // Remove ALL non-essential DOM elements to start fresh
-        document.querySelectorAll('div').forEach(div => {
+        document.querySelectorAll('div').forEach((div) => {
             // Keep only essential elements
-            if (div.id === 'gameCanvas' || 
-                div.id === 'game-ui' ||  // CRITICAL: Keep game-ui container
+            if (
+                div.id === 'gameCanvas' ||
+                div.id === 'game-ui' || // CRITICAL: Keep game-ui container
                 div.id === 'performanceMonitor' ||
                 div.id === 'controlsHelp' ||
-                div.classList.contains('game-button')) {
+                div.classList.contains('game-button')
+            ) {
                 return;
             }
-            
+
             // Remove everything else
             div.remove();
         });
-        
+
         // Also remove any styles that might cause issues
-        document.querySelectorAll('style').forEach(style => {
+        document.querySelectorAll('style').forEach((style) => {
             if (style.id && (style.id.includes('wave') || style.id.includes('notification'))) {
                 style.remove();
             }
         });
-        
+
         console.log('✨ Initial cleanup complete');
     }
-    
+
     createUIElements() {
         // Clean up any existing UI containers first
         const existingUI = document.getElementById('game-ui');
         if (existingUI) {
             existingUI.remove();
         }
-        
+
         // Create fresh UI container
         const uiContainer = document.createElement('div');
         uiContainer.id = 'game-ui';
@@ -216,20 +283,17 @@ export class VampireSurvivorsGame {
             overflow: hidden !important;  /* CRITICAL: Prevent child elements from extending viewport */
         `;
         document.body.appendChild(uiContainer);
-        
+
         // Create HUD
         this.createHUD(uiContainer);
-        
+
         // Create level up UI
         this.createLevelUpUI(uiContainer);
-        
-        // Create game over UI
-        this.createGameOverUI(uiContainer);
-        
+
         // Notifications / toasts overlay
         this.createNotificationsUI(uiContainer);
     }
-    
+
     createHUD(container) {
         const hud = document.createElement('div');
         hud.id = 'game-hud';
@@ -253,7 +317,7 @@ export class VampireSurvivorsGame {
             backdrop-filter: blur(4px);
             max-width: 280px;
         `;
-        
+
         hud.innerHTML = `
             <!-- Core Player Stats - Primary Hierarchy -->
             <div style="font-size: 22px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
@@ -311,7 +375,7 @@ export class VampireSurvivorsGame {
                 <div>Enemies: <span id="enemy-count" style="color: #ef4444;">0</span></div>
             </div>
         `;
-        
+
         // Add pulsing animation for combo
         const style = document.createElement('style');
         style.textContent = `
@@ -322,10 +386,10 @@ export class VampireSurvivorsGame {
             }
         `;
         document.head.appendChild(style);
-        
+
         container.appendChild(hud);
     }
-    
+
     createLevelUpUI(container) {
         const levelUpUI = document.createElement('div');
         levelUpUI.id = 'level-up-ui';
@@ -345,7 +409,7 @@ export class VampireSurvivorsGame {
             z-index: 500;
             max-width: 600px;
         `;
-        
+
         levelUpUI.innerHTML = `
             <h2 style="color: #FFD700; margin-bottom: 20px;">LEVEL UP!</h2>
             <p style="margin-bottom: 30px;">Choose an upgrade:</p>
@@ -353,88 +417,10 @@ export class VampireSurvivorsGame {
                 <!-- Options will be populated dynamically -->
             </div>
         `;
-        
+
         container.appendChild(levelUpUI);
     }
-    
-    createGameOverUI(container) {
-        const gameOverUI = document.createElement('div');
-        gameOverUI.id = 'game-over-ui';
-        gameOverUI.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            background: linear-gradient(145deg, rgba(25, 25, 112, 0.95), rgba(75, 0, 130, 0.95));
-            border: 4px solid #8B008B;
-            border-radius: 20px;
-            padding: 50px;
-            color: #E6E6FA;
-            font-family: 'Cinzel', 'Times New Roman', serif;
-            text-align: center;
-            display: none;
-            pointer-events: auto;
-            z-index: 600;
-            box-shadow: 0 0 40px rgba(75, 0, 130, 0.8), inset 0 0 20px rgba(138, 43, 226, 0.3);
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-            opacity: 0;
-            transition: opacity 200ms ease, transform 200ms ease;
-        `;
-        
-        gameOverUI.innerHTML = `
-            <h2 style="color: #FF6B6B; margin-bottom: 30px; font-size: 36px; text-transform: uppercase; letter-spacing: 3px; text-shadow: 4px 4px 8px rgba(255, 107, 107, 0.8);">💀 FALLEN IN BATTLE 💀</h2>
-            <div id="final-stats" style="margin-bottom: 40px; font-size: 18px; line-height: 1.6;">
-                <p style="color: #FFD700; margin-bottom: 8px;">⚔ Final Level: <span id="final-level" style="font-weight: bold;">1</span> ⚔</p>
-                <p style="color: #98FB98; margin-bottom: 8px;">⏰ Time Survived: <span id="final-time" style="font-weight: bold;">0:00</span></p>
-                <p style="color: #FFA500; margin-bottom: 8px;">👹 Enemies Slain: <span id="final-score" style="font-weight: bold;">0</span></p>
-                <p style="color: #DDA0DD; margin-bottom: 8px;">⚡ Wave Reached: <span id="final-wave" style="font-weight: bold;">1</span></p>
-            </div>
-            <button id="restart-button" style="
-                background: linear-gradient(145deg, #4CAF50, #45a049);
-                color: white;
-                font-family: 'Cinzel', 'Times New Roman', serif;
-                font-weight: bold;
-                border: 2px solid #2e7d32;
-                padding: 18px 35px;
-                font-size: 18px;
-                border-radius: 12px;
-                cursor: pointer;
-                margin-right: 15px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">🔄 Rise Again</button>
-            <button id="menu-button" style="
-                background: linear-gradient(145deg, #8B008B, #6a006a);
-                color: white;
-                font-family: 'Cinzel', 'Times New Roman', serif;
-                font-weight: bold;
-                border: 2px solid #4b0082;
-                padding: 18px 35px;
-                font-size: 18px;
-                border-radius: 12px;
-                cursor: pointer;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(139, 0, 139, 0.4);
-            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">🏰 Return Home</button>
-            <p style="margin-top: 18px; color: #ccc; font-size: 14px; opacity: 0.9;">Press <strong>R</strong> to Rise Again or <strong>M</strong> to Return Home</p>
-        `;
-        
-        container.appendChild(gameOverUI);
-        
-        // Add event listeners
-        document.getElementById('restart-button').addEventListener('click', () => {
-            this.restartGame();
-        });
-        
-        document.getElementById('menu-button').addEventListener('click', () => {
-            this.returnToMenu();
-        });
-    }
-    
+
     createNotificationsUI(container) {
         // Subtle toasts pinned to top-right
         const notifications = document.createElement('div');
@@ -485,7 +471,7 @@ export class VampireSurvivorsGame {
             el.style.transform = 'translateY(-4px)';
             setTimeout(() => el.remove(), 200);
         }, duration);
-        
+
         // Keep only a few toasts visible
         while (container.children.length > 4) {
             container.firstChild.remove();
@@ -519,11 +505,15 @@ export class VampireSurvivorsGame {
         };
         return hints[type] || 'Power-up';
     }
-    
+
     handleKeyDown(key) {
         switch (key.toLowerCase()) {
             case 'escape':
-                if (this.gameState === 'playing') {
+                if (this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+                    this.gameState = 'menu';
+                } else if (this.gameState === 'summary') {
+                    this.returnToMenu();
+                } else if (this.gameState === 'playing') {
                     this.pauseGame();
                 } else if (this.gameState === 'paused') {
                     this.resumeGame();
@@ -540,7 +530,7 @@ export class VampireSurvivorsGame {
                 }
                 break;
             case 'r':
-                if (this.gameState === 'gameOver') {
+                if (this.gameState === 'summary') {
                     this.restartGame();
                 }
                 break;
@@ -555,7 +545,7 @@ export class VampireSurvivorsGame {
                         }
                         console.log('🧲 Debug: Global magnet activated for 12s');
                     }
-                } else if (this.gameState === 'gameOver') {
+                } else if (this.gameState === 'summary') {
                     this.returnToMenu();
                 }
                 break;
@@ -574,8 +564,7 @@ export class VampireSurvivorsGame {
             case 'G':
                 this.showDebug = !this.showDebug;
                 if (document.getElementById('debug-info')) {
-                    document.getElementById('debug-info').style.display = 
-                        this.showDebug ? 'block' : 'none';
+                    document.getElementById('debug-info').style.display = this.showDebug ? 'block' : 'none';
                 }
                 console.log('Debug overlay:', this.showDebug ? 'ON' : 'OFF');
                 break;
@@ -585,11 +574,28 @@ export class VampireSurvivorsGame {
                 console.log(`📊 Progression Telemetry: ${this.progressionTelemetry.enabled ? 'ENABLED' : 'DISABLED'}`);
                 break;
             case ' ':
-                if (this.gameState === 'menu') {
-                    this.startGame();
+            case 'enter':
+                if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+                    this.systems.titleScreen.handleInput(key);
+                } else if (this.gameState === 'summary') {
+                    this.systems.runSummary.handleInput(key);
                 }
                 break;
-            case '1': case '2': case '3': case '4': case '5':
+            case 'arrowup':
+            case 'arrowdown':
+            case 'arrowleft':
+            case 'arrowright':
+                if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+                    this.systems.titleScreen.handleInput(key);
+                } else if (this.gameState === 'summary') {
+                    this.systems.runSummary.handleInput(key);
+                }
+                break;
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
                 if (this.levelUpActive) {
                     const optionIndex = parseInt(key) - 1;
                     if (optionIndex < this.levelUpOptions.length) {
@@ -599,21 +605,21 @@ export class VampireSurvivorsGame {
                 break;
         }
     }
-    
+
     updatePowerUpIndicators() {
         const container = document.getElementById('powerup-indicators');
         if (!container || !this.player) return;
-        
+
         const entries = [];
         const p = this.player.powerUps || {};
-        
+
         // Helper to push an entry
         const pushEntry = (key, label, seconds, color, icon) => {
             if (seconds > 0.05) {
                 entries.push({ key, label, seconds, color, icon });
             }
         };
-        
+
         // Speed
         if (p.speedBoost?.active) {
             pushEntry('speedBoost', 'Speed', p.speedBoost.timer, '#4ade80', '⚡');
@@ -631,23 +637,30 @@ export class VampireSurvivorsGame {
             pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
         }
         // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
-        const playerMagnet = p.magnetBoost?.active ? (p.magnetBoost.timer || 0) : 0;
-        const systemMagnet = (this.systems && this.systems.experience && this.systems.experience.globalMagnetTimer) ? this.systems.experience.globalMagnetTimer : 0;
-        const areaMagnet = (this.systems && this.systems.experience && this.systems.experience.areaMagnetTimer) ? this.systems.experience.areaMagnetTimer : 0;
+        const playerMagnet = p.magnetBoost?.active ? p.magnetBoost.timer || 0 : 0;
+        const systemMagnet =
+            this.systems && this.systems.experience && this.systems.experience.globalMagnetTimer
+                ? this.systems.experience.globalMagnetTimer
+                : 0;
+        const areaMagnet =
+            this.systems && this.systems.experience && this.systems.experience.areaMagnetTimer
+                ? this.systems.experience.areaMagnetTimer
+                : 0;
         const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
             pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
         }
-        
+
         // Render compact pills with remaining time (no heavy DOM churn)
         if (entries.length === 0) {
             container.innerHTML = '';
             return;
         }
-        
-        const html = entries.map(e => {
-            const secs = Math.max(0, e.seconds).toFixed(1);
-            return `
+
+        const html = entries
+            .map((e) => {
+                const secs = Math.max(0, e.seconds).toFixed(1);
+                return `
                 <span 
                     style="
                         display:inline-block;
@@ -666,44 +679,120 @@ export class VampireSurvivorsGame {
                     <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
                 </span>
             `;
-        }).join('');
-        
+            })
+            .join('');
+
+        container.innerHTML = html;
+    }
+
+    updatePassiveItemsHUD() {
+        // Ensure container exists
+        let container = document.getElementById('passive-items-bar');
+        if (!container) {
+            const hud = document.getElementById('game-hud');
+            if (!hud) return;
+            container = document.createElement('div');
+            container.id = 'passive-items-bar';
+            container.style.cssText = `
+                margin-top: 8px;
+                font-size: 13px;
+                pointer-events: none;
+            `;
+            hud.appendChild(container);
+        }
+
+        if (!this.systems.passiveItems) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const items = this.systems.passiveItems.getOwnedItems();
+        if (items.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const html = items
+            .map((item) => {
+                const pips = '●'.repeat(item.currentLevel) + '○'.repeat(item.maxLevel - item.currentLevel);
+                return `
+                <span style="
+                    display: inline-block;
+                    margin-right: 6px; margin-bottom: 4px;
+                    padding: 2px 6px; border-radius: 8px;
+                    background: rgba(0,0,0,0.45);
+                    border: 1px solid ${item.color};
+                    color: ${item.color};
+                    font-size: 11px; line-height: 1;
+                    letter-spacing: .2px;
+                    pointer-events: none;
+                ">
+                    <span style="margin-right:3px;">${item.icon}</span>
+                    <span style="font-size:9px; opacity:0.8;">${pips}</span>
+                </span>
+            `;
+            })
+            .join('');
+
         container.innerHTML = html;
     }
 
     handleKeyUp(key) {
         // Handle key releases if needed
     }
-    
+
     handleClick(e) {
         if (this.levelUpActive) {
             // Level up UI clicking is handled by DOM events
             return;
         }
-        
-        if (this.gameState === 'menu') {
-            this.startGame();
+
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+            this.systems.titleScreen.handleClick(x, y);
+        } else if (this.gameState === 'summary') {
+            this.systems.runSummary.handleClick(x, y);
         }
     }
-    
+
     startGame() {
         this.gameState = 'playing';
         this.timeScale = 1.0; // Ensure gameplay resumes after game over
         this.gameTime = 0;
         this.score = 0;
-        
-        // Hide menu
-        this.hideMenuMessage();
-        
+
         // Initialize graphics upgrades
         this.initializeGraphicsUpgrades();
-        
+
+        // Get selected character config
+        const charId = this.systems.persistence.getSelectedCharacter();
+        const character = CHARACTERS.find(c => c.id === charId) || CHARACTERS[0];
+
         // Initialize player
         this.player = new Player(this, this.canvas.width / 2, this.canvas.height / 2);
-        
-        // Give player starting weapon
-        this.player.addWeapon(MagicMissile);
-        
+
+        // Apply character color
+        this.player.color = character.color;
+
+        // Apply character stat modifiers
+        for (const [stat, value] of Object.entries(character.statModifiers)) {
+            if (stat === 'projectiles') {
+                this.player.stats.projectiles += value;
+            } else if (stat === 'health') {
+                this.player.maxHealth = Math.floor(this.player.maxHealth * value);
+                this.player.health = this.player.maxHealth;
+            } else if (this.player.stats[stat] !== undefined) {
+                this.player.stats[stat] *= value;
+            }
+        }
+
+        // Give character starting weapon
+        const WeaponClass = this.weaponClasses.get(character.startingWeapon);
+        this.player.addWeapon(WeaponClass || MagicMissile);
+
         // Reset all systems
         this.systems.terrain.reset();
         this.systems.enemy.reset();
@@ -711,94 +800,145 @@ export class VampireSurvivorsGame {
         this.systems.experience.clearAll();
         this.systems.particle.clear();
         this.systems.statusEffect.clearAllEffects();
+        this.systems.flowState.reset();
+        this.systems.achievement.reset();
+        this.systems.rewards.reset();
+        this.systems.microChallenge.reset();
+        this.systems.passiveItems.reset();
+        this.systems.killMilestone.reset();
+        this.systems.screenEffects.reset();
+        this.systems.runTimer.reset();
+        this.systems.gold.reset();
+        this.systems.weaponEvolution.reset();
+        this.systems.synergy.reset();
+        this.systems.boss.reset();
+        this.systems.dynamicEvents.reset();
+        this.systems.ambientParticles.reset();
+        this.systems.canvasHUD.reset();
+        // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
-        
+
         // Set up camera to follow player
         this.camera.targetX = this.player.x;
         this.camera.targetY = this.player.y;
-        
+
         // Add atmospheric vignette
         this.camera.addVignette(0.3);
-        
+
         // Start vampire ambient sounds
         if (this.audioManager && this.audioManager.startVampireAmbient) {
             this.audioManager.startVampireAmbient();
         }
-        
+
+        // Start adaptive music
+        if (this.systems.adaptiveMusic) {
+            this.systems.adaptiveMusic.start();
+        }
+
         // Hide menu UI, show game UI
         this.updateUIVisibility();
-        
     }
-    
+
     pauseGame() {
         if (this.gameState === 'playing') {
             this.gameState = 'paused';
             this.timeScale = 0;
         }
     }
-    
+
     resumeGame() {
         if (this.gameState === 'paused') {
             this.gameState = 'playing';
             this.timeScale = 1.0;
         }
     }
-    
+
     restartGame() {
-        this.gameState = 'menu';
-        this.hideGameOverUI();
+        this.systems.runSummary.reset();
         this.startGame();
     }
-    
+
     returnToMenu() {
         this.gameState = 'menu';
         this.timeScale = 1.0;
-        this.hideGameOverUI();
-        
+        this.systems.runSummary.reset();
+        this.systems.titleScreen.reset();
+
         // Clear world state so the menu is clean
         try {
             this.systems.projectile.clearAll();
             this.systems.experience.clearAll();
             this.systems.particle.clear();
             this.systems.enemy.reset();
+            this.systems.dynamicEvents.reset();
             if (this.audioManager && this.audioManager.stopAll) {
                 this.audioManager.stopAll();
+            }
+            if (this.systems.adaptiveMusic) {
+                this.systems.adaptiveMusic.stop();
             }
         } catch (e) {
             console.warn('Minor cleanup issue on returnToMenu:', e);
         }
         this.powerUpDrops = [];
         this.player = null;
-        
+
         this.updateUIVisibility();
-        this.showMenuMessage();
     }
-    
+
     gameOver() {
         this.gameState = 'gameOver';
         this.timeScale = 0;
-        
-        
-        // Update final stats
-        this.updateFinalStats();
-        this.showGameOverUI();
-        
+        this._deathTime = performance.now();
+
+        // Stop adaptive music on game over
+        if (this.systems.adaptiveMusic) {
+            this.systems.adaptiveMusic.stop();
+        }
+
+        // Collect run data BEFORE persisting (so summary can compare records)
+        const runData = {
+            kills: this.systems.killMilestone ? this.systems.killMilestone.totalKills : 0,
+            survivalTime: this.gameTime,
+            level: this.player ? this.player.level : 1,
+            goldEarned: this.systems.gold ? this.systems.gold.runGold : 0,
+            combo: this.player && this.player.combo ? this.player.combo.best : 0,
+            weaponsUsed: this.player ? Array.from(this.player.weapons.keys()) : [],
+            damageDealt: this.score || 0,
+            score: this.score || 0,
+            wave: this.systems.enemy.getCurrentWave()
+        };
+
+        // Show summary (computes record comparisons against current records)
+        this.systems.runSummary.show(runData);
+
+        // THEN persist (updates records for next run)
+        if (this.systems.persistence && this.player) {
+            this.systems.persistence.recordRunEnd(runData);
+        }
+
+        // Transition to summary after 1.5s death pause
+        managedSetTimeout(() => {
+            if (this.gameState === 'gameOver') {
+                this.gameState = 'summary';
+            }
+        }, 1500);
     }
-    
+
     showLevelUpUI() {
         // FIXED: Prevent multiple level-up UIs from showing simultaneously
         if (this.levelUpActive) {
             console.log('Level-up UI already active, skipping duplicate show request');
             return;
         }
-        
+
         this.levelUpActive = true;
         this.gameState = 'levelUp';
         this.timeScale = 0; // Pause game during level up
-        
+
         // Generate level up options
         this.generateLevelUpOptions();
-        
+
         // Show UI
         const levelUpUI = document.getElementById('level-up-ui');
         if (levelUpUI) {
@@ -807,33 +947,33 @@ export class VampireSurvivorsGame {
             console.warn('Level-up UI element not found');
         }
     }
-    
+
     hideLevelUpUI() {
         this.levelUpActive = false;
         this.gameState = 'playing';
         this.timeScale = 1.0; // Resume game
-        
+
         document.getElementById('level-up-ui').style.display = 'none';
-        
+
         // Clear any lingering flash effects to prevent red overlay bug
         if (this.camera && this.camera.clearFlash) {
             this.camera.clearFlash();
         }
-        
+
         // Also clear particle system screen effects
         if (this.systems.particle && this.systems.particle.clearScreenEffects) {
             this.systems.particle.clearScreenEffects();
         }
-        
+
         // FIXED: Process next queued level-up after player makes selection
         if (this.player && this.player.completeLevelUpSelection) {
             this.player.completeLevelUpSelection();
         }
     }
-    
+
     generateLevelUpOptions() {
         const options = [];
-        
+
         // Weapon upgrades
         for (const weapon of this.player.weapons.values()) {
             if (weapon.level < weapon.maxLevel) {
@@ -845,12 +985,20 @@ export class VampireSurvivorsGame {
                 });
             }
         }
-        
+
         // New weapons (if player has weapon slots)
         if (this.player.weapons.size < this.player.maxWeapons) {
-            const availableWeapons = ['whip', 'throwing_knife'];
+            const availableWeapons = [
+                'whip',
+                'throwing_knife',
+                'lightning_chain',
+                'garlic_aura',
+                'holy_bible',
+                'fire_wand',
+                'bone_boomerang'
+            ];
             for (const weaponType of availableWeapons) {
-                if (!Array.from(this.player.weapons.values()).some(w => w.id === weaponType)) {
+                if (!Array.from(this.player.weapons.values()).some((w) => w.id === weaponType)) {
                     const WeaponClass = this.weaponClasses.get(weaponType);
                     if (WeaponClass) {
                         const tempWeapon = new WeaponClass(this, this.player);
@@ -864,7 +1012,7 @@ export class VampireSurvivorsGame {
                 }
             }
         }
-        
+
         // Stat upgrades
         const statUpgrades = [
             { stat: 'damage', name: 'Damage +20%', description: 'Increase weapon damage' },
@@ -874,7 +1022,7 @@ export class VampireSurvivorsGame {
             { stat: 'area', name: 'Area +15%', description: 'Bigger projectiles and AoE radius' },
             { stat: 'cooldown', name: 'Cooldown -10%', description: 'Weapons fire faster' }
         ];
-        
+
         for (const upgrade of statUpgrades) {
             options.push({
                 type: 'stat_upgrade',
@@ -883,18 +1031,42 @@ export class VampireSurvivorsGame {
                 description: upgrade.description
             });
         }
-        
-        // Randomly select 3-5 options
-        this.levelUpOptions = this.shuffleArray(options).slice(0, Math.min(options.length, 3 + Math.floor(Math.random() * 3)));
-        
+
+        // Passive item options (upgrades + new items)
+        if (this.systems.passiveItems) {
+            const passiveOptions = this.systems.passiveItems.getLevelUpOptions();
+            options.push(...passiveOptions);
+        }
+
+        // Weapon Evolution options (special legendary tier — always offered if available)
+        const evolutionOptions = this.systems.weaponEvolution ? this.systems.weaponEvolution.getEvolutionOptions() : [];
+
+        // Randomly select 3-5 options from normal pool
+        let selected = this.shuffleArray(options).slice(0, Math.min(options.length, 3 + Math.floor(Math.random() * 3)));
+
+        // Inject evolution options at front (guaranteed to appear)
+        if (evolutionOptions.length > 0) {
+            selected = [
+                ...evolutionOptions.slice(0, 1),
+                ...selected.slice(0, selected.length > 2 ? selected.length - 1 : selected.length)
+            ];
+        }
+
+        // Assign rarity tiers to each option
+        if (this.systems.rarity) {
+            selected = selected.map((opt) => this.systems.rarity.assignRarity(opt));
+        }
+
+        this.levelUpOptions = selected;
+
         // Update UI
         this.updateLevelUpOptionsUI();
     }
-    
+
     updateLevelUpOptionsUI() {
         const container = document.getElementById('level-up-options');
         container.innerHTML = '';
-        
+
         this.levelUpOptions.forEach((option, index) => {
             const button = document.createElement('button');
             button.style.cssText = `
@@ -907,7 +1079,7 @@ export class VampireSurvivorsGame {
                 text-align: left;
                 transition: all 0.2s;
             `;
-            
+
             button.innerHTML = `
                 <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
                     ${index + 1}. ${option.name}
@@ -916,25 +1088,58 @@ export class VampireSurvivorsGame {
                     ${option.description}
                 </div>
             `;
-            
+
             button.addEventListener('click', () => this.selectLevelUpOption(index));
             button.addEventListener('mouseenter', () => {
                 button.style.background = '#555';
-                button.style.borderColor = '#FFD700';
+                button.style.borderColor = option.rarity ? option.rarity.borderColor : '#FFD700';
             });
             button.addEventListener('mouseleave', () => {
-                button.style.background = '#333';
-                button.style.borderColor = '#666';
+                button.style.background =
+                    option.rarity && option.rarity.id === 'legendary'
+                        ? 'linear-gradient(135deg, #1a1a2e 0%, #2d1b00 50%, #1a1a2e 100%)'
+                        : '#333';
+                button.style.borderColor = option.rarity ? option.rarity.borderColor : '#666';
             });
-            
+
             container.appendChild(button);
+
+            // Apply rarity styling
+            if (this.systems.rarity && option.rarity) {
+                this.systems.rarity.styleButton(button, option);
+            }
+
+            if (this.systems.synergy && this.player && this.systems.passiveItems) {
+                let willSynergize = false;
+
+                if (option.type === 'new_weapon' || option.type === 'weapon_upgrade') {
+                    const weaponId = option.type === 'new_weapon' ? option.weaponType : option.weaponId;
+                    const synergy = this.systems.synergy.getSynergyForWeapon(weaponId);
+                    if (synergy && this.systems.passiveItems.items.has(synergy.passiveId)) {
+                        willSynergize = true;
+                    }
+                }
+
+                if (option.type === 'new_passive' || option.type === 'passive_upgrade') {
+                    const synergies = this.systems.synergy.getSynergyForPassive(option.itemId);
+                    if (synergies && synergies.some((s) => this.player.weapons.has(s.weaponId))) {
+                        willSynergize = true;
+                    }
+                }
+
+                if (willSynergize) {
+                    button.style.outline = '2px solid rgba(255, 215, 0, 0.9)';
+                    button.style.outlineOffset = '2px';
+                    button.style.boxShadow = (button.style.boxShadow || '') + ', 0 0 14px rgba(255, 215, 0, 0.25)';
+                }
+            }
         });
     }
-    
+
     selectLevelUpOption(index) {
         const option = this.levelUpOptions[index];
         if (!option) return;
-        
+
         switch (option.type) {
             case 'weapon_upgrade':
                 this.player.upgradeWeapon(option.weaponId);
@@ -954,7 +1159,7 @@ export class VampireSurvivorsGame {
                 }
                 break;
             case 'stat_upgrade':
-                this.applyStatUpgrade(option.stat);
+                this.applyStatUpgrade(option.stat, option._rarityMultiplier || option.rarity?.multiplier || 1.0);
                 // Play level up sound
                 if (this.audioManager && this.audioManager.playLevelUp) {
                     this.audioManager.playLevelUp();
@@ -962,128 +1167,79 @@ export class VampireSurvivorsGame {
                 // Subtle toast for clarity
                 this.showToast(`${option.name}: ${option.description}`, '#7CF2FF', 1300);
                 break;
+            case 'evolution':
+                if (this.systems.weaponEvolution) {
+                    this.systems.weaponEvolution.evolveWeapon(option.weaponId);
+                }
+                break;
+            case 'new_passive':
+            case 'passive_upgrade':
+                // Passive item: add or upgrade via PassiveItemSystem
+                if (this.systems.passiveItems) {
+                    this.systems.passiveItems.addItem(option.itemId);
+                }
+                break;
         }
-        
+
         // Enhanced visual effects - reduced intensity to prevent overlay
         this.systems.particle.createEvolutionEffect(this.player.x, this.player.y);
         // Removed Gothic explosion that was causing the overlay effect
         // this.systems.particle.createGothicExplosion(this.player.x, this.player.y, 60);
         // Small camera shake for feedback
         this.camera.shake(3, 0.2);
-        
+
         this.hideLevelUpUI();
-        
     }
-    
-    applyStatUpgrade(stat) {
+
+    applyStatUpgrade(stat, rarityMultiplier = 1.0) {
         switch (stat) {
             case 'damage':
-                this.player.stats.damage *= 1.2;
+                this.player.stats.damage *= 1 + 0.2 * rarityMultiplier;
                 break;
             case 'speed':
-                this.player.stats.speed *= 1.15;
+                this.player.stats.speed *= 1 + 0.15 * rarityMultiplier;
                 break;
             case 'health':
                 const oldMaxHealth = this.player.maxHealth;
-                this.player.maxHealth = Math.floor(this.player.maxHealth * 1.25);
+                this.player.maxHealth = Math.floor(this.player.maxHealth * (1 + 0.25 * rarityMultiplier));
                 this.player.health += this.player.maxHealth - oldMaxHealth; // Heal for the difference
                 break;
             case 'luck':
-                this.player.stats.luck *= 1.1;
+                this.player.stats.luck *= 1 + 0.1 * rarityMultiplier;
                 break;
             case 'area':
-                this.player.stats.area *= 1.15;
+                this.player.stats.area *= 1 + 0.15 * rarityMultiplier;
                 break;
             case 'cooldown':
-                this.player.stats.cooldown *= 1.1; // Actually makes cooldowns shorter
+                this.player.stats.cooldown *= 1 + 0.1 * rarityMultiplier;
                 break;
         }
-        
+
         // Update weapon stats
         for (const weapon of this.player.weapons.values()) {
             weapon.updateStats();
         }
     }
-    
-    showGameOverUI() {
-        const el = document.getElementById('game-over-ui');
-        if (!el) return;
-        el.style.display = 'block';
-        // Trigger fade-in
-        requestAnimationFrame(() => {
-            el.style.opacity = '1';
-            el.style.transform = 'translate(-50%, -50%) scale(1)';
-        });
-    }
-    
-    hideGameOverUI() {
-        const el = document.getElementById('game-over-ui');
-        if (!el) return;
-        // Fade out then hide
-        el.style.opacity = '0';
-        el.style.transform = 'translate(-50%, -50%) scale(0.97)';
-        setTimeout(() => {
-            el.style.display = 'none';
-        }, 200);
-    }
-    
-    updateFinalStats() {
-        document.getElementById('final-level').textContent = this.player ? this.player.level : 1;
-        document.getElementById('final-time').textContent = this.formatTime(this.gameTime);
-        document.getElementById('final-score').textContent = this.score;
-        document.getElementById('final-wave').textContent = this.systems.enemy.getCurrentWave();
-    }
-    
+
     updateUIVisibility() {
+        // DOM HUD hidden — replaced by CanvasHUD
         const hud = document.getElementById('game-hud');
         if (hud) {
-            hud.style.display = this.gameState === 'playing' || this.gameState === 'paused' || this.gameState === 'levelUp' ? 'block' : 'none';
+            hud.style.display = 'none';
         }
+        // Hide game-over DOM element if it still exists from old sessions
+        const gameOverEl = document.getElementById('game-over-ui');
+        if (gameOverEl) gameOverEl.style.display = 'none';
     }
-    
+
     start() {
         this.running = true;
         this.lastTime = performance.now();
         this.gameState = 'menu';
-        
-        // Show initial menu message
-        this.showMenuMessage();
-        
+
         this.gameLoop();
     }
-    
-    showMenuMessage() {
-        // Ensure we don't duplicate the overlay
-        this.hideMenuMessage();
-        // Create a simple menu overlay
-        const menuMessage = document.createElement('div');
-        menuMessage.id = 'menu-message';
-        menuMessage.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            text-align: center;
-            font-size: 24px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            z-index: 200;
-        `;
-        menuMessage.innerHTML = `
-            <h1 style="color: #FFD700; margin-bottom: 20px;">VAMPIRE SURVIVORS</h1>
-            <p style="margin-bottom: 10px;">Press SPACE or click to start</p>
-            <p style="font-size: 16px; color: #ccc;">WASD to move, auto-attacks, survive as long as possible!</p>
-        `;
-        document.body.appendChild(menuMessage);
-    }
-    
-    hideMenuMessage() {
-        const menuMessage = document.getElementById('menu-message');
-        if (menuMessage) {
-            menuMessage.remove();
-        }
-    }
-    
+
     async initializeGraphicsUpgrades() {
         try {
             await this.graphicsUpgrade.initialize();
@@ -1092,16 +1248,17 @@ export class VampireSurvivorsGame {
             console.warn('⚠️ Graphics upgrades failed to initialize, using fallback rendering:', error);
         }
     }
-    
+
     gameLoop = (currentTime) => {
         try {
             if (!this.running) return;
-            
+
             // Memory pressure check - prevent crashes at high levels
-            if (this.frameCount % 1800 === 0) { // Every 30 seconds at 60fps
+            if (this.frameCount % 1800 === 0) {
+                // Every 30 seconds at 60fps
                 this.performMemoryCleanup();
             }
-            
+
             // PERFORMANCE THROTTLING for low-end devices
             // Track FPS and auto-adjust quality
             if (!this.performanceThrottle) {
@@ -1113,28 +1270,28 @@ export class VampireSurvivorsGame {
                     adjustInterval: 2000 // Check every 2 seconds
                 };
             }
-            
+
             // OPTIMIZED: Ultra-fast deltaTime calculation with minimal operations
             const rawDeltaTime = (currentTime - this.lastTime) * 0.001; // Multiply is faster than divide
-            this.deltaTime = rawDeltaTime > 0.033 ? 0.033 : (rawDeltaTime < 0.001 ? 0.001 : rawDeltaTime); // Branchless clamp
+            this.deltaTime = rawDeltaTime > 0.033 ? 0.033 : rawDeltaTime < 0.001 ? 0.001 : rawDeltaTime; // Branchless clamp
             this.lastTime = currentTime;
             this.frameCount++;
-            
+
             // Track FPS for throttling
             this.performanceThrottle.samples.push(rawDeltaTime);
             if (this.performanceThrottle.samples.length > this.performanceThrottle.sampleSize) {
                 this.performanceThrottle.samples.shift();
             }
-            
+
             // Adjust quality if needed
             if (currentTime - this.performanceThrottle.lastAdjust > this.performanceThrottle.adjustInterval) {
                 this.adjustPerformanceQuality();
                 this.performanceThrottle.lastAdjust = currentTime;
             }
-            
+
             // Apply time scale with single multiplication
             const scaledDeltaTime = this.deltaTime * this.timeScale;
-            
+
             // OPTIMIZED: Timing tracking for frame budget management
             const updateStart = performance.now();
             try {
@@ -1146,7 +1303,7 @@ export class VampireSurvivorsGame {
                 // Continue with rendering even if update fails
             }
             this.performanceStats.updateTime = performance.now() - updateStart;
-            
+
             const renderStart = performance.now();
             try {
                 this.render();
@@ -1155,22 +1312,24 @@ export class VampireSurvivorsGame {
                 // Continue with next frame even if render fails
             }
             this.performanceStats.renderTime = performance.now() - renderStart;
-            
+
             // OPTIMIZED: Adaptive performance monitoring frequency based on entity count
-            const entityCount = (this.systems.enemy?.getEnemyCount?.() || 0) + (this.systems.projectile?.activeProjectiles?.length || 0);
+            const entityCount =
+                (this.systems.enemy?.getEnemyCount?.() || 0) +
+                (this.systems.projectile?.activeProjectiles?.length || 0);
             const monitoringFreq = entityCount > 150 ? 60 : entityCount > 100 ? 45 : 30;
-            
+
             if (this.frameCount % monitoringFreq === 0) {
                 try {
                     this.updatePerformanceStats(currentTime);
-                    
+
                     // OPTIMIZED: Automatic quality scaling for consistent 60 FPS
                     if (this.performanceStats.avgFrameTime > 18.0 && entityCount > 100) {
                         this.adaptiveQualityReduction();
                     } else if (this.performanceStats.avgFrameTime < 14.0 && entityCount < 80) {
                         this.adaptiveQualityRestoration();
                     }
-                    
+
                     // Emergency brake at very high entity counts
                     if (entityCount > 500) {
                         console.warn('Emergency entity limit reached, forcing cleanup');
@@ -1180,42 +1339,46 @@ export class VampireSurvivorsGame {
                     console.warn('Performance monitoring error:', perfError);
                 }
             }
-            
+
             requestAnimationFrame(this.gameLoop);
-            
         } catch (criticalError) {
             console.error('Critical game loop error:', criticalError);
             console.error('Error stack:', criticalError.stack);
-            
+
             // Save game state before potential crash
             try {
                 this.saveEmergencyState();
             } catch (saveError) {
                 console.error('Failed to save emergency state:', saveError);
             }
-            
+
             // Emergency fallback - try to restart the game loop after a delay
-            managedSetTimeout(() => {
-                console.log('Attempting to restart game loop...');
-                if (this.running) {
-                    requestAnimationFrame(this.gameLoop);
-                }
-            }, 1000, this);
+            managedSetTimeout(
+                () => {
+                    console.log('Attempting to restart game loop...');
+                    if (this.running) {
+                        requestAnimationFrame(this.gameLoop);
+                    }
+                },
+                1000,
+                this
+            );
         }
-    }
+    };
     /**
      * Adjust quality settings based on performance
      */
     adjustPerformanceQuality() {
         if (!this.performanceThrottle || !this.performanceThrottle.samples.length) return;
-        
+
         // Calculate average FPS from samples
-        const avgDeltaTime = this.performanceThrottle.samples.reduce((a, b) => a + b, 0) / this.performanceThrottle.samples.length;
+        const avgDeltaTime =
+            this.performanceThrottle.samples.reduce((a, b) => a + b, 0) / this.performanceThrottle.samples.length;
         const avgFPS = 1 / avgDeltaTime;
-        
+
         const currentQuality = this.performanceThrottle.qualityLevel;
         let newQuality = currentQuality;
-        
+
         // Auto-adjust quality based on FPS
         if (avgFPS < 25) {
             // Very poor performance - reduce quality significantly
@@ -1227,32 +1390,34 @@ export class VampireSurvivorsGame {
             // Good performance - can increase quality
             newQuality = Math.min(1.0, currentQuality + 0.05);
         }
-        
+
         // Apply quality changes if needed
         if (newQuality !== currentQuality) {
             this.performanceThrottle.qualityLevel = newQuality;
-            
+
             // Adjust particle limits
             if (this.systems.particle) {
                 this.systems.particle.qualityLevel = newQuality;
                 this.systems.particle.maxEffectParticles = Math.floor(50 * newQuality);
             }
-            
+
             // Adjust enemy spawn cap for performance
             if (this.systems.enemy) {
                 const baseMax = 300;
                 this.systems.enemy.maxActiveEnemies = Math.floor(baseMax * (0.5 + newQuality * 0.5));
             }
-            
+
             // Adjust render distance
             if (this.camera) {
                 this.camera.renderDistance = 600 * (0.7 + newQuality * 0.3);
             }
-            
-            console.log(`⚡ Performance auto-adjust: Quality ${(newQuality * 100).toFixed(0)}%, FPS: ${avgFPS.toFixed(1)}`);
+
+            console.log(
+                `⚡ Performance auto-adjust: Quality ${(newQuality * 100).toFixed(0)}%, FPS: ${avgFPS.toFixed(1)}`
+            );
         }
     }
-    
+
     /**
      * Perform memory cleanup to prevent crashes at high levels
      */
@@ -1262,7 +1427,7 @@ export class VampireSurvivorsGame {
             if (globalDamageNumberPool.getStats().available < 20) {
                 globalDamageNumberPool.clear();
             }
-            
+
             // Clean up particle systems
             if (this.systems.particle && this.systems.particle.clear) {
                 const particleStats = this.systems.particle.getPerformanceInfo();
@@ -1271,18 +1436,18 @@ export class VampireSurvivorsGame {
                     this.systems.particle.adaptParticleLimits();
                 }
             }
-            
+
             // Force garbage collection hint (if available)
             if (window.gc) {
                 window.gc();
             }
-            
+
             console.log('🧹 Memory cleanup performed');
         } catch (error) {
             console.warn('Memory cleanup failed:', error);
         }
     }
-    
+
     /**
      * Handle critical errors that could crash the game
      */
@@ -1290,21 +1455,21 @@ export class VampireSurvivorsGame {
         try {
             // Emergency entity cleanup
             this.emergencyEntityCleanup();
-            
+
             // Reset particle systems
             if (this.systems.particle && this.systems.particle.clear) {
                 this.systems.particle.clear();
             }
-            
+
             // Clear timer manager
             globalTimerManager.clearAll();
-            
+
             console.log('🚨 Critical error handled, systems reset');
         } catch (cleanupError) {
             console.error('Emergency cleanup failed:', cleanupError);
         }
     }
-    
+
     /**
      * Emergency entity cleanup when counts get too high
      */
@@ -1315,17 +1480,17 @@ export class VampireSurvivorsGame {
                 const enemies = this.systems.enemy.activeEnemies;
                 if (enemies.length > 200) {
                     // Remove older/weaker enemies, keep stronger ones
-                    enemies.sort((a, b) => (b.maxHealth + b.damage) - (a.maxHealth + a.damage));
+                    enemies.sort((a, b) => b.maxHealth + b.damage - (a.maxHealth + a.damage));
                     const toRemove = enemies.slice(150); // Keep top 150
-                    
+
                     for (const enemy of toRemove) {
                         enemy.active = false;
                     }
-                    
+
                     console.log(`🔥 Emergency cleanup: removed ${toRemove.length} enemies`);
                 }
             }
-            
+
             // Limit projectiles
             if (this.systems.projectile && this.systems.projectile.activeProjectiles) {
                 const projectiles = this.systems.projectile.activeProjectiles;
@@ -1335,11 +1500,11 @@ export class VampireSurvivorsGame {
                     for (const projectile of toRemove) {
                         projectile.active = false;
                     }
-                    
+
                     console.log(`⚡ Emergency cleanup: removed ${toRemove.length} projectiles`);
                 }
             }
-            
+
             // Clear experience gems if too many
             if (this.systems.experience && this.systems.experience.activeGems) {
                 const gems = this.systems.experience.activeGems;
@@ -1348,7 +1513,7 @@ export class VampireSurvivorsGame {
                     for (const gem of toRemove) {
                         gem.active = false;
                     }
-                    
+
                     console.log(`💎 Emergency cleanup: removed ${toRemove.length} gems`);
                 }
             }
@@ -1356,7 +1521,7 @@ export class VampireSurvivorsGame {
             console.error('Emergency entity cleanup failed:', error);
         }
     }
-    
+
     /**
      * Save emergency state for crash recovery
      */
@@ -1368,21 +1533,32 @@ export class VampireSurvivorsGame {
                 gameTime: this.gameTime || 0,
                 timestamp: Date.now()
             };
-            
+
             localStorage.setItem('vampire-survivors-emergency', JSON.stringify(emergencyState));
             console.log('💾 Emergency state saved');
         } catch (error) {
             console.warn('Failed to save emergency state:', error);
         }
     }
-    
+
     update(dt) {
+        // Title screen / upgrade shop / character select animation
+        if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+            this.systems.titleScreen.update(dt);
+            return;
+        }
+
+        // Run summary animation (overlaid on frozen game)
+        if (this.gameState === 'summary') {
+            this.systems.runSummary.update(dt);
+        }
+
         if (this.gameState === 'playing' || this.gameState === 'levelUp') {
             this.gameTime += dt;
-            
+
             // FIXED: Apply timeScale for proper game pausing during level-up
             const scaledDt = dt * this.timeScale;
-            
+
             // OPTIMIZED: Smart update ordering for cache efficiency
             if (this.player) {
                 // FIXED: Only update player UI effects during pause, not gameplay mechanics
@@ -1395,103 +1571,129 @@ export class VampireSurvivorsGame {
                     this.player.update(dt);
                     this.camera.follow(this.player.x, this.player.y, dt);
                 }
-                
+
                 // Update progression telemetry for balance analysis
                 this.progressionTelemetry.update(dt);
             }
-            
+
             // FIXED: Only update game systems when not paused (timeScale > 0)
             if (this.timeScale > 0) {
                 // OPTIMIZED: Strategic system update order for minimal cache misses
                 // 1. Terrain (provides spatial context)
                 this.systems.terrain.update(scaledDt);
-                
+
                 // 2. Enemies (movement and AI)
                 this.systems.enemy.update(scaledDt);
-                
+
                 // 3. Projectiles (collision detection benefits from updated enemy positions)
                 this.systems.projectile.update(scaledDt);
-                
+
                 // 4. Experience (collision with updated player position)
                 this.systems.experience.update(scaledDt);
-                
+
                 // 5. Status effects (depend on updated entity states)
                 this.systems.statusEffect.update(scaledDt);
-                
+
+                // 5.5. FOUNDATION systems (depend on game events from above systems)
+                this.systems.flowState.update(scaledDt);
+                this.systems.rewards.update(scaledDt);
+                this.systems.achievement.update(scaledDt);
+                this.systems.microChallenge.update(scaledDt);
+                this.systems.adaptiveMusic.update(scaledDt);
+                this.systems.killMilestone.update(scaledDt);
+                this.systems.screenEffects.update(scaledDt);
+                this.systems.runTimer.update(scaledDt);
+                this.systems.gold.update(scaledDt);
+                this.systems.weaponEvolution.update(scaledDt);
+                this.systems.synergy.update(scaledDt);
+                this.systems.boss.update(scaledDt);
+                this.systems.dynamicEvents.update(scaledDt);
+                this.systems.ambientParticles.update(scaledDt);
+
                 // 6. Power-ups (benefit from all position updates)
                 this.updatePowerUpDrops(scaledDt);
-                
+
                 // 7. Audio intensity updates (only when game is active)
-                const entityCount = this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
+                const entityCount =
+                    this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
                 const audioFreq = entityCount > 120 ? 16 : 8;
                 if (this.frameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
                     const intensity = Math.min(1, entityCount * 0.02);
                     this.audioManager.setGameIntensity(intensity);
                 }
-                
+
                 // 8. UI updates (adaptive frequency based on entity density)
                 const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
                 if (this.frameCount % uiUpdateFreq === 0) {
                     this.updateGameUI();
                 }
             }
-            
+
             // Visual systems always update (even when paused) for smooth UI
+            // Canvas HUD animations (smooth bars, flashes)
+            this.systems.canvasHUD.update(dt);
+
             // Particles (visual effects based on all game state)
             this.systems.particle.update(dt, this.qualitySettings);
-            
+
             // Update damage numbers from centralized pool
             globalDamageNumberPool.update(dt);
         }
     }
-    
+
     render() {
         // OPTIMIZED: Ultra-fast canvas clearing and state management
         this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform matrix
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
+
         // Ensure no stray fills - clear any white artifacts
         this.ctx.fillStyle = 'transparent';
         this.ctx.strokeStyle = 'transparent';
-        
+
         // DOM manipulation removed - causes instability and performance issues
-        
+
         // OPTIMIZED: Single state reset with renderer state tracking
         this.ctx.globalAlpha = 1;
         this.ctx.globalCompositeOperation = 'source-over';
         this.renderer.resetState();
-        
-        if (this.gameState === 'menu') {
-            this.renderMenu();
+
+        if (this.gameState === 'menu' || this.gameState === 'upgrades' || this.gameState === 'characters' || this.gameState === 'statistics') {
+            this.systems.titleScreen.render(this.ctx);
             return;
         }
-        
+
         // OPTIMIZED: Update renderer view bounds for frustum culling
         const cameraWorldBounds = this.camera.getWorldBounds();
         this.renderer.updateViewBounds(
-            cameraWorldBounds.left, 
+            cameraWorldBounds.left,
             cameraWorldBounds.top,
             cameraWorldBounds.right - cameraWorldBounds.left,
             cameraWorldBounds.bottom - cameraWorldBounds.top
         );
-        
+
         // Apply camera transform with state isolation
         this.ctx.save();
         this.camera.apply(this.ctx);
-        
+
         // OPTIMIZED: Strategic render order for optimal batching and depth sorting
         // 1. Terrain (static background, single draw call)
         this.systems.terrain.render(this.renderer);
-        
+
+        // 1.5 Ambient particles (fog, dust, embers — behind gameplay entities)
+        this.systems.ambientParticles.render(this.ctx);
+
         // 2. Experience gems (can be batched by color/size)
         this.systems.experience.render(this.renderer);
-        
+
         // 2.5 Power-ups (world-space, render with entities)
         this.renderPowerUpDrops(this.renderer);
-        
+
+        // 2.6 Gold coins (world-space, between power-ups and enemies)
+        this.systems.gold.render(this.ctx);
+
         // 3. Enemies (group by type for potential batching)
         this.systems.enemy.render(this.renderer);
-        
+
         // 4. Player (single entity, high priority)
         if (this.player) {
             // Debug: ensure player is visible
@@ -1501,33 +1703,52 @@ export class VampireSurvivorsGame {
                 this.player.y = this.canvas.height / 2;
             }
             this.player.render(this.renderer);
+
+            // 4b. Weapon visuals (aura rings, lightning bolts, charging effects)
+            for (const weapon of this.player.weapons.values()) {
+                if (weapon.render) {
+                    weapon.render(this.renderer);
+                }
+            }
         } else {
             console.error('No player object to render!');
         }
-        
+
         // 5. Projectiles (batch by type and color)
         this.systems.projectile.render(this.renderer);
-        
+
         // 6. Particles (alpha blending, render last)
         this.systems.particle.render(this.renderer, this.qualitySettings);
-        
+
         // 7. Damage numbers (rendered after particles for proper layering)
         globalDamageNumberPool.render(this.ctx, this.camera);
-        
+
+        // 7b. Death entity (world-space, renders within camera transform)
+        this.systems.runTimer.renderDeath(this.ctx);
+
+        // 7c. Evolved weapon glow (world-space)
+        this.systems.weaponEvolution.render(this.ctx);
+
+        // 7d. Boss effects (telegraphs, attack visuals, boss aura — world-space)
+        this.systems.boss.renderWorld(this.ctx);
+
+        // 7e. Dynamic event world-space (chest, calm eye aura)
+        this.systems.dynamicEvents.renderWorld(this.ctx);
+
         // Restore camera transform
         this.ctx.restore();
-        
+
         // 7. Combo UI (screen-space, render after camera restore)
         // this.systems.combo.render(this.renderer);
-        
+
         // OPTIMIZED: Batch UI and effects with minimal state changes
         this.ctx.globalAlpha = 1;
         this.ctx.globalCompositeOperation = 'source-over';
-        
+
         // Camera effects (flash, shake) - no culling needed
         this.camera.renderFlash(this.ctx);
         this.camera.renderPostEffects(this.ctx);
-        
+
         // Debug overlays (render last, on top of everything)
         if (this.projectileDebugger.enabled) {
             this.ctx.save();
@@ -1535,51 +1756,54 @@ export class VampireSurvivorsGame {
             this.projectileDebugger.render(this.renderer);
             this.ctx.restore();
         }
-        
+
         // Progression telemetry overlay (screen space)
         if (this.progressionTelemetry.enabled) {
             this.progressionTelemetry.render(this.ctx);
         }
-        
+
+        // Achievement & micro-challenge overlays (screen space, above debug)
+        this.systems.achievement.render(this.ctx, this.camera);
+        this.systems.microChallenge.render(this.ctx, this.camera);
+        this.systems.killMilestone.render(this.ctx);
+
         // UI overlays (screen space)
         this.renderUIOverlays();
-        
+
+        // Run timer HUD (screen space)
+        this.systems.runTimer.render(this.ctx);
+        this.systems.gold.renderHUD(this.ctx);
+        this.systems.synergy.render(this.ctx);
+        this.systems.boss.renderHUD(this.ctx);
+        this.systems.dynamicEvents.render(this.ctx);
+        this.systems.canvasHUD.render(this.ctx);
+        this.renderUIOverlays();
+
+        // Death pause darkening overlay (1.5s transition)
+        if (this.gameState === 'gameOver') {
+            const t = Math.min(1, (performance.now() - (this._deathTime || performance.now())) / 1500);
+            this.ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * t})`;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        // Run summary overlay (over frozen game scene)
+        if (this.gameState === 'summary') {
+            this.systems.runSummary.render(this.ctx);
+        }
+
         // OPTIMIZED: End frame processing for batching and statistics
         this.renderer.endFrame();
     }
-    
-    renderMenu() {
-        // Simple animated background
-        const time = performance.now() * 0.001;
-        const gradient = this.ctx.createLinearGradient(0, 0, this.canvas.width, this.canvas.height);
-        gradient.addColorStop(0, `hsl(${(time * 20) % 360}, 70%, 20%)`);
-        gradient.addColorStop(1, `hsl(${(time * 20 + 180) % 360}, 70%, 10%)`);
-        
-        this.ctx.fillStyle = gradient;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Animated particles
-        for (let i = 0; i < 50; i++) {
-            const x = (Math.sin(time + i) * 0.5 + 0.5) * this.canvas.width;
-            const y = (Math.cos(time * 0.7 + i) * 0.5 + 0.5) * this.canvas.height;
-            const alpha = 0.3 + 0.2 * Math.sin(time * 2 + i);
-            
-            this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-            this.ctx.beginPath();
-            this.ctx.arc(x, y, 2, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
-    }
-    
+
     renderBackground() {
         // Simple performance-optimized background
         const bounds = this.camera.getWorldBounds(100);
         const entityCount = this.performanceStats.entityCount;
-        
+
         // Calculate actual width and height from bounds
         const width = bounds.right - bounds.left;
         const height = bounds.bottom - bounds.top;
-        
+
         if (entityCount > 100 || this.performanceStats.fps < 50) {
             // Simple solid background for high entity counts
             this.ctx.fillStyle = '#1a1a2e';
@@ -1591,23 +1815,23 @@ export class VampireSurvivorsGame {
             gradient.addColorStop(1, '#0f0f23');
             this.ctx.fillStyle = gradient;
             this.ctx.fillRect(bounds.left, bounds.top, width, height);
-            
+
             // Optional simple grid for low entity counts
             if (entityCount < 50) {
                 this.renderGrid();
             }
         }
     }
-    
+
     renderGrid() {
         // Simple grid for visual reference
         const gridSize = 100;
         const bounds = this.camera.getWorldBounds(50);
-        
+
         this.ctx.strokeStyle = 'rgba(75, 0, 130, 0.08)';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        
+
         // Vertical lines
         const startX = Math.floor(bounds.left / gridSize) * gridSize;
         const endX = Math.ceil(bounds.right / gridSize) * gridSize;
@@ -1615,7 +1839,7 @@ export class VampireSurvivorsGame {
             this.ctx.moveTo(x, bounds.top);
             this.ctx.lineTo(x, bounds.bottom);
         }
-        
+
         // Horizontal lines
         const startY = Math.floor(bounds.top / gridSize) * gridSize;
         const endY = Math.ceil(bounds.bottom / gridSize) * gridSize;
@@ -1623,48 +1847,47 @@ export class VampireSurvivorsGame {
             this.ctx.moveTo(bounds.left, y);
             this.ctx.lineTo(bounds.right, y);
         }
-        
+
         this.ctx.stroke();
     }
-    
+
     renderUIOverlays() {
         // UI overlays disabled - no minimap
     }
-    
+
     // Removed cleanupStuckNotifications - DOM manipulation in game loop caused instability
-    
+
     // Removed checkForWhiteArtifacts - DOM manipulation in game loop caused instability
     unusedCheckForWhiteArtifacts() {
         // Find and remove any problematic elements
         const problematicElements = [];
-        
+
         // Get all elements in the DOM
         const allElements = document.querySelectorAll('*');
-        
-        allElements.forEach(el => {
+
+        allElements.forEach((el) => {
             // Skip essential elements
-            if (el.id === 'gameCanvas' || 
-                el.tagName === 'CANVAS' || 
-                el.tagName === 'HTML' || 
+            if (
+                el.id === 'gameCanvas' ||
+                el.tagName === 'CANVAS' ||
+                el.tagName === 'HTML' ||
                 el.tagName === 'BODY' ||
                 el.tagName === 'SCRIPT' ||
                 el.tagName === 'STYLE' ||
                 el.id === 'gameHUD' ||
                 el.id === 'performanceMonitor' ||
-                el.id === 'controlsHelp') return;
-            
+                el.id === 'controlsHelp'
+            )
+                return;
+
             const style = window.getComputedStyle(el);
             const rect = el.getBoundingClientRect();
-            
+
             // Check if element is visible and potentially problematic
-            if (style.display !== 'none' && 
-                style.visibility !== 'hidden' && 
-                rect.width > 0 && 
-                rect.height > 0) {
-                
+            if (style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0) {
                 let shouldRemove = false;
                 let reason = '';
-                
+
                 // Check for white or light backgrounds
                 const bg = style.backgroundColor;
                 if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
@@ -1675,13 +1898,13 @@ export class VampireSurvivorsGame {
                         const rVal = parseInt(r);
                         const gVal = parseInt(g);
                         const bVal = parseInt(b);
-                        
+
                         // Check if it's white or very light (all values > 240)
                         if (rVal > 240 && gVal > 240 && bVal > 240) {
                             shouldRemove = true;
                             reason = `Light background: ${bg}`;
                         }
-                        
+
                         // Also check for pure white
                         if (rVal === 255 && gVal === 255 && bVal === 255) {
                             shouldRemove = true;
@@ -1689,7 +1912,7 @@ export class VampireSurvivorsGame {
                         }
                     }
                 }
-                
+
                 // Check for large overlays positioned on the right side (like in the screenshot)
                 if (rect.width > 100 && rect.height > window.innerHeight * 0.5) {
                     // Check if it's on the right edge
@@ -1698,24 +1921,30 @@ export class VampireSurvivorsGame {
                         reason = `Large right-side overlay: ${rect.width}x${rect.height} at x:${rect.left}`;
                     }
                 }
-                
+
                 // Check for elements with white inline styles
                 const inlineStyle = el.getAttribute('style') || '';
-                if (inlineStyle.includes('background: white') || 
+                if (
+                    inlineStyle.includes('background: white') ||
                     inlineStyle.includes('background-color: white') ||
                     inlineStyle.includes('background: #fff') ||
-                    inlineStyle.includes('background: rgb(255, 255, 255)')) {
+                    inlineStyle.includes('background: rgb(255, 255, 255)')
+                ) {
                     shouldRemove = true;
                     reason = 'White inline style';
                 }
-                
+
                 // Remove any div without proper game-related IDs/classes
-                if (el.tagName === 'DIV' && !el.id && !el.className && 
-                    (style.position === 'absolute' || style.position === 'fixed')) {
+                if (
+                    el.tagName === 'DIV' &&
+                    !el.id &&
+                    !el.className &&
+                    (style.position === 'absolute' || style.position === 'fixed')
+                ) {
                     shouldRemove = true;
                     reason = 'Anonymous positioned div';
                 }
-                
+
                 if (shouldRemove) {
                     problematicElements.push({
                         element: el,
@@ -1732,11 +1961,11 @@ export class VampireSurvivorsGame {
                 }
             }
         });
-        
+
         // Remove all problematic elements
         if (problematicElements.length > 0) {
             console.warn(`Found ${problematicElements.length} problematic elements:`);
-            problematicElements.forEach(item => {
+            problematicElements.forEach((item) => {
                 console.warn(`  - Removing: ${item.reason}`, item.details);
                 try {
                     item.element.remove();
@@ -1746,7 +1975,7 @@ export class VampireSurvivorsGame {
                 }
             });
         }
-        
+
         // Also clean up any notification or warning elements that might be stuck
         const selectorsToClean = [
             '.notification',
@@ -1756,10 +1985,10 @@ export class VampireSurvivorsGame {
             '[id*="level-up"]',
             '[id*="game-over"]'
         ];
-        
-        selectorsToClean.forEach(selector => {
+
+        selectorsToClean.forEach((selector) => {
             try {
-                document.querySelectorAll(selector).forEach(el => {
+                document.querySelectorAll(selector).forEach((el) => {
                     if (el.id !== 'gameHUD' && !el.classList.contains('game-button')) {
                         el.remove();
                     }
@@ -1772,73 +2001,73 @@ export class VampireSurvivorsGame {
 
     renderBoundaryAwarenessHUD() {
         if (!this.player || !this.systems.terrain) return;
-        
+
         const ctx = this.ctx;
         const worldBounds = this.systems.terrain.getWorldBounds();
         const playerX = this.player.x;
         const playerY = this.player.y;
-        
+
         // Calculate distances to boundaries
         const distanceToLeft = playerX - worldBounds.left;
         const distanceToRight = worldBounds.right - playerX;
         const distanceToTop = playerY - worldBounds.top;
         const distanceToBottom = worldBounds.bottom - playerY;
-        
+
         const minDistance = Math.min(distanceToLeft, distanceToRight, distanceToTop, distanceToBottom);
-        
+
         // Only show when getting close to boundaries
         if (minDistance < 300) {
             ctx.save();
-            
+
             // Draw mini-map style boundary indicator in top-right corner
             const hudX = this.canvas.width - 150;
             const hudY = 20;
             const hudSize = 120;
-            
+
             // Background
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(hudX, hudY, hudSize, hudSize);
-            
+
             // Border
             ctx.strokeStyle = '#FF3030';
             ctx.lineWidth = 2;
             ctx.strokeRect(hudX, hudY, hudSize, hudSize);
-            
+
             // Map boundaries (scaled down)
             const worldWidth = worldBounds.right - worldBounds.left;
             const worldHeight = worldBounds.bottom - worldBounds.top;
             const scaleX = (hudSize - 20) / worldWidth;
             const scaleY = (hudSize - 20) / worldHeight;
-            
+
             // Boundary walls
             ctx.strokeStyle = '#FF6060';
             ctx.lineWidth = 3;
             ctx.strokeRect(hudX + 10, hudY + 10, hudSize - 20, hudSize - 20);
-            
+
             // Player position
             const playerHudX = hudX + 10 + (playerX - worldBounds.left) * scaleX;
             const playerHudY = hudY + 10 + (playerY - worldBounds.top) * scaleY;
-            
+
             ctx.fillStyle = '#00FF00';
             ctx.fillRect(playerHudX - 2, playerHudY - 2, 4, 4);
-            
+
             // Warning text
             ctx.fillStyle = '#FF4040';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('BOUNDARY', hudX + hudSize/2, hudY + hudSize + 20);
-            ctx.fillText(`${Math.round(minDistance)}m`, hudX + hudSize/2, hudY + hudSize + 35);
-            
+            ctx.fillText('BOUNDARY', hudX + hudSize / 2, hudY + hudSize + 20);
+            ctx.fillText(`${Math.round(minDistance)}m`, hudX + hudSize / 2, hudY + hudSize + 35);
+
             // Directional arrow pointing to closest boundary
             ctx.strokeStyle = '#FF6060';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            
-            let arrowX = hudX + hudSize/2;
-            let arrowY = hudY + hudSize/2;
+
+            let arrowX = hudX + hudSize / 2;
+            let arrowY = hudY + hudSize / 2;
             let arrowEndX = arrowX;
             let arrowEndY = arrowY;
-            
+
             if (distanceToLeft === minDistance) {
                 arrowEndX = hudX + 15;
             } else if (distanceToRight === minDistance) {
@@ -1848,31 +2077,31 @@ export class VampireSurvivorsGame {
             } else if (distanceToBottom === minDistance) {
                 arrowEndY = hudY + hudSize - 15;
             }
-            
+
             ctx.moveTo(arrowX, arrowY);
             ctx.lineTo(arrowEndX, arrowEndY);
             ctx.stroke();
-            
+
             // Arrow head
             const angle = Math.atan2(arrowEndY - arrowY, arrowEndX - arrowX);
             const arrowSize = 8;
             ctx.beginPath();
             ctx.moveTo(arrowEndX, arrowEndY);
             ctx.lineTo(
-                arrowEndX - arrowSize * Math.cos(angle - Math.PI/6),
-                arrowEndY - arrowSize * Math.sin(angle - Math.PI/6)
+                arrowEndX - arrowSize * Math.cos(angle - Math.PI / 6),
+                arrowEndY - arrowSize * Math.sin(angle - Math.PI / 6)
             );
             ctx.moveTo(arrowEndX, arrowEndY);
             ctx.lineTo(
-                arrowEndX - arrowSize * Math.cos(angle + Math.PI/6),
-                arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
+                arrowEndX - arrowSize * Math.cos(angle + Math.PI / 6),
+                arrowEndY - arrowSize * Math.sin(angle + Math.PI / 6)
             );
             ctx.stroke();
-            
+
             ctx.restore();
         }
     }
-    
+
     resetCanvasState() {
         // OPTIMIZED: Minimal essential state reset only
         this.ctx.globalAlpha = 1;
@@ -1880,30 +2109,32 @@ export class VampireSurvivorsGame {
         this.ctx.shadowBlur = 0;
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
-    
+
     updateGameUI() {
         if (!this.player) return;
-        
+
         // Update player stats
         document.getElementById('player-level').textContent = this.player.level;
         document.getElementById('player-health').textContent = Math.ceil(this.player.health);
         document.getElementById('player-max-health').textContent = this.player.maxHealth;
         document.getElementById('player-exp').textContent = this.player.experience;
         document.getElementById('player-exp-needed').textContent = this.player.experienceToNext;
-        
+
         // Update game stats
         document.getElementById('current-wave').textContent = this.systems.enemy.getCurrentWave();
         document.getElementById('enemy-count').textContent = this.systems.enemy.getEnemyCount();
         document.getElementById('game-time').textContent = this.formatTime(this.gameTime);
         document.getElementById('game-score').textContent = this.score;
-        
+
         // Update manual aiming status
         this.updateManualAimingUI();
 
         // Update active power-up indicators (timers)
         this.updatePowerUpIndicators();
-        
-        
+
+        // Update passive item indicators
+        this.updatePassiveItemsHUD();
+
         // Update debug info (technical metrics only)
         if (this.showDebug) {
             document.getElementById('entity-count').textContent = this.performanceStats.entityCount;
@@ -1912,19 +2143,19 @@ export class VampireSurvivorsGame {
             document.getElementById('enemy-count').textContent = this.systems.enemy.getEnemyCount();
         }
     }
-    
+
     updateManualAimingUI() {
         const aimingStatus = document.getElementById('manual-aiming-status');
         const aimingStats = this.player.getAimingStats();
-        
+
         if (aimingStats) {
             // Show manual aiming UI
             aimingStatus.style.display = 'block';
-            
+
             // Update current accuracy and damage bonus
             document.getElementById('aim-accuracy').textContent = aimingStats.currentAccuracy;
             document.getElementById('aim-bonus').textContent = aimingStats.damageBonus;
-            
+
             // Update statistics
             document.getElementById('aim-total-shots').textContent = aimingStats.totalShots;
             document.getElementById('aim-overall-accuracy').textContent = aimingStats.overallAccuracy;
@@ -1933,23 +2164,22 @@ export class VampireSurvivorsGame {
             aimingStatus.style.display = 'none';
         }
     }
-    
-    
+
     updatePerformanceStats(currentTime) {
         // OPTIMIZED: Enhanced performance tracking
         const frameTime = this.deltaTime * 1000; // Convert to milliseconds
-        
-        this.performanceStats.entityCount = 
-            this.systems.enemy.getEnemyCount() + 
-            this.systems.projectile.activeProjectiles.length + 
+
+        this.performanceStats.entityCount =
+            this.systems.enemy.getEnemyCount() +
+            this.systems.projectile.activeProjectiles.length +
             this.systems.experience.getActiveGemCount();
-        
+
         // Track frame time history
         this.performanceStats.frameTimeHistory.push(frameTime);
         if (this.performanceStats.frameTimeHistory.length > 60) {
             this.performanceStats.frameTimeHistory.shift();
         }
-        
+
         // Track dropped frames
         if (frameTime > this.targetFrameTime) {
             this.performanceStats.dropped60FpsFrames++;
@@ -1957,21 +2187,23 @@ export class VampireSurvivorsGame {
         if (frameTime > this.warningFrameTime) {
             this.performanceStats.dropped30FpsFrames++;
         }
-        
+
         // Update FPS and averages every second
         if (currentTime - this.performanceStats.lastFpsUpdate > 1000) {
-            this.performanceStats.fps = Math.round(this.frameCount * 1000 / (currentTime - this.performanceStats.lastFpsUpdate));
-            
+            this.performanceStats.fps = Math.round(
+                (this.frameCount * 1000) / (currentTime - this.performanceStats.lastFpsUpdate)
+            );
+
             // Calculate average and worst frame times
             if (this.performanceStats.frameTimeHistory.length > 0) {
                 const sum = this.performanceStats.frameTimeHistory.reduce((a, b) => a + b, 0);
                 this.performanceStats.avgFrameTime = sum / this.performanceStats.frameTimeHistory.length;
                 this.performanceStats.worstFrameTime = Math.max(...this.performanceStats.frameTimeHistory);
             }
-            
+
             this.frameCount = 0;
             this.performanceStats.lastFpsUpdate = currentTime;
-            
+
             // Periodic performance report
             if (currentTime - this.lastPerformanceReport > this.performanceReportInterval) {
                 this.reportPerformance();
@@ -1979,80 +2211,82 @@ export class VampireSurvivorsGame {
             }
         }
     }
-    
+
     reportPerformance() {
         const stats = this.performanceStats;
         const particleStats = this.systems.particle.getPerformanceInfo();
         const rendererStats = this.renderer.getPerformanceStats();
-        
+
         // Only log performance issues, not regular reports
         if (stats.fps < 45 || stats.entityCount > 300 || stats.dropped60FpsFrames > 30) {
-            console.warn(`⚠️ Performance Issue - FPS: ${stats.fps}, Entities: ${stats.entityCount}, Dropped: ${stats.dropped60FpsFrames}, Quality: ${stats.qualityLevel}%`);
+            console.warn(
+                `⚠️ Performance Issue - FPS: ${stats.fps}, Entities: ${stats.entityCount}, Dropped: ${stats.dropped60FpsFrames}, Quality: ${stats.qualityLevel}%`
+            );
         }
-        
+
         // Reset counters
         stats.dropped60FpsFrames = 0;
         stats.dropped30FpsFrames = 0;
         this.renderer.resetPerformanceStats();
     }
-    
+
     // OPTIMIZED: Adaptive quality scaling for consistent 60 FPS
     adaptiveQualityReduction() {
         const now = performance.now();
         if (now - this.performanceStats.lastQualityAdjustment < 2000) return; // Limit adjustments to every 2 seconds
-        
+
         this.performanceStats.adaptiveMode = true;
         this.performanceStats.qualityLevel = Math.max(30, this.performanceStats.qualityLevel - 15);
         this.performanceStats.lastQualityAdjustment = now;
-        
+
         // Apply quality reductions
         const qualityFactor = this.performanceStats.qualityLevel / 100;
         this.qualitySettings.particleReduction = Math.max(0.3, qualityFactor);
         this.qualitySettings.effectsReduction = Math.max(0.4, qualityFactor);
         this.qualitySettings.renderDistance = Math.max(0.7, qualityFactor);
         this.qualitySettings.animationDetail = Math.max(0.5, qualityFactor);
-        
+
         // Reduce max entities in systems
         this.systems.enemy.maxActiveEnemies = Math.floor(150 * qualityFactor);
         this.systems.projectile.maxActiveProjectiles = Math.floor(300 * qualityFactor);
         this.systems.particle.maxParticles = Math.floor(1500 * this.qualitySettings.particleReduction);
-        
+
         console.log(`🎛️ Quality reduced to ${this.performanceStats.qualityLevel}% for better performance`);
     }
-    
+
     adaptiveQualityRestoration() {
         const now = performance.now();
         if (now - this.performanceStats.lastQualityAdjustment < 3000) return; // Wait longer before increasing quality
-        
+
         if (this.performanceStats.qualityLevel < 100) {
             this.performanceStats.qualityLevel = Math.min(100, this.performanceStats.qualityLevel + 10);
             this.performanceStats.lastQualityAdjustment = now;
-            
+
             // Restore quality settings
             const qualityFactor = this.performanceStats.qualityLevel / 100;
             this.qualitySettings.particleReduction = qualityFactor;
             this.qualitySettings.effectsReduction = qualityFactor;
             this.qualitySettings.renderDistance = qualityFactor;
             this.qualitySettings.animationDetail = qualityFactor;
-            
+
             // Restore max entities
             this.systems.enemy.maxActiveEnemies = Math.floor(150 * qualityFactor);
             this.systems.projectile.maxActiveProjectiles = Math.floor(300 * qualityFactor);
             this.systems.particle.maxParticles = Math.floor(1500 * this.qualitySettings.particleReduction);
-            
+
             if (this.performanceStats.qualityLevel === 100) {
                 this.performanceStats.adaptiveMode = false;
                 console.log('🎛️ Quality restored to 100%');
             }
         }
     }
-    
+
     formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${minutes}:${secs.toString().padStart(2, '0')}`;
     }
-    
+
     shuffleArray(array) {
         const shuffled = [...array];
         for (let i = shuffled.length - 1; i > 0; i--) {
@@ -2061,14 +2295,14 @@ export class VampireSurvivorsGame {
         }
         return shuffled;
     }
-    
+
     // Wave notification
     showWaveNotification(waveNumber) {
         // Enhanced wave announcements with different types
         const isSpecialWave = waveNumber % 5 === 0;
         const isBossWave = waveNumber % 10 === 0;
         const isMilestoneWave = [25, 50, 75, 100].includes(waveNumber);
-        
+
         // Determine wave type and styling
         let waveText, color, size, intensity;
         if (isMilestoneWave) {
@@ -2092,7 +2326,7 @@ export class VampireSurvivorsGame {
             size = 36;
             intensity = 1.5;
         }
-        
+
         // Create enhanced notification with animation
         const notification = document.createElement('div');
         notification.style.cssText = `
@@ -2111,7 +2345,7 @@ export class VampireSurvivorsGame {
             white-space: nowrap;
         `;
         notification.textContent = waveText;
-        
+
         // Add CSS animation if not exists
         if (!document.getElementById('wave-animation-style')) {
             const style = document.createElement('style');
@@ -2138,7 +2372,7 @@ export class VampireSurvivorsGame {
             `;
             document.head.appendChild(style);
         }
-        
+
         // Add to UI container instead of body to prevent artifacts
         const uiContainer = document.getElementById('game-ui');
         if (uiContainer) {
@@ -2146,18 +2380,22 @@ export class VampireSurvivorsGame {
         } else {
             document.body.appendChild(notification);
         }
-        
+
         // Remove after animation
-        managedSetTimeout(() => {
-            notification.remove();
-        }, 3000, this);
-        
+        managedSetTimeout(
+            () => {
+                notification.remove();
+            },
+            3000,
+            this
+        );
+
         // Enhanced visual effects based on wave type
         if (this.camera) {
             this.camera.flash(color, 0.8 * intensity);
             this.camera.shakeWaveStart();
         }
-        
+
         // Enhanced particle effects
         if (this.systems.particle && this.player) {
             if (isMilestoneWave) {
@@ -2168,16 +2406,20 @@ export class VampireSurvivorsGame {
                     spread: 120,
                     intensity: intensity
                 });
-                
+
                 // Secondary burst
-                managedSetTimeout(() => {
-                    this.systems.particle.createBurst(this.player.x, this.player.y, 'gemExplosion', {
-                        color: '#FFFFFF',
-                        count: 40,
-                        spread: 100,
-                        intensity: intensity
-                    });
-                }, 300, this);
+                managedSetTimeout(
+                    () => {
+                        this.systems.particle.createBurst(this.player.x, this.player.y, 'gemExplosion', {
+                            color: '#FFFFFF',
+                            count: 40,
+                            spread: 100,
+                            intensity: intensity
+                        });
+                    },
+                    300,
+                    this
+                );
             } else if (isBossWave) {
                 // Ominous effect for boss waves
                 this.systems.particle.createBurst(this.player.x, this.player.y, 'bloodSplash', {
@@ -2204,26 +2446,34 @@ export class VampireSurvivorsGame {
                 });
             }
         }
-        
+
         // Enhanced audio feedback
         if (this.audioManager) {
             if (isMilestoneWave) {
                 this.audioManager.playVampireSound('levelUp', 1.0, 1.5);
-                managedSetTimeout(() => {
-                    this.audioManager.playVampireSound('criticalHit', 0.8, 1.8);
-                }, 400, this);
+                managedSetTimeout(
+                    () => {
+                        this.audioManager.playVampireSound('criticalHit', 0.8, 1.8);
+                    },
+                    400,
+                    this
+                );
             } else if (isBossWave) {
                 this.audioManager.playVampireSound('vampireBite', 1.0, 0.7); // Deep, ominous
-                managedSetTimeout(() => {
-                    this.audioManager.playVampireSound('criticalHit', 0.9, 1.2);
-                }, 300, this);
+                managedSetTimeout(
+                    () => {
+                        this.audioManager.playVampireSound('criticalHit', 0.9, 1.2);
+                    },
+                    300,
+                    this
+                );
             } else if (isSpecialWave) {
                 this.audioManager.playVampireSound('weaponUpgrade', 0.9, 1.3);
             } else {
                 this.audioManager.playVampireSound('experienceGain', 0.7, 1.2);
             }
         }
-        
+
         // Special rewards and effects
         if (isMilestoneWave && this.player) {
             // Give massive rewards for milestone waves
@@ -2242,12 +2492,13 @@ export class VampireSurvivorsGame {
             }
             this.spawnPowerUpDrop(this.player.x, this.player.y);
         }
-        
+
         // Warning text for dangerous waves
         if (isBossWave || isMilestoneWave) {
-            managedSetTimeout(() => {
-                const warningText = document.createElement('div');
-                warningText.style.cssText = `
+            managedSetTimeout(
+                () => {
+                    const warningText = document.createElement('div');
+                    warningText.style.cssText = `
                     position: absolute;
                     top: 35%;
                     left: 50%;
@@ -2261,53 +2512,56 @@ export class VampireSurvivorsGame {
                     text-align: center;
                     animation: waveWarning 2s ease-out forwards;
                 `;
-                warningText.textContent = isMilestoneWave ? 'PREPARE FOR CHAOS!' : 'DANGER INCOMING!';
-                
-                // Add warning animation if not exists
-                if (!document.getElementById('wave-warning-style')) {
-                    const warnStyle = document.createElement('style');
-                    warnStyle.id = 'wave-warning-style';
-                    warnStyle.textContent = `
+                    warningText.textContent = isMilestoneWave ? 'PREPARE FOR CHAOS!' : 'DANGER INCOMING!';
+
+                    // Add warning animation if not exists
+                    if (!document.getElementById('wave-warning-style')) {
+                        const warnStyle = document.createElement('style');
+                        warnStyle.id = 'wave-warning-style';
+                        warnStyle.textContent = `
                         @keyframes waveWarning {
                             0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
                             50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
                             100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
                         }
                     `;
-                    document.head.appendChild(warnStyle);
-                }
-                
-                // Add to UI container instead of body
-                const uiContainer = document.getElementById('game-ui');
-                if (uiContainer) {
-                    uiContainer.appendChild(warningText);
-                } else {
-                    document.body.appendChild(warningText);
-                }
-                managedSetTimeout(() => warningText.remove(), 2000, this);
-            }, 1000, this);
+                        document.head.appendChild(warnStyle);
+                    }
+
+                    // Add to UI container instead of body
+                    const uiContainer = document.getElementById('game-ui');
+                    if (uiContainer) {
+                        uiContainer.appendChild(warningText);
+                    } else {
+                        document.body.appendChild(warningText);
+                    }
+                    managedSetTimeout(() => warningText.remove(), 2000, this);
+                },
+                1000,
+                this
+            );
         }
     }
-    
+
     // ADDICTION MECHANICS - UI Updates and Power-up System
     updateComboDisplay(count, multiplier) {
         const comboDisplay = document.getElementById('combo-display');
         const comboCount = document.getElementById('combo-count');
         const comboMultiplier = document.getElementById('combo-multiplier');
-        
+
         if (count > 0) {
             comboDisplay.style.display = 'block';
             comboCount.textContent = count;
             comboMultiplier.textContent = multiplier.toFixed(1);
-            
+
             // Color intensity based on combo level
             const intensity = Math.min(count / 50, 1.0);
             const r = Math.floor(255 * intensity);
             const g = Math.floor(255 * (1 - intensity * 0.3));
             const b = Math.floor(100 * (1 - intensity));
-            
+
             comboDisplay.style.color = `rgb(${r}, ${g}, ${b})`;
-            
+
             // Pulse effect for high combos
             if (count >= 25) {
                 comboDisplay.style.animation = 'pulse 0.5s infinite alternate';
@@ -2318,7 +2572,7 @@ export class VampireSurvivorsGame {
             comboDisplay.style.display = 'none';
         }
     }
-    
+
     spawnPowerUpDrop(x, y) {
         // Ensure storage and respect cap to reduce clutter
         if (!this.powerUpDrops) this.powerUpDrops = [];
@@ -2330,7 +2584,7 @@ export class VampireSurvivorsGame {
         // Random power-up type
         const powerUpTypes = ['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate'];
         const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
-        
+
         // Create power-up drop entity
         const powerUp = {
             x: x + (Math.random() - 0.5) * 100,
@@ -2343,35 +2597,35 @@ export class VampireSurvivorsGame {
             pulsePhase: Math.random() * Math.PI * 2,
             active: true
         };
-        
+
         // Add to game systems
         this.powerUpDrops.push(powerUp);
-        
+
         // Visual spawn effect
         this.systems.particle.createPowerUpSpawnEffect(powerUp.x, powerUp.y, type);
     }
-    
+
     updatePowerUpDrops(dt) {
         if (!this.powerUpDrops) return;
-        
+
         for (let i = this.powerUpDrops.length - 1; i >= 0; i--) {
             const powerUp = this.powerUpDrops[i];
-            
+
             powerUp.timer += dt;
             powerUp.pulsePhase += dt * 4;
-            
+
             // Remove expired power-ups
             if (powerUp.timer >= powerUp.lifetime) {
                 this.powerUpDrops.splice(i, 1);
                 continue;
             }
-            
+
             // Check collection
             if (this.player && !powerUp.collected) {
                 const dx = powerUp.x - this.player.x;
                 const dy = powerUp.y - this.player.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                
+
                 if (distance < 30) {
                     this.collectPowerUp(powerUp);
                     powerUp.collected = true;
@@ -2380,11 +2634,10 @@ export class VampireSurvivorsGame {
             }
         }
     }
-    
+
     collectPowerUp(powerUp) {
         if (!this.player) return;
-        
-        
+
         // Apply power-up effect
         switch (powerUp.type) {
             case 'health':
@@ -2404,9 +2657,16 @@ export class VampireSurvivorsGame {
             case 'magnetBoost':
                 // Timed area magnet: pull gems within a large radius for the duration
                 this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
-                if (this.systems && this.systems.experience && typeof this.systems.experience.activateAreaMagnet === 'function') {
+                if (
+                    this.systems &&
+                    this.systems.experience &&
+                    typeof this.systems.experience.activateAreaMagnet === 'function'
+                ) {
                     const playerSize = this.player?.size || 12;
-                    const screenMin = (this.camera && this.camera.width && this.camera.height) ? Math.min(this.camera.width, this.camera.height) : 800;
+                    const screenMin =
+                        this.camera && this.camera.width && this.camera.height
+                            ? Math.min(this.camera.width, this.camera.height)
+                            : 800;
                     const desiredRadius = Math.max(playerSize * 10, screenMin * 0.2);
                     this.systems.experience.activateAreaMagnet(desiredRadius, 12.0);
                     // Optional: small initial pulse to make effect immediately visible
@@ -2420,53 +2680,53 @@ export class VampireSurvivorsGame {
                 this.player.activatePowerUp('fireRate', 15.0, 1.0);
                 break;
         }
-        
-         // Subtle pickup toast for clarity
+
+        // Subtle pickup toast for clarity
         try {
             const name = this.getPowerUpName(powerUp.type);
             const hint = this.getPowerUpPickupHint(powerUp.type);
             this.showPickupToast(`${name} — ${hint}`, this.getPowerUpColor(powerUp.type));
         } catch (_) {}
-        
+
         // Collection effects
         this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, this.getPowerUpColor(powerUp.type));
-        
+
         if (this.audioManager) {
             this.audioManager.playPowerUpCollect();
         }
     }
-    
+
     renderPowerUpDrops(renderer) {
         if (!this.powerUpDrops) return;
-        
+
         const ctx = renderer.ctx;
-        
+
         for (const powerUp of this.powerUpDrops) {
             if (!powerUp.active || powerUp.collected) continue;
-            
+
             ctx.save();
-            
+
             // Pulsing effect
             const pulse = 1.0 + Math.sin(powerUp.pulsePhase) * 0.3;
             const size = powerUp.size * pulse;
-            
+
             // Glow effect
             ctx.shadowColor = this.getPowerUpColor(powerUp.type);
             ctx.shadowBlur = 15;
-            
+
             // Draw power-up
             ctx.fillStyle = this.getPowerUpColor(powerUp.type);
             ctx.beginPath();
             ctx.arc(powerUp.x, powerUp.y, size, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // Draw icon/symbol
             ctx.fillStyle = '#FFFFFF';
             ctx.font = `${size}px Arial`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(this.getPowerUpSymbol(powerUp.type), powerUp.x, powerUp.y);
-            
+
             // Nearby hint label to explain the drop
             if (this.player) {
                 const dx = powerUp.x - this.player.x;
@@ -2480,12 +2740,14 @@ export class VampireSurvivorsGame {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
                     const textWidth = ctx.measureText(label).width;
-                    const padX = 6, padY = 3;
+                    const padX = 6,
+                        padY = 3;
                     // Background box above the drop
                     ctx.fillStyle = 'rgba(10, 10, 20, 0.6)';
                     ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
                     ctx.lineWidth = 1;
-                    const bx = powerUp.x, by = powerUp.y - size - 8;
+                    const bx = powerUp.x,
+                        by = powerUp.y - size - 8;
                     ctx.beginPath();
                     ctx.rect(bx - textWidth / 2 - padX, by - 14, textWidth + padX * 2, 16 + padY);
                     ctx.fill();
@@ -2496,11 +2758,11 @@ export class VampireSurvivorsGame {
                     ctx.globalAlpha = 1;
                 }
             }
-            
+
             ctx.restore();
         }
     }
-    
+
     getPowerUpColor(type) {
         const colors = {
             health: '#FF4444',
@@ -2512,7 +2774,7 @@ export class VampireSurvivorsGame {
         };
         return colors[type] || '#FFFFFF';
     }
-    
+
     getPowerUpSymbol(type) {
         const symbols = {
             health: '+',
@@ -2524,33 +2786,35 @@ export class VampireSurvivorsGame {
         };
         return symbols[type] || '?';
     }
-    
+
     stop() {
         this.running = false;
         if (this.audioManager) {
             this.audioManager.stopAll();
         }
-        
+
         // Clear all managed timers to prevent memory leaks
         globalTimerManager.clearAll();
     }
-    
+
     // Public API for external access
     getState() {
         return {
             gameState: this.gameState,
             gameTime: this.gameTime,
             score: this.score,
-            player: this.player ? {
-                level: this.player.level,
-                health: this.player.health,
-                maxHealth: this.player.maxHealth,
-                experience: this.player.experience,
-                experienceToNext: this.player.experienceToNext
-            } : null
+            player: this.player
+                ? {
+                      level: this.player.level,
+                      health: this.player.health,
+                      maxHealth: this.player.maxHealth,
+                      experience: this.player.experience,
+                      experienceToNext: this.player.experienceToNext
+                  }
+                : null
         };
     }
-    
+
     getDebugInfo() {
         // Memory usage information
         let memoryInfo = {};
@@ -2561,7 +2825,7 @@ export class VampireSurvivorsGame {
                 limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024)
             };
         }
-        
+
         return {
             performance: this.performanceStats,
             memory: memoryInfo,
