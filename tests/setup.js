@@ -49,10 +49,20 @@ const localStorageMock = {
     removeItem: jest.fn(),
     clear: jest.fn()
 };
-global.localStorage = localStorageMock;
+Object.defineProperty(global, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true
+});
+
+global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({}),
+    text: async () => '{}'
+}));
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = jest.fn(cb => setTimeout(cb, 16));
+global.requestAnimationFrame = jest.fn((cb) => setTimeout(cb, 16));
 global.cancelAnimationFrame = jest.fn(clearTimeout);
 
 // Console override for cleaner test output

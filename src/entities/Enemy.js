@@ -57,84 +57,84 @@ export class Enemy {
     initializeType(type) {
         const types = {
             basic: {
-                maxHealth: 35,  // Increased from 20 - HARDER
-                speed: 60,  // Increased from 40 for more challenge
-                damage: 15,  // Increased from 10 - MORE DANGEROUS
+                maxHealth: 25,
+                speed: 50,
+                damage: 10,
                 size: 8,
                 color: '#FF6B6B',
-                expReward: 3, // REBALANCED: Reduced from 5 to 3
+                expReward: 5,
                 attackRange: 20,
                 attackCooldown: 1.0
             },
             fast: {
-                maxHealth: 20,  // Doubled from 10 - TANKIER
-                speed: 120,  // Increased from 80 for more challenge
-                damage: 12,  // Increased from 8 - MORE DANGEROUS
+                maxHealth: 18,
+                speed: 100,
+                damage: 8,
                 size: 6,
                 color: '#4ECDC4',
-                expReward: 5, // REBALANCED: Reduced from 8 to 5
+                expReward: 4,
                 attackRange: 15,
                 attackCooldown: 0.8
             },
             tank: {
-                maxHealth: 100,  // Increased from 60 - MUCH TANKIER
-                speed: 35,  // Increased from 20 for more challenge
-                damage: 35,  // Increased from 25 - HEAVY HITTER
+                maxHealth: 60,
+                speed: 30,
+                damage: 25,
                 size: 14,
                 color: '#45B7D1',
-                expReward: 8, // REBALANCED: Reduced from 15 to 8
+                expReward: 12,
                 attackRange: 25,
                 attackCooldown: 2.0
             },
             ranged: {
-                maxHealth: 25,  // Increased from 15 - MORE DURABLE
-                speed: 50,  // Increased from 30 for more challenge
-                damage: 15,  // Increased from 8 - MORE DANGEROUS
+                maxHealth: 20,
+                speed: 45,
+                damage: 10,
                 size: 7,
                 color: '#F39C12',
-                expReward: 6, // REBALANCED: Reduced from 10 to 6
-                attackRange: 100, // Reduced from 120 to 100 to keep enemies closer
-                attackCooldown: 2.0 // Increased from 1.5 to 2.0 seconds
+                expReward: 8,
+                attackRange: 100,
+                attackCooldown: 2.0
             },
             elite: {
-                maxHealth: 150,  // Increased from 100 - MINI BOSS
-                speed: 55,  // Increased from 35 for more challenge
-                damage: 45,  // Increased from 30 - DEADLY
+                maxHealth: 100,
+                speed: 45,
+                damage: 30,
                 size: 16,
                 color: '#9B59B6',
-                expReward: 12, // REBALANCED: Reduced from 25 to 12
+                expReward: 20,
                 attackRange: 30,
                 attackCooldown: 1.2
             },
             berserker: {
-                maxHealth: 120,  // Increased from 80 - RAGE MODE
-                speed: 70,  // Increased from 45 for more challenge
-                damage: 40,  // Increased from 25 - BERSERK DAMAGE
+                maxHealth: 80,
+                speed: 60,
+                damage: 28,
                 size: 14,
                 color: '#FF4500',
-                expReward: 15, // REBALANCED: Reduced from 35 to 15
+                expReward: 25,
                 attackRange: 25,
                 attackCooldown: 0.8,
-                rageThreshold: 0.5 // Goes berserk at 50% health
+                rageThreshold: 0.5
             },
             summoner: {
-                maxHealth: 90,  // Increased from 60 - MORE DURABLE
-                speed: 40,  // Increased from 25 for more challenge
-                damage: 25,  // Increased from 15 - MORE DANGEROUS
+                maxHealth: 60,
+                speed: 35,
+                damage: 18,
                 size: 12,
                 color: '#8A2BE2',
-                expReward: 18, // REBALANCED: Reduced from 40 to 18
+                expReward: 30,
                 attackRange: 150,
                 attackCooldown: 3.0,
-                summonRate: 4.0 // Summons every 4 seconds
+                summonRate: 4.0
             },
             juggernaut: {
-                maxHealth: 300,  // Increased from 200 - BOSS LEVEL
-                speed: 25,  // Increased from 15 for more challenge
-                damage: 60,  // Increased from 40 - DEVASTATING
+                maxHealth: 200,
+                speed: 22,
+                damage: 45,
                 size: 20,
                 color: '#2F4F4F',
-                expReward: 25, // REBALANCED: Reduced from 60 to 25
+                expReward: 50,
                 attackRange: 35,
                 attackCooldown: 2.5,
                 shockwaveRange: 80
@@ -163,6 +163,22 @@ export class Enemy {
         }
 
         this.damage = Math.floor(stats.damage * finalDamageMultiplier);
+
+        // BALANCE SAFETY NET: Hard cap on single-hit damage for the first 5 minutes.
+        // Player has 100 HP and no upgrades early — no single hit should exceed 40% of max HP
+        // before 5 min, scaling to 60% cap by 10 min. This prevents one-shots from scaled
+        // elites, Demons, and their area/explosion attacks before the player can adapt.
+        if (this.game && typeof this.game.gameTime === 'number') {
+            const gameTimeMin = this.game.gameTime / 60;
+            const playerMaxHP = this.game.player?.maxHealth || 100;
+            // Linear ramp: 40% cap at 0 min → 60% cap at 5 min → uncapped after 10 min
+            if (gameTimeMin < 10) {
+                const capPercent = 0.4 + Math.min(gameTimeMin / 5, 1.0) * 0.2; // 0.40 → 0.60
+                const damageCap = Math.floor(playerMaxHP * capPercent);
+                this.damage = Math.min(this.damage, damageCap);
+            }
+        }
+
         this.size = stats.size;
         this.color = stats.color;
         // REBALANCED: Drastically reduce XP scaling to maintain progression balance
@@ -181,7 +197,6 @@ export class Enemy {
             if (this.eliteAbility === 'healNearby') this.healTimer = 4.0;
         }
     }
-
 
     generateVariant(type, baseStats) {
         // Only generate variants for certain types and with low probability
@@ -287,23 +302,31 @@ export class Enemy {
         const gameTime = this.game.gameTime;
         const baseMultiplier = 1.0;
 
-        // REBALANCED: Exponential health scaling to match weapon power growth
-        // Every 2 minutes, enemies get significantly tougher to maintain challenge
-        const timeMinutes = gameTime / 120; // Scale every 2 minutes (was 30 seconds)
-        const exponentialScaling = Math.pow(1.6, timeMinutes); // 60% increase every 2 minutes (was 5% every 30s)
+        // REBALANCED: Softer exponential scaling to prevent one-shot kills in early minutes.
+        // Old formula: 1.6^(t/120) → 1.6x at 2min, 2.56x at 4min — too punishing early.
+        // New formula: splits into two regimes with a hard damage cap for the first 5 minutes.
+        const timeMinutes = gameTime / 120; // intervals of 2 minutes
+        // 25% increase per 2-min interval for first 5 min, then 45% per 2-min interval after
+        const earlyScaling = Math.pow(1.25, Math.min(timeMinutes, 2.5)); // caps at 5 min: ~1.95x
+        const lateBonus = timeMinutes > 2.5 ? Math.pow(1.45, timeMinutes - 2.5) : 1.0;
+        const exponentialScaling = earlyScaling * lateBonus;
 
         // Additional wave-based scaling for continuous challenge
         const currentWave = this.game.systems?.enemy?.currentWave || 1;
-        const waveScaling = Math.pow(1.08, currentWave - 1); // 8% per wave
+        const waveScaling = Math.pow(1.06, currentWave - 1); // 6% per wave (was 8%)
 
         const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling;
 
-        // Much higher cap to allow proper scaling (was 3.0)
+        // Cap multiplier at 50x overall, but also cap DAMAGE multiplier for first 5 minutes
+        // to prevent one-shot kills before the player has had a chance to get armor/upgrades.
         const cappedMultiplier = Math.min(finalMultiplier, 50.0);
 
         // Debug logging for balance verification
-        if (gameTime > 240 && Math.random() < 0.01) { // Log occasionally after 4 minutes
-            console.log(`ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`);
+        if (gameTime > 240 && Math.random() < 0.01) {
+            // Log occasionally after 4 minutes
+            console.log(
+                `ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`
+            );
         }
 
         return cappedMultiplier;
@@ -417,8 +440,8 @@ export class Enemy {
 
             // Blood Moon speed buff
             const speedMult = this.game.systems.dynamicEvents?.bloodMoonSpeedMult ?? 1;
-            this.velocity.x = (normalizedX * this.speed * speedMult) + separation.x;
-            this.velocity.y = (normalizedY * this.speed * speedMult) + separation.y;
+            this.velocity.x = normalizedX * this.speed * speedMult + separation.x;
+            this.velocity.y = normalizedY * this.speed * speedMult + separation.y;
 
             // FIXED: Clamp velocity to prevent runaway acceleration
             const maxVelocity = this.speed * speedMult * 2; // Allow 2x speed as max
@@ -495,7 +518,8 @@ export class Enemy {
             if (distance < separationRadius && distance > 0) {
                 const strength = (separationRadius - distance) / separationRadius;
                 // FIXED: Additional safety check for distance
-                if (distance > 0.001) { // Avoid near-zero divisions
+                if (distance > 0.001) {
+                    // Avoid near-zero divisions
                     forceX += (dx / distance) * strength * separationStrength;
                     forceY += (dy / distance) * strength * separationStrength;
                 }
@@ -524,7 +548,6 @@ export class Enemy {
 
         // Visual effect
         this.game.systems.particle.createImpactEffect(this.x, this.y, '#FF4444');
-
     }
 
     rangedAttack() {
@@ -536,8 +559,10 @@ export class Enemy {
 
         // Create highly visible projectile towards player
         this.game.systems.projectile.createEnemyProjectile(
-            this.x, this.y,
-            player.x, player.y,
+            this.x,
+            this.y,
+            player.x,
+            player.y,
             Math.round(this.damage * dmgMult),
             150, // projectile speed
             '#FF4444' // bright red for visibility
@@ -545,7 +570,6 @@ export class Enemy {
 
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
-
     }
 
     takeDamage(amount, source = null, isCritical = false) {
@@ -557,13 +581,31 @@ export class Enemy {
             this.flashTime = 0.15;
             if (this.game.systems.particle) {
                 this.game.systems.particle.create(this.x, this.y, {
-                    vx: 0, vy: -30, life: 0.5, size: 8, color: '#4FC3F7', glow: true, fadeOut: true
+                    vx: 0,
+                    vy: -30,
+                    life: 0.5,
+                    size: 8,
+                    color: '#4FC3F7',
+                    glow: true,
+                    fadeOut: true
                 });
                 this.game.systems.particle.create(this.x + 8, this.y - 5, {
-                    vx: 15, vy: -20, life: 0.3, size: 5, color: '#81D4FA', glow: true, fadeOut: true
+                    vx: 15,
+                    vy: -20,
+                    life: 0.3,
+                    size: 5,
+                    color: '#81D4FA',
+                    glow: true,
+                    fadeOut: true
                 });
                 this.game.systems.particle.create(this.x - 8, this.y - 5, {
-                    vx: -15, vy: -20, life: 0.3, size: 5, color: '#81D4FA', glow: true, fadeOut: true
+                    vx: -15,
+                    vy: -20,
+                    life: 0.3,
+                    size: 5,
+                    color: '#81D4FA',
+                    glow: true,
+                    fadeOut: true
                 });
             }
             this.addDamageNumber('BLOCKED', '#4FC3F7');
@@ -653,7 +695,9 @@ export class Enemy {
     }
 
     die() {
-        if (!this.active) return;
+        if (!this.active || this._deathProcessed) return;
+
+        this._deathProcessed = true;
 
         // CRITICAL FIX: Create all visual effects BEFORE marking inactive
         // This ensures particles have proper context and timing
@@ -750,7 +794,8 @@ export class Enemy {
                     }
                     // Central flash
                     ps.create(this.x, this.y, {
-                        vx: 0, vy: 0,
+                        vx: 0,
+                        vy: 0,
                         life: 0.15,
                         size: this.size * 2,
                         color: '#FFFFFF',
@@ -764,7 +809,8 @@ export class Enemy {
                     // Multi-stage dramatic death
                     // Stage 1: Freeze-frame ring
                     ps.create(this.x, this.y, {
-                        vx: 0, vy: 0,
+                        vx: 0,
+                        vy: 0,
                         life: 0.3,
                         size: this.size * 3,
                         color: '#FFD700',
@@ -789,20 +835,16 @@ export class Enemy {
                     }
                     // Stage 3: Rising sparkles
                     for (let i = 0; i < 8; i++) {
-                        ps.create(
-                            this.x + (Math.random() - 0.5) * 20,
-                            this.y + (Math.random() - 0.5) * 20,
-                            {
-                                vx: (Math.random() - 0.5) * 20,
-                                vy: -(60 + Math.random() * 40),
-                                life: 1.0 + Math.random() * 0.5,
-                                size: 2,
-                                color: '#FFFFFF',
-                                fadeOut: true,
-                                glow: true,
-                                pulse: true
-                            }
-                        );
+                        ps.create(this.x + (Math.random() - 0.5) * 20, this.y + (Math.random() - 0.5) * 20, {
+                            vx: (Math.random() - 0.5) * 20,
+                            vy: -(60 + Math.random() * 40),
+                            life: 1.0 + Math.random() * 0.5,
+                            size: 2,
+                            color: '#FFFFFF',
+                            fadeOut: true,
+                            glow: true,
+                            pulse: true
+                        });
                     }
                     break;
                 }
@@ -845,14 +887,23 @@ export class Enemy {
             expReward
         );
 
-        // Elite explodeOnDeath: damage player if nearby
+        // Elite explodeOnDeath: damage player if nearby.
+        // Base 30 damage scaled by difficulty but capped at 35% of player max HP for first 5 min,
+        // scaling to 50% by 10 min — prevents one-shots from this ability in early game.
         if (this.eliteAbility === 'explodeOnDeath') {
             const player = this.game.player;
             if (player) {
                 const edx = player.x - this.x;
                 const edy = player.y - this.y;
                 if (Math.sqrt(edx * edx + edy * edy) <= 80) {
-                    player.takeDamage(30);
+                    const baseExplosionDmg = Math.floor(30 * this.getDifficultyMultiplier());
+                    const gameTimeMin = (this.game.gameTime || 0) / 60;
+                    let explosionDmg = baseExplosionDmg;
+                    if (gameTimeMin < 10) {
+                        const capPercent = 0.35 + Math.min(gameTimeMin / 5, 1.0) * 0.15; // 0.35→0.50
+                        explosionDmg = Math.min(explosionDmg, Math.floor(player.maxHealth * capPercent));
+                    }
+                    player.takeDamage(Math.max(10, explosionDmg));
                 }
             }
             // Red/orange explosion particles
@@ -861,11 +912,13 @@ export class Enemy {
                     const angle = (i / 12) * Math.PI * 2;
                     const speed = 60 + Math.random() * 80;
                     ps.create(this.x, this.y, {
-                        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
                         life: 0.4 + Math.random() * 0.3,
                         size: 4 + Math.random() * 3,
                         color: Math.random() > 0.5 ? '#FF4500' : '#FF0000',
-                        glow: true, fadeOut: true
+                        glow: true,
+                        fadeOut: true
                     });
                 }
             }
@@ -908,7 +961,7 @@ export class Enemy {
         // Chance for power-up drop on elite kills
         if (this.type === 'elite' || (this.game.player && this.game.player.combo.count >= 20)) {
             const cap = this.game.maxPowerUpDrops || 8;
-            const current = (this.game.powerUpDrops?.length || 0);
+            const current = this.game.powerUpDrops?.length || 0;
             // Dynamic probability scales down as we approach the cap
             let chance = 0.2; // base 20%
             if (current >= cap * 0.75) chance = 0.05;
@@ -950,13 +1003,7 @@ export class Enemy {
 
         // Use centralized damage number pool
         const isCritical = color === '#FF0000' || color === '#FF69B4';
-        return globalDamageNumberPool.get(
-            this.x + (Math.random() - 0.5) * 10,
-            this.y - 5,
-            amount,
-            color,
-            isCritical
-        );
+        return globalDamageNumberPool.get(this.x + (Math.random() - 0.5) * 10, this.y - 5, amount, color, isCritical);
     }
 
     // updateDamageNumbers removed - now handled by globalDamageNumberPool
@@ -969,7 +1016,7 @@ export class Enemy {
 
         // Spawn animation
         if (this.currentSpawnTime > 0) {
-            const spawnProgress = 1 - (this.currentSpawnTime / this.spawnTime);
+            const spawnProgress = 1 - this.currentSpawnTime / this.spawnTime;
             ctx.globalAlpha = spawnProgress;
             ctx.scale(spawnProgress, spawnProgress);
         }
@@ -1000,10 +1047,8 @@ export class Enemy {
         // Draw type-specific details
         this.renderTypeDetails(ctx);
 
-        // Health bar for damaged enemies
-        if (this.health < this.maxHealth) {
-            this.renderHealthBar(ctx);
-        }
+        // Always show health bar
+        this.renderHealthBar(ctx);
 
         ctx.restore();
 
@@ -1097,7 +1142,9 @@ export class Enemy {
                     ctx.arc(
                         this.x + Math.cos(dotAngle) * (this.size + 10),
                         this.y + Math.sin(dotAngle) * (this.size + 10),
-                        2, 0, Math.PI * 2
+                        2,
+                        0,
+                        Math.PI * 2
                     );
                     ctx.fill();
                 }
@@ -1163,7 +1210,6 @@ export class Enemy {
             }
         }
     }
-
 
     renderVariantIndicator(ctx) {
         // Draw variant indicators to show enemy is special
@@ -1322,10 +1368,18 @@ export class Enemy {
     }
 
     renderHealthBar(ctx) {
-        const barWidth = Math.max(24, this.size * 2.5); // Wider bars
-        const barHeight = 4; // Taller bars
+        const barWidth = Math.max(24, this.size * 2.5);
+        const barHeight = 4;
         const barX = this.x - barWidth / 2;
         const barY = this.y - this.size - 10;
+        const healthRatio = this.health / this.maxHealth;
+
+        // At full health, show subtle thin bar
+        if (healthRatio >= 1.0) {
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.25)';
+            ctx.fillRect(barX, barY, barWidth, 2);
+            return;
+        }
 
         // Background with border
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1334,9 +1388,6 @@ export class Enemy {
         // Dark background
         ctx.fillStyle = '#222222';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Health fill with color coding
-        const healthRatio = this.health / this.maxHealth;
         let healthColor;
         if (healthRatio > 0.6) {
             healthColor = '#00FF00'; // Green
@@ -1391,6 +1442,7 @@ export class Enemy {
         this.currentSpawnTime = this.spawnTime;
         // Note: Damage numbers now managed by globalDamageNumberPool
         this.active = true;
+        this._deathProcessed = false;
 
         // Reset elite ability state
         this.eliteAbility = null;
@@ -1418,7 +1470,8 @@ export class Enemy {
         // Summoner: Spawns minions periodically
         else if (this.type === 'summoner') {
             this.summonTimer += dt;
-            if (this.summonTimer >= 4.0) { // Every 4 seconds
+            if (this.summonTimer >= 4.0) {
+                // Every 4 seconds
                 this.summonTimer = 0;
                 this.summonMinions();
             }
@@ -1427,7 +1480,8 @@ export class Enemy {
         // Juggernaut: Creates shockwaves periodically
         else if (this.type === 'juggernaut') {
             const timeSinceShockwave = this.game.gameTime - this.lastShockwaveTime;
-            if (timeSinceShockwave >= 6.0) { // Every 6 seconds
+            if (timeSinceShockwave >= 6.0) {
+                // Every 6 seconds
                 this.createShockwave();
                 this.lastShockwaveTime = this.game.gameTime;
             }
@@ -1456,8 +1510,13 @@ export class Enemy {
                             for (let i = 0; i < 8; i++) {
                                 const angle = (i / 8) * Math.PI * 2;
                                 this.game.systems.particle.create(this.x, this.y, {
-                                    vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40,
-                                    life: 0.4, size: 4, color: '#CE93D8', glow: true, fadeOut: true
+                                    vx: Math.cos(angle) * 40,
+                                    vy: Math.sin(angle) * 40,
+                                    life: 0.4,
+                                    size: 4,
+                                    color: '#CE93D8',
+                                    glow: true,
+                                    fadeOut: true
                                 });
                             }
                         }
@@ -1471,8 +1530,13 @@ export class Enemy {
                             for (let i = 0; i < 6; i++) {
                                 const angle = (i / 6) * Math.PI * 2;
                                 this.game.systems.particle.create(this.x, this.y, {
-                                    vx: Math.cos(angle) * 30, vy: Math.sin(angle) * 30,
-                                    life: 0.3, size: 5, color: '#AB47BC', glow: true, fadeOut: true
+                                    vx: Math.cos(angle) * 30,
+                                    vy: Math.sin(angle) * 30,
+                                    life: 0.3,
+                                    size: 5,
+                                    color: '#AB47BC',
+                                    glow: true,
+                                    fadeOut: true
                                 });
                             }
                         }
@@ -1494,7 +1558,13 @@ export class Enemy {
                             // Green heal particle on ally
                             if (this.game.systems.particle) {
                                 this.game.systems.particle.create(ally.x, ally.y - ally.size, {
-                                    vx: 0, vy: -25, life: 0.6, size: 6, color: '#66BB6A', glow: true, fadeOut: true
+                                    vx: 0,
+                                    vy: -25,
+                                    life: 0.6,
+                                    size: 6,
+                                    color: '#66BB6A',
+                                    glow: true,
+                                    fadeOut: true
                                 });
                             }
                         }
@@ -1504,8 +1574,13 @@ export class Enemy {
                         for (let i = 0; i < 6; i++) {
                             const angle = (i / 6) * Math.PI * 2;
                             this.game.systems.particle.create(this.x, this.y, {
-                                vx: Math.cos(angle) * 50, vy: Math.sin(angle) * 50,
-                                life: 0.5, size: 4, color: '#4CAF50', glow: true, fadeOut: true
+                                vx: Math.cos(angle) * 50,
+                                vy: Math.sin(angle) * 50,
+                                life: 0.5,
+                                size: 4,
+                                color: '#4CAF50',
+                                glow: true,
+                                fadeOut: true
                             });
                         }
                     }

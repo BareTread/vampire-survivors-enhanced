@@ -4,8 +4,8 @@ export class AudioManager {
     constructor() {
         this.sounds = {};
         this.music = {};
-        this.masterVolume = 1;
-        this.soundVolume = 0.8;
+        this.masterVolume = 0.8;
+        this.soundVolume = 0.5;
         this.musicVolume = 0.4;
         this.muted = false;
         this.currentMusic = null;
@@ -358,6 +358,21 @@ export class AudioManager {
     initializeAudioContext() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Master dynamics compressor — tames peaks and reduces harshness
+            this.compressor = this.audioContext.createDynamicsCompressor();
+            this.compressor.threshold.setValueAtTime(-18, this.audioContext.currentTime);
+            this.compressor.knee.setValueAtTime(12, this.audioContext.currentTime);
+            this.compressor.ratio.setValueAtTime(6, this.audioContext.currentTime);
+            this.compressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
+            this.compressor.release.setValueAtTime(0.15, this.audioContext.currentTime);
+            this.compressor.connect(this.audioContext.destination);
+
+            // Master gain node — sits between all synth output and the compressor
+            this.masterGainNode = this.audioContext.createGain();
+            this.masterGainNode.gain.value = 0.7;
+            this.masterGainNode.connect(this.compressor);
+
             this.createReverbEffect();
         } catch (error) {
             console.warn('Web Audio API not supported:', error);
@@ -492,7 +507,7 @@ export class AudioManager {
         const g = this.audioContext.createGain();
         const now = this.audioContext.currentTime;
         g.gain.setValueAtTime(0, now);
-        g.gain.linearRampToValueAtTime(Math.min(0.12, volume * 0.15), now + 0.005);
+        g.gain.linearRampToValueAtTime(Math.min(0.06, volume * 0.08), now + 0.005);
         g.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
         src.connect(bp).connect(g).connect(destination);
@@ -521,14 +536,15 @@ export class AudioManager {
         }
 
         const g = this.audioContext.createGain();
-        const peak = Math.min(0.18, volume);
+        const peak = Math.min(0.10, volume);
+        const actualAttack = Math.max(0.005, attack);
         g.gain.setValueAtTime(0.0001, now);
-        g.gain.exponentialRampToValueAtTime(peak, now + attack);
-        g.gain.setValueAtTime(peak * 0.75, now + attack + sustain);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + attack + sustain + decay);
+        g.gain.exponentialRampToValueAtTime(peak, now + actualAttack);
+        g.gain.setValueAtTime(peak * 0.75, now + actualAttack + sustain);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + actualAttack + sustain + decay);
 
         osc.connect(g).connect(destination);
-        const total = attack + sustain + decay;
+        const total = actualAttack + sustain + decay;
         osc.start(now);
         osc.stop(now + total + 0.01);
         return osc;
@@ -541,16 +557,17 @@ export class AudioManager {
             // Pitch randomization — ±8 % so repeated sounds differ
             const pr = pitch * (0.92 + Math.random() * 0.16);
 
-            // Destination: route through reverb if available
-            let dest = this.audioContext.destination;
+            // Destination: route through reverb if available, otherwise masterGainNode
+            let dest = this.masterGainNode || this.audioContext.destination;
             if (this.reverb && config && config.reverb > 0) {
                 const dry = this.audioContext.createGain();
                 const wet = this.audioContext.createGain();
                 dry.gain.value = 1 - config.reverb * 0.6;
                 wet.gain.value = config.reverb * 0.6;
-                dry.connect(this.audioContext.destination);
+                const reverbDest = this.masterGainNode || this.audioContext.destination;
+                dry.connect(reverbDest);
                 this.reverb.connect(wet);
-                wet.connect(this.audioContext.destination);
+                wet.connect(reverbDest);
                 // Create a merger node so layers can connect once
                 const merge = this.audioContext.createGain();
                 merge.gain.value = 1;
@@ -564,12 +581,12 @@ export class AudioManager {
             switch (type) {
                 // ── COMBAT ──────────────────────────────────────
                 case 'aggressive': {
-                    // Layer 1: sawtooth growl
-                    this._createLayer(dest, { wave: 'sawtooth', freqStart: 130 * pr, freqEnd: 90 * pr, freqDur: 0.18, volume: v * 0.14, attack: 0.01, sustain: 0.06, decay: 0.22 });
+                    // Layer 1: triangle growl (softer than sawtooth)
+                    this._createLayer(dest, { wave: 'triangle', freqStart: 130 * pr, freqEnd: 90 * pr, freqDur: 0.18, volume: v * 0.14, attack: 0.01, sustain: 0.06, decay: 0.22 });
                     // Layer 2: sub-bass sine punch
                     this._createLayer(dest, { wave: 'sine', freqStart: 55 * pr, freqEnd: 40 * pr, freqDur: 0.15, volume: v * 0.10, attack: 0.005, sustain: 0.04, decay: 0.18, delay: 0.005 });
                     // Layer 3: noise crack
-                    this._createNoiseBurst(dest, v * 0.8, 0.08, 2400, 0.8);
+                    this._createNoiseBurst(dest, v * 0.3, 0.08, 2400, 0.8);
                     break;
                 }
 
@@ -589,7 +606,7 @@ export class AudioManager {
                     // Layer 2: sub sine
                     this._createLayer(dest, { wave: 'sine', freqStart: 50 * pr, freqEnd: 30 * pr, freqDur: 0.1, volume: v * 0.10, attack: 0.005, sustain: 0.04, decay: 0.12, delay: 0.003 });
                     // Layer 3: noise snap
-                    this._createNoiseBurst(dest, v * 0.9, 0.06, 3500, 1.2);
+                    this._createNoiseBurst(dest, v * 0.35, 0.06, 3500, 1.2);
                     break;
                 }
 
@@ -623,10 +640,10 @@ export class AudioManager {
                 case 'death': {
                     // Layer 1: descending sawtooth
                     this._createLayer(dest, { wave: 'sawtooth', freqStart: 220 * pr, freqEnd: 80 * pr, freqDur: 0.35, volume: v * 0.12, attack: 0.005, sustain: 0.08, decay: 0.35 });
-                    // Layer 2: sub square rumble
-                    this._createLayer(dest, { wave: 'square', freqStart: 65 * pr, freqEnd: 35 * pr, freqDur: 0.3, volume: v * 0.06, attack: 0.01, sustain: 0.06, decay: 0.25, delay: 0.01 });
+                    // Layer 2: sub triangle rumble (softer than square)
+                    this._createLayer(dest, { wave: 'triangle', freqStart: 65 * pr, freqEnd: 35 * pr, freqDur: 0.3, volume: v * 0.06, attack: 0.01, sustain: 0.06, decay: 0.25, delay: 0.01 });
                     // Layer 3: noise burst
-                    this._createNoiseBurst(dest, v * 0.7, 0.12, 1800, 0.6);
+                    this._createNoiseBurst(dest, v * 0.3, 0.12, 1800, 0.6);
                     // Layer 4: descending whistle
                     this._createLayer(dest, { wave: 'sine', freqStart: 600 * pr, freqEnd: 150 * pr, freqDur: 0.3, volume: v * 0.04, attack: 0.02, sustain: 0.05, decay: 0.3, delay: 0.02 });
                     break;
@@ -638,7 +655,7 @@ export class AudioManager {
                     // Layer 2: metallic sine
                     this._createLayer(dest, { wave: 'sine', freqStart: 2200 * pr, freqEnd: 2600 * pr, freqDur: 0.05, volume: v * 0.04, attack: 0.003, sustain: 0.015, decay: 0.08, delay: 0.003 });
                     // Layer 3: tiny noise edge
-                    this._createNoiseBurst(dest, v * 0.5, 0.04, 5000, 2.0);
+                    this._createNoiseBurst(dest, v * 0.2, 0.04, 5000, 1.0);
                     break;
                 }
 
@@ -646,7 +663,7 @@ export class AudioManager {
                     // Layer 1: deep sine wobble
                     this._createLayer(dest, { wave: 'sine', freqStart: 200 * pr, freqEnd: 170 * pr, freqDur: 0.25, volume: v * 0.10, attack: 0.01, sustain: 0.08, decay: 0.2, sweepType: 'lin' });
                     // Layer 2: filtered noise bubble
-                    this._createNoiseBurst(dest, v * 0.5, 0.15, 800, 0.5);
+                    this._createNoiseBurst(dest, v * 0.25, 0.15, 800, 0.5);
                     // Layer 3: harmonic overtone
                     this._createLayer(dest, { wave: 'sine', freqStart: 400 * pr, freqEnd: 350 * pr, freqDur: 0.2, volume: v * 0.04, attack: 0.02, sustain: 0.06, decay: 0.15, delay: 0.01 });
                     break;
@@ -679,10 +696,10 @@ export class AudioManager {
                 }
 
                 case 'lightning': {
-                    // Layer 1: bright sawtooth crack
-                    this._createLayer(dest, { wave: 'sawtooth', freqStart: 1400 * pr, freqEnd: 180 * pr, freqDur: 0.07, volume: v * 0.14, attack: 0.002, sustain: 0.02, decay: 0.1 });
+                    // Layer 1: triangle crack (softer than sawtooth)
+                    this._createLayer(dest, { wave: 'triangle', freqStart: 1400 * pr, freqEnd: 180 * pr, freqDur: 0.07, volume: v * 0.14, attack: 0.002, sustain: 0.02, decay: 0.1 });
                     // Layer 2: noise crackle
-                    this._createNoiseBurst(dest, v * 1.0, 0.08, 4000, 1.5);
+                    this._createNoiseBurst(dest, v * 0.35, 0.08, 4000, 1.5);
                     // Layer 3: sine zap trail
                     this._createLayer(dest, { wave: 'sine', freqStart: 800 * pr, freqEnd: 200 * pr, freqDur: 0.12, volume: v * 0.06, attack: 0.005, sustain: 0.03, decay: 0.12, delay: 0.015 });
                     break;
@@ -705,15 +722,15 @@ export class AudioManager {
                     // Layer 2: harmonic chime
                     this._createLayer(dest, { wave: 'triangle', freqStart: 880 * pr, freqEnd: 1100 * pr, freqDur: 0.08, volume: v * 0.04, attack: 0.01, sustain: 0.03, decay: 0.1, delay: 0.01 });
                     // Layer 3: soft noise air
-                    this._createNoiseBurst(dest, v * 0.3, 0.1, 2000, 0.4);
+                    this._createNoiseBurst(dest, v * 0.15, 0.1, 2000, 0.4);
                     break;
                 }
 
                 case 'fireball': {
-                    // Layer 1: whooshing flame
-                    this._createLayer(dest, { wave: 'sawtooth', freqStart: 400 * pr, freqEnd: 180 * pr, freqDur: 0.15, volume: v * 0.12, attack: 0.005, sustain: 0.05, decay: 0.18 });
+                    // Layer 1: whooshing flame (triangle is softer than sawtooth)
+                    this._createLayer(dest, { wave: 'triangle', freqStart: 400 * pr, freqEnd: 180 * pr, freqDur: 0.15, volume: v * 0.12, attack: 0.005, sustain: 0.05, decay: 0.18 });
                     // Layer 2: crackling fire noise
-                    this._createNoiseBurst(dest, v * 0.7, 0.12, 2800, 0.9);
+                    this._createNoiseBurst(dest, v * 0.3, 0.12, 2800, 0.9);
                     // Layer 3: deep bass impact
                     this._createLayer(dest, { wave: 'sine', freqStart: 100 * pr, freqEnd: 50 * pr, freqDur: 0.2, volume: v * 0.08, attack: 0.01, sustain: 0.06, decay: 0.2, delay: 0.01 });
                     // Layer 4: bright flame top
@@ -727,7 +744,7 @@ export class AudioManager {
                     // Layer 2: bone rattle
                     this._createLayer(dest, { wave: 'triangle', freqStart: 1200 * pr, freqEnd: 800 * pr, freqDur: 0.08, volume: v * 0.05, attack: 0.003, sustain: 0.02, decay: 0.08, delay: 0.01 });
                     // Layer 3: air cutting noise
-                    this._createNoiseBurst(dest, v * 0.4, 0.08, 3500, 1.2);
+                    this._createNoiseBurst(dest, v * 0.2, 0.08, 3500, 1.2);
                     break;
                 }
 
@@ -796,7 +813,7 @@ export class AudioManager {
     }
 
     playVampireBite() {
-        this.playVampireSound('vampireBite', 0.8);
+        this.playVampireSound('vampireBite', 0.4);
     }
 
     playBloodSplash() {
@@ -804,11 +821,11 @@ export class AudioManager {
     }
 
     playMagicMissile() {
-        this.playVampireSound('magicMissile', 0.7);
+        this.playVampireSound('magicMissile', 0.4);
     }
 
     playWhipCrack() {
-        this.playVampireSound('whipCrack', 0.9);
+        this.playVampireSound('whipCrack', 0.45);
     }
 
     playKnifeThrow() {
@@ -816,16 +833,16 @@ export class AudioManager {
     }
 
     playCriticalHit() {
-        this.playVampireSound('criticalHit', 1.0);
+        this.playVampireSound('criticalHit', 0.5);
         this.setGameIntensity(Math.min(1, this.gameIntensity + 0.1)); // Increase intensity
     }
 
     playEnemyDeath() {
-        this.playVampireSound('enemyDeath', 0.7);
+        this.playVampireSound('enemyDeath', 0.4);
     }
 
     playLevelUp() {
-        this.playVampireSound('levelUp', 0.9);
+        this.playVampireSound('levelUp', 0.5);
     }
 
     playExperienceGain() {
@@ -833,7 +850,7 @@ export class AudioManager {
     }
 
     playWeaponUpgrade() {
-        this.playVampireSound('weaponUpgrade', 0.8);
+        this.playVampireSound('weaponUpgrade', 0.4);
     }
 
     playMenuHover() {
@@ -845,7 +862,7 @@ export class AudioManager {
     }
 
     playGameOver() {
-        this.playVampireSound('gameOver', 1.0);
+        this.playVampireSound('gameOver', 0.6);
         this.setGameIntensity(0); // Reset intensity
     }
 
@@ -896,10 +913,10 @@ export class AudioManager {
 
     playWeaponHitSound(weaponType, intensity) {
         const weaponSounds = {
-            'magicMissile': { sound: 'magicHit', pitch: 1.1, volume: 0.7 },
-            'whip': { sound: 'whipHit', pitch: 0.9, volume: 0.8 },
-            'throwingKnife': { sound: 'bladeHit', pitch: 1.2, volume: 0.6 },
-            'firearm': { sound: 'bulletHit', pitch: 1.0, volume: 0.8 }
+            'magicMissile': { sound: 'magicHit', pitch: 1.1, volume: 0.4 },
+            'whip': { sound: 'whipHit', pitch: 0.9, volume: 0.4 },
+            'throwingKnife': { sound: 'bladeHit', pitch: 1.2, volume: 0.4 },
+            'firearm': { sound: 'bulletHit', pitch: 1.0, volume: 0.4 }
         };
 
         const config = weaponSounds[weaponType] || weaponSounds['magicMissile'];
@@ -911,7 +928,7 @@ export class AudioManager {
 
     playCriticalHitLayer(intensity) {
         // Dramatic critical hit overlay
-        this.playVampireSound('criticalBoom', 0.8 * intensity, 0.8);
+        this.playVampireSound('criticalBoom', 0.4 * intensity, 0.8);
 
         // Add metallic ring for emphasis
         managedSetTimeout(() => {
@@ -929,7 +946,7 @@ export class AudioManager {
 
     playMassiveDamageLayer(intensity) {
         // Deep impact sound for massive damage
-        this.playVampireSound('massiveImpact', 0.9 * intensity, 0.7);
+        this.playVampireSound('massiveImpact', 0.45 * intensity, 0.7);
     }
 
     // Enhanced weapon firing sounds with variation
@@ -951,7 +968,7 @@ export class AudioManager {
                 this.playFirearmSound(levelIntensity, rapidPitchBonus);
                 break;
             case 'lightning':
-                this.playVampireSound('lightningStrike', 0.7 * levelIntensity, 1.0 + rapidPitchBonus);
+                this.playVampireSound('lightningStrike', 0.4 * levelIntensity, 1.0 + rapidPitchBonus);
                 break;
             case 'aura':
                 this.playVampireSound('garlicPulse', 0.3 * levelIntensity, 0.9 + rapidPitchBonus);
@@ -966,7 +983,7 @@ export class AudioManager {
                 this.playVampireSound('boomerangThrow', 0.5 * levelIntensity, 1.0 + rapidPitchBonus);
                 break;
             default:
-                this.playVampireSound('weaponFire', 0.6 * levelIntensity, 1.0 + rapidPitchBonus);
+                this.playVampireSound('weaponFire', 0.4 * levelIntensity, 1.0 + rapidPitchBonus);
                 break;
         }
     }
@@ -977,7 +994,7 @@ export class AudioManager {
 
         // Main missile launch
         managedSetTimeout(() => {
-            this.playVampireSound('magicMissile', 0.7 * intensity, 1.1 + pitchBonus);
+            this.playVampireSound('magicMissile', 0.4 * intensity, 1.1 + pitchBonus);
         }, 80, this);
 
         // Arcane whisper layer
@@ -988,11 +1005,11 @@ export class AudioManager {
 
     playWhipFireSound(intensity, pitchBonus) {
         // Whip swoosh
-        this.playVampireSound('whipSwoosh', 0.6 * intensity, 0.9 + pitchBonus);
+        this.playVampireSound('whipSwoosh', 0.4 * intensity, 0.9 + pitchBonus);
 
         // Crack sound
         managedSetTimeout(() => {
-            this.playVampireSound('whipCrack', 0.8 * intensity, 1.0 + pitchBonus);
+            this.playVampireSound('whipCrack', 0.4 * intensity, 1.0 + pitchBonus);
         }, 120, this);
     }
 
@@ -1008,7 +1025,7 @@ export class AudioManager {
 
     playFirearmSound(intensity, pitchBonus) {
         // Gunshot
-        this.playVampireSound('gunshot', 0.8 * intensity, 1.0 + pitchBonus);
+        this.playVampireSound('gunshot', 0.4 * intensity, 1.0 + pitchBonus);
 
         // Shell casing drop
         managedSetTimeout(() => {
@@ -1083,13 +1100,13 @@ export class AudioManager {
     // Enhanced enemy death sounds with variety
     playEnemyDeathSound(enemyType, overkill = false) {
         const deathSounds = {
-            'skeleton': { sound: 'boneBreak', pitch: 0.9, volume: 0.7 },
-            'zombie': { sound: 'fleshTear', pitch: 0.8, volume: 0.8 },
-            'vampire': { sound: 'vampireScream', pitch: 1.0, volume: 0.9 },
-            'ghost': { sound: 'ghostWail', pitch: 1.2, volume: 0.6 },
-            'demon': { sound: 'demonRoar', pitch: 0.7, volume: 1.0 },
-            'elite': { sound: 'eliteDeath', pitch: 0.8, volume: 1.1 },
-            'boss': { sound: 'bossDefeat', pitch: 0.6, volume: 1.3 }
+            'skeleton': { sound: 'boneBreak', pitch: 0.9, volume: 0.4 },
+            'zombie': { sound: 'fleshTear', pitch: 0.8, volume: 0.4 },
+            'vampire': { sound: 'vampireScream', pitch: 1.0, volume: 0.45 },
+            'ghost': { sound: 'ghostWail', pitch: 1.2, volume: 0.4 },
+            'demon': { sound: 'demonRoar', pitch: 0.7, volume: 0.5 },
+            'elite': { sound: 'eliteDeath', pitch: 0.8, volume: 0.5 },
+            'boss': { sound: 'bossDefeat', pitch: 0.6, volume: 0.6 }
         };
 
         const config = deathSounds[enemyType] || deathSounds['skeleton'];
@@ -1115,10 +1132,10 @@ export class AudioManager {
         const uiSounds = {
             'hover': { sound: 'uiHover', pitch: 1.1, volume: 0.3 },
             'select': { sound: 'uiSelect', pitch: 1.0, volume: 0.5 },
-            'levelUp': { sound: 'levelUpFanfare', pitch: 1.0, volume: 0.8 },
-            'weaponUpgrade': { sound: 'upgradeChime', pitch: 1.2, volume: 0.7 },
-            'challengeStart': { sound: 'challengeBell', pitch: 1.1, volume: 0.6 },
-            'challengeComplete': { sound: 'victoryFanfare', pitch: 1.0, volume: 0.9 },
+            'levelUp': { sound: 'levelUpFanfare', pitch: 1.0, volume: 0.5 },
+            'weaponUpgrade': { sound: 'upgradeChime', pitch: 1.2, volume: 0.4 },
+            'challengeStart': { sound: 'challengeBell', pitch: 1.1, volume: 0.5 },
+            'challengeComplete': { sound: 'victoryFanfare', pitch: 1.0, volume: 0.5 },
             'error': { sound: 'errorBuzz', pitch: 0.8, volume: 0.4 }
         };
 
@@ -1144,11 +1161,11 @@ export class AudioManager {
 
     // Missing methods for new systems
     playWeaponEvolution() {
-        this.playVampireSound('weaponEvolution', 1.0);
+        this.playVampireSound('weaponEvolution', 0.6);
     }
 
     playAchievementUnlock(intensity = 1) {
-        const volume = 0.7 + (intensity * 0.3);
+        const volume = Math.min(0.6, 0.4 + (intensity * 0.2));
         this.playVampireSound('achievementUnlock', volume);
     }
 

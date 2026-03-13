@@ -165,6 +165,17 @@ export class DamageNumberPool {
     }
 
     /**
+     * Backward-compatible alias used by multiple systems.
+     * Supports both boolean critical flags and legacy label strings.
+     */
+    spawn(x, y, value, color = '#ffffff', criticalOrTag = false) {
+        const isCritical = typeof criticalOrTag === 'boolean'
+            ? criticalOrTag
+            : (criticalOrTag === 'CRITICAL');
+        return this.get(x, y, value, color, isCritical);
+    }
+
+    /**
      * Update all active damage numbers
      */
     update(deltaTime) {

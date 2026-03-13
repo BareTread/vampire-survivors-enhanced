@@ -148,7 +148,7 @@ export class ScreenEffectsSystem {
         this.triggerSlowMo(0.4, 0.2);
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('weaponEvolution', 1.0);
+            this.game.audioManager.playVampireSound('weaponEvolution', 0.6);
         }
     }
 

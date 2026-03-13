@@ -139,11 +139,6 @@ export class GoldSystem {
     collectCoin(coin) {
         this.runGold += coin.value;
 
-        // Persist gold
-        if (this.game.systems.persistence) {
-            this.game.systems.persistence.addGold(coin.value);
-        }
-
         // Visual feedback
         if (globalDamageNumberPool) {
             globalDamageNumberPool.spawn(coin.x, coin.y - 10, `+${coin.value}G`, '#FFD700', 'GOLD');

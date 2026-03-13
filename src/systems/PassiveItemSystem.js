@@ -128,7 +128,7 @@ export class PassiveItemSystem {
 
         // Play pickup sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            this.game.audioManager.playVampireSound('powerUpCollect', 0.8, 1.1);
+            this.game.audioManager.playVampireSound('powerUpCollect', 0.4, 1.1);
         }
 
         // Toast notification
@@ -152,7 +152,7 @@ export class PassiveItemSystem {
 
         // Play upgrade sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            this.game.audioManager.playVampireSound('weaponUpgrade', 0.7, 1.0 + item.currentLevel * 0.05);
+            this.game.audioManager.playVampireSound('weaponUpgrade', 0.4, 1.0 + item.currentLevel * 0.05);
         }
 
         // Toast notification

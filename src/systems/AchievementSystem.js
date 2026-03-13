@@ -238,7 +238,7 @@ export class AchievementSystem {
 
         // Play achievement sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            this.game.audioManager.playVampireSound('achievementUnlock', 0.8);
+            this.game.audioManager.playVampireSound('achievementUnlock', 0.4);
         }
 
         // Also show toast for redundancy

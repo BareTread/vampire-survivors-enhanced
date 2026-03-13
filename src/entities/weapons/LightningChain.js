@@ -10,7 +10,7 @@ export class LightningChain extends BaseWeapon {
             damage: 15,
             cooldown: 1.8,
             range: 300,
-            speed: 0,       // Not projectile-based
+            speed: 0, // Not projectile-based
             duration: 0,
             projectiles: 1,
             piercing: 0,
@@ -28,13 +28,13 @@ export class LightningChain extends BaseWeapon {
         // Lightning-specific properties
         this.chainCount = 2;
         this.chainRange = 150;
-        this.chainDamageDecay = 0.8;   // 80% damage per hop
-        this.chainCritBonus = 0;       // Extra crit chance on chains
-        this.chainAreaDamage = 0;      // Area damage at each chain point (radius)
+        this.chainDamageDecay = 0.8; // 80% damage per hop
+        this.chainCritBonus = 0; // Extra crit chance on chains
+        this.chainAreaDamage = 0; // Area damage at each chain point (radius)
         this.chainDamageMultiplier = 1.0;
 
         // Visual state — stores active chain visuals for animated rendering
-        this.activeChains = [];        // Array of { points: [{x,y}], alpha: 1, timer: 0 }
+        this.activeChains = []; // Array of { points: [{x,y}], alpha: 1, timer: 0 }
         this.chainVisualDuration = 0.25; // seconds the bolt stays visible
 
         // Level progression
@@ -83,9 +83,7 @@ export class LightningChain extends BaseWeapon {
         let current = primaryTarget;
 
         for (let i = 0; i < this.chainCount; i++) {
-            const nearby = this.game.systems.enemy.getEnemiesInRange(
-                current.x, current.y, this.chainRange
-            );
+            const nearby = this.game.systems.enemy.getEnemiesInRange(current.x, current.y, this.chainRange);
 
             let best = null;
             let bestDist = Infinity;
@@ -127,9 +125,7 @@ export class LightningChain extends BaseWeapon {
                 isCritical = Math.random() < this.chainCritBonus;
             }
 
-            const finalDamage = isCritical && !baseDamageResult.isCritical
-                ? damage * 2.0
-                : damage;
+            const finalDamage = isCritical && !baseDamageResult.isCritical ? damage * 2.0 : damage;
 
             // Deal damage to enemy
             if (typeof enemy.takeDamage === 'function') {
@@ -143,16 +139,6 @@ export class LightningChain extends BaseWeapon {
 
             // Enhanced hit feedback (reuse BaseWeapon infra)
             this.onHitEnemy(enemy, finalDamage, isCritical, chainTargets.length);
-
-            // Notify systems
-            if (this.game.systems.flowState) {
-                this.game.systems.flowState.onEnemyKilled && enemy.health <= 0 &&
-                    this.game.systems.flowState.onEnemyKilled();
-            }
-            if (this.game.systems.achievement && enemy.health <= 0) {
-                this.game.systems.achievement.onEnemyKilled(enemy);
-            }
-
             // Decay damage for next chain
             currentDamage *= this.chainDamageDecay;
         }
@@ -322,7 +308,7 @@ export class LightningChain extends BaseWeapon {
 
     renderChargingEffect(renderer) {
         const ctx = renderer.ctx;
-        const chargeProgress = 1 - (this.cooldownTimer / this.getEffectiveCooldown());
+        const chargeProgress = 1 - this.cooldownTimer / this.getEffectiveCooldown();
         if (chargeProgress < 0.6) return;
 
         ctx.save();
@@ -351,16 +337,14 @@ export class LightningChain extends BaseWeapon {
         if (!this.game.audioManager) return;
 
         // Primary strike
-        this.game.audioManager.playVampireSound('lightningStrike',
-            0.8, 1.0 + (this.level - 1) * 0.03);
+        this.game.audioManager.playVampireSound('lightningStrike', 0.8, 1.0 + (this.level - 1) * 0.03);
 
         // Chain zap (slightly delayed, higher pitch for more chains)
         if (chainLength > 1) {
             const chainPitch = 1.1 + Math.min(0.5, chainLength * 0.08);
             setTimeout(() => {
                 if (this.game.audioManager) {
-                    this.game.audioManager.playVampireSound('lightningChain',
-                        0.5, chainPitch);
+                    this.game.audioManager.playVampireSound('lightningChain', 0.5, chainPitch);
                 }
             }, 60);
         }

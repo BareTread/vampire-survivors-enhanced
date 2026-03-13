@@ -8,8 +8,8 @@ export class GarlicAura extends BaseWeapon {
             description: 'Damages nearby enemies with a pulsing aura of garlic essence',
             type: 'aura',
             damage: 5,
-            cooldown: 0.5,   // Tick rate — NOT weapon cooldown in the traditional sense
-            range: 60,       // Aura radius
+            cooldown: 0.5, // Tick rate — NOT weapon cooldown in the traditional sense
+            range: 60, // Aura radius
             speed: 0,
             duration: 0,
             projectiles: 0,
@@ -34,20 +34,20 @@ export class GarlicAura extends BaseWeapon {
         this.dotDamagePerSecond = 0;
 
         // Visual state
-        this.pulsePhase = 0;      // 0 → 1 oscillation for pulsing ring
-        this.lastDamageTime = 0;   // For visual damage flash
-        this.hitFlashAlpha = 0;    // Brief flash when damage ticks
+        this.pulsePhase = 0; // 0 → 1 oscillation for pulsing ring
+        this.lastDamageTime = 0; // For visual damage flash
+        this.hitFlashAlpha = 0; // Brief flash when damage ticks
 
         // Level progression
         this.levelProgression = {
-            1: { damage: 5, radius: 60, tickRate: 0.50 },
-            2: { damage: 7, radius: 70, tickRate: 0.50 },
+            1: { damage: 5, radius: 60, tickRate: 0.5 },
+            2: { damage: 7, radius: 70, tickRate: 0.5 },
             3: { damage: 9, radius: 80, tickRate: 0.45 },
-            4: { damage: 12, radius: 90, tickRate: 0.40, knockback: 80 },
+            4: { damage: 12, radius: 90, tickRate: 0.4, knockback: 80 },
             5: { damage: 15, radius: 105, tickRate: 0.35 },
-            6: { damage: 18, radius: 120, tickRate: 0.30, slow: true },
+            6: { damage: 18, radius: 120, tickRate: 0.3, slow: true },
             7: { damage: 22, radius: 140, tickRate: 0.25 },
-            8: { damage: 30, radius: 160, tickRate: 0.20, dot: true, dotDps: 8 }
+            8: { damage: 30, radius: 160, tickRate: 0.2, dot: true, dotDps: 8 }
         };
     }
 
@@ -101,7 +101,7 @@ export class GarlicAura extends BaseWeapon {
             if (this.slowEffect && this.game.systems.statusEffect) {
                 this.game.systems.statusEffect.applyEffect(enemy, {
                     type: 'slow',
-                    value: 0.5,       // 50% slow
+                    value: 0.5, // 50% slow
                     duration: 0.8,
                     source: 'garlic_aura'
                 });
@@ -120,16 +120,6 @@ export class GarlicAura extends BaseWeapon {
             // Compact hit feedback — just damage numbers, no full onHitEnemy
             // to avoid excessive particles at close range
             this.createAuraDamageNumber(enemy, damage, baseDamageResult.isCritical);
-
-            // Notify systems
-            if (enemy.health <= 0) {
-                if (this.game.systems.flowState && this.game.systems.flowState.onEnemyKilled) {
-                    this.game.systems.flowState.onEnemyKilled(enemy);
-                }
-                if (this.game.systems.achievement) {
-                    this.game.systems.achievement.onEnemyKilled(enemy);
-                }
-            }
         }
 
         // Treasure chest damage (direct-damage weapon support)
@@ -147,7 +137,7 @@ export class GarlicAura extends BaseWeapon {
         // Audio feedback
         if (hitCount > 0) {
             this.playAuraPulseSound(hitCount);
-            this.hitFlashAlpha = 0.6;  // Trigger visual flash
+            this.hitFlashAlpha = 0.6; // Trigger visual flash
         }
 
         // Edge particle burst
@@ -262,9 +252,7 @@ export class GarlicAura extends BaseWeapon {
         const size = critical ? 20 : 14;
 
         if (this.game.systems.particle.createEnhancedDamageNumber) {
-            this.game.systems.particle.createEnhancedDamageNumber(
-                enemy.x, enemy.y, damage, critical, color, size, 1.0
-            );
+            this.game.systems.particle.createEnhancedDamageNumber(enemy.x, enemy.y, damage, critical, color, size, 1.0);
         }
     }
 

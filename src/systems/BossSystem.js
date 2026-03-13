@@ -172,7 +172,7 @@ export class BossSystem {
         this.warningTimer = this.warningDuration;
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('bossWarning', 0.8);
+            this.game.audioManager.playVampireSound('bossWarning', 0.4);
         }
 
         if (this.game.camera) {
@@ -242,7 +242,7 @@ export class BossSystem {
         }
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('bossSpawn', 1.0);
+            this.game.audioManager.playVampireSound('bossSpawn', 0.5);
         }
 
         if (this.game.systems.screenEffects) {
@@ -310,7 +310,7 @@ export class BossSystem {
         }
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('bossSpawn', 0.7);
+            this.game.audioManager.playVampireSound('bossSpawn', 0.4);
         }
 
         // Particle burst around boss
@@ -719,7 +719,7 @@ export class BossSystem {
                 });
 
                 if (this.game.audioManager) {
-                    this.game.audioManager.playVampireSound('bossSpawn', 0.7, 1.3);
+                    this.game.audioManager.playVampireSound('bossSpawn', 0.4, 1.3);
                 }
 
                 if (this.game.camera) {
@@ -967,7 +967,7 @@ export class BossSystem {
 
         // Audio
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('levelUp', 1.0, 0.7);
+            this.game.audioManager.playVampireSound('levelUp', 0.6, 0.7);
         }
 
         // Achievement hook

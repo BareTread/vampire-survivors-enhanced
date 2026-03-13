@@ -344,7 +344,7 @@ export class WeaponEvolutionSystem {
 
         // 4. Audio cue
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('weaponEvolution', 1.0);
+            this.game.audioManager.playVampireSound('weaponEvolution', 0.6);
         }
 
         // 5. Camera gold flash

@@ -78,8 +78,20 @@ export class Demon extends Enemy {
         // Apply adaptive damage from flow state
         if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
             this.damage = Math.floor(this.damage * this.game.systems.flowState.adaptiveDamageMultiplier);
-            this.originalStats.damage = this.damage;
         }
+
+        // Damage cap safety net (mirrors Enemy.initializeType)
+        if (this.game && typeof this.game.gameTime === 'number') {
+            const gameTimeMin = this.game.gameTime / 60;
+            const playerMaxHP = this.game.player?.maxHealth || 100;
+            if (gameTimeMin < 10) {
+                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
+                const damageCap = Math.floor(playerMaxHP * capPercent);
+                this.damage = Math.min(this.damage, damageCap);
+            }
+        }
+
+        this.originalStats.damage = this.damage;
     }
 
     update(dt) {
@@ -148,6 +160,15 @@ export class Demon extends Enemy {
 
         // Boost stats
         this.damage = Math.floor(this.originalStats.damage * this.rageMultiplier);
+        // Cap rage damage the same way as initializeType
+        if (this.game && typeof this.game.gameTime === 'number') {
+            const gameTimeMin = this.game.gameTime / 60;
+            const playerMaxHP = this.game.player?.maxHealth || 100;
+            if (gameTimeMin < 10) {
+                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
+                this.damage = Math.min(this.damage, Math.floor(playerMaxHP * capPercent));
+            }
+        }
         this.speed = Math.floor(this.originalStats.speed * this.rageMultiplier);
         this.baseAttackCooldown = this.originalStats.attackCooldown / this.rageMultiplier;
 
@@ -319,7 +340,15 @@ export class Demon extends Enemy {
             );
 
             if (playerDistance <= this.areaAttackRange) {
-                player.takeDamage(this.damage * 1.5); // Area attack does more damage
+                // Area attack is 1.5x melee damage but capped at 50% of player max HP
+                // for the first 5 min (ramps to 70% cap by 10 min) to prevent one-shots.
+                let areaDmg = Math.floor(this.damage * 1.5);
+                const gameTimeMin = (this.game.gameTime || 0) / 60;
+                if (gameTimeMin < 10) {
+                    const capPercent = 0.50 + Math.min(gameTimeMin / 5, 1.0) * 0.20; // 0.50→0.70
+                    areaDmg = Math.min(areaDmg, Math.floor(player.maxHealth * capPercent));
+                }
+                player.takeDamage(Math.max(10, areaDmg));
             }
         }
 

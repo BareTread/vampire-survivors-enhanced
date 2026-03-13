@@ -44,17 +44,17 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeTimer = 0;
         this.pressureSurgeActive = false;
-        this.nextSurgeTime = 120; // First surge at 2 minutes
+        this.nextSurgeTime = 180; // First surge at 3 minutes (was 2 min — collided with difficulty spike)
 
         // Enemy type configurations - EARLIER INTRODUCTION
         this.enemyTypes = {
             basic: { weight: 30, minWave: 1 },
-            fast: { weight: 25, minWave: 1 },  // Available from start (was wave 2)
-            tank: { weight: 20, minWave: 2 },  // Earlier (was wave 3)
+            fast: { weight: 25, minWave: 1 }, // Available from start (was wave 2)
+            tank: { weight: 20, minWave: 2 }, // Earlier (was wave 3)
             ranged: { weight: 15, minWave: 2 }, // Earlier (was wave 4)
             wraith: { weight: 10, minWave: 3 }, // Earlier (was wave 5)
-            demon: { weight: 12, minWave: 4 },  // Earlier (was wave 6)
-            elite: { weight: 8, minWave: 5 },   // Earlier (was wave 7)
+            demon: { weight: 12, minWave: 4 }, // Earlier (was wave 6)
+            elite: { weight: 8, minWave: 5 }, // Earlier (was wave 7)
             berserker: { weight: 5, minWave: 6 },
             summoner: { weight: 3, minWave: 7 },
             juggernaut: { weight: 2, minWave: 8 }
@@ -78,7 +78,7 @@ export class EnemySystem {
         // OPTIMIZED: Removed redundant spatial grid - now using centralized CollisionSystem
         // Pre-allocated structures for performance
         this.tempEnemyArray = new Array(500); // Increased for more enemies
-        this.nearbyResults = new Array(100);   // Increased for dense swarms
+        this.nearbyResults = new Array(100); // Increased for dense swarms
 
         this.initializePools();
     }
@@ -86,16 +86,16 @@ export class EnemySystem {
     initializePools() {
         // Pre-create LARGER enemy pools for 1000 enemy support
         const poolSizes = {
-            basic: 200,     // Increased from 50 - most common enemy
-            fast: 150,      // Increased from 30 - second most common
-            tank: 100,      // Increased from 20
-            ranged: 100,    // Increased from 25
-            wraith: 50,     // Increased from 15
-            demon: 50,      // Increased from 15
-            elite: 40,      // Increased from 10
-            berserker: 30,  // Increased from 8
-            summoner: 20,   // Increased from 6
-            juggernaut: 10  // Increased from 4 - rare enemy
+            basic: 200, // Increased from 50 - most common enemy
+            fast: 150, // Increased from 30 - second most common
+            tank: 100, // Increased from 20
+            ranged: 100, // Increased from 25
+            wraith: 50, // Increased from 15
+            demon: 50, // Increased from 15
+            elite: 40, // Increased from 10
+            berserker: 30, // Increased from 8
+            summoner: 20, // Increased from 6
+            juggernaut: 10 // Increased from 4 - rare enemy
         };
 
         for (const [type, size] of Object.entries(poolSizes)) {
@@ -108,7 +108,6 @@ export class EnemySystem {
             }
         }
     }
-
 
     update(dt) {
         // Update wave timer
@@ -153,7 +152,7 @@ export class EnemySystem {
         let timeMultiplier;
         if (timeMinutes <= 3) {
             // First 3 minutes: Gradual warmup
-            timeMultiplier = 1.0 + (timeMinutes * 0.12); // 12% increase per minute
+            timeMultiplier = 1.0 + timeMinutes * 0.12; // 12% increase per minute
         } else if (timeMinutes <= 10) {
             // Minutes 3-10: Steady challenge increase
             const earlyMultiplier = 1.36; // Value at 3 minutes
@@ -167,7 +166,8 @@ export class EnemySystem {
         }
 
         // BALANCED wave scaling
-        const waveMultiplier = Math.pow(1.08, Math.min(cappedWave - 1, 20)) * // 8% per wave
+        const waveMultiplier =
+            Math.pow(1.08, Math.min(cappedWave - 1, 20)) * // 8% per wave
             Math.pow(1.05, Math.max(0, cappedWave - 20)); // 5% after wave 20
 
         const rawMultiplier = timeMultiplier * waveMultiplier;
@@ -226,9 +226,11 @@ export class EnemySystem {
 
         // Debug: Gate difficulty logging behind showDebug flag
         if (this.game.showDebug) {
-            console.log(`AGGRESSIVE: Time ${timeMinutes.toFixed(1)}min, Wave ${this.currentWave}, ` +
-                `Difficulty ${this.difficultyMultiplier.toFixed(2)}x, Spawn ${this.spawnRate.toFixed(1)}/s, ` +
-                `Max ${this.maxActiveEnemies}, Surge: ${this.pressureSurgeActive}`);
+            console.log(
+                `AGGRESSIVE: Time ${timeMinutes.toFixed(1)}min, Wave ${this.currentWave}, ` +
+                    `Difficulty ${this.difficultyMultiplier.toFixed(2)}x, Spawn ${this.spawnRate.toFixed(1)}/s, ` +
+                    `Max ${this.maxActiveEnemies}, Surge: ${this.pressureSurgeActive}`
+            );
         }
     }
 
@@ -254,7 +256,7 @@ export class EnemySystem {
         // Combo-based scaling for skilled players
         if (this.game.player && this.game.player.combo) {
             const comboBonus = Math.min(this.game.player.combo.count / 50, 2.0);
-            baseRate *= (1 + comboBonus);
+            baseRate *= 1 + comboBonus;
         }
 
         // Apply surge bonus and cap the final elite spawn chance
@@ -281,8 +283,7 @@ export class EnemySystem {
         }
 
         // Calculate complacency multiplier - punish players who are too comfortable
-        if (this.performanceTracking.playerHealthAverage > 0.7 &&
-            this.performanceTracking.timeSinceLastDamage > 60) {
+        if (this.performanceTracking.playerHealthAverage > 0.7 && this.performanceTracking.timeSinceLastDamage > 60) {
             // Player has been above 70% health for over 60 seconds - increase difficulty!
             this.performanceTracking.complacencyMultiplier = 1.5;
         } else if (this.performanceTracking.playerHealthAverage < 0.25) {
@@ -332,9 +333,13 @@ export class EnemySystem {
                 this.currentPattern = 'random'; // Back to normal pattern
 
                 // Shorter relief period (10 seconds instead of 15)
-                managedSetTimeout(() => {
-                    this.surgeSpawnMultiplier = 1.0;
-                }, 10000, this);
+                managedSetTimeout(
+                    () => {
+                        this.surgeSpawnMultiplier = 1.0;
+                    },
+                    10000,
+                    this
+                );
             }
         }
     }
@@ -387,8 +392,10 @@ export class EnemySystem {
         if (this.game.systems.terrain && !this.game.systems.terrain.isPositionValid(spawnPos.x, spawnPos.y, 20)) {
             // Try a few offset positions
             const offsets = [
-                { x: 40, y: 0 }, { x: -40, y: 0 },
-                { x: 0, y: 40 }, { x: 0, y: -40 }
+                { x: 50, y: 0 },
+                { x: -50, y: 0 },
+                { x: 0, y: 50 },
+                { x: 0, y: -50 }
             ];
             let nudged = false;
             for (const off of offsets) {
@@ -411,7 +418,6 @@ export class EnemySystem {
         // Initialize enemy
         enemy.reset(spawnPos.x, spawnPos.y, enemyType);
         this.activeEnemies.push(enemy);
-
     }
 
     chooseEnemyType() {
@@ -457,7 +463,12 @@ export class EnemySystem {
         let y = player.y + Math.sin(angle) * this.spawnDistance;
 
         // Clamp to world boundaries from TerrainSystem
-        const worldBounds = this.game.systems.terrain?.worldBounds || { left: -2000, right: 2000, top: -2000, bottom: 2000 };
+        const worldBounds = this.game.systems.terrain?.worldBounds || {
+            left: -2000,
+            right: 2000,
+            top: -2000,
+            bottom: 2000
+        };
         x = Math.max(worldBounds.left + 150, Math.min(worldBounds.right - 150, x));
         y = Math.max(worldBounds.top + 150, Math.min(worldBounds.bottom - 150, y));
 
@@ -478,7 +489,7 @@ export class EnemySystem {
 
         // Spawn in a circle around player with slight randomization
         const baseAngle = performance.now() * 0.001; // Slowly rotating circle
-        const randomOffset = (Math.random() - 0.5) * Math.PI / 4; // ±45 degrees
+        const randomOffset = ((Math.random() - 0.5) * Math.PI) / 4; // ±45 degrees
         const angle = baseAngle + randomOffset;
 
         const distance = this.spawnDistance + (Math.random() - 0.5) * 100;
@@ -488,7 +499,12 @@ export class EnemySystem {
         let y = player.y + Math.sin(angle) * distance;
 
         // Clamp to world boundaries from TerrainSystem
-        const worldBounds = this.game.systems.terrain?.worldBounds || { left: -2000, right: 2000, top: -2000, bottom: 2000 };
+        const worldBounds = this.game.systems.terrain?.worldBounds || {
+            left: -2000,
+            right: 2000,
+            top: -2000,
+            bottom: 2000
+        };
         x = Math.max(worldBounds.left + 150, Math.min(worldBounds.right - 150, x));
         y = Math.max(worldBounds.top + 150, Math.min(worldBounds.bottom - 150, y));
 
@@ -613,7 +629,8 @@ export class EnemySystem {
         if (!enemy) return;
 
         const pool = this.enemyPool.get(enemy.type);
-        if (pool && pool.length < 50) { // Don't let pools grow too large
+        if (pool && pool.length < 50) {
+            // Don't let pools grow too large
             enemy.active = false;
             pool.push(enemy);
         }
@@ -667,11 +684,9 @@ export class EnemySystem {
         }
     }
 
-
     nextWave() {
         // Check if previous wave was perfect (no damage taken)
-        const wasPerfectWave = this.game.player &&
-            this.game.player.streaks.noDamage >= this.waveDuration;
+        const wasPerfectWave = this.game.player && this.game.player.streaks.noDamage >= this.waveDuration;
 
         // Track wave completion for achievements
         if (this.game.systems.achievement) {
@@ -694,7 +709,6 @@ export class EnemySystem {
         if (this.currentWave % 5 === 0) {
             this.spawnBossWave();
         }
-
     }
 
     spawnBossWave() {
@@ -702,9 +716,13 @@ export class EnemySystem {
         const bossCount = Math.floor(this.currentWave / 5);
 
         for (let i = 0; i < bossCount; i++) {
-            managedSetTimeout(() => {
-                this.spawnBoss();
-            }, i * 1000, this); // 1 second delay between bosses
+            managedSetTimeout(
+                () => {
+                    this.spawnBoss();
+                },
+                i * 1000,
+                this
+            ); // 1 second delay between bosses
         }
     }
 
@@ -734,12 +752,11 @@ export class EnemySystem {
         if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
             this.game.camera.shake(5, 1.0);
         }
-
     }
 
     // Query methods for other systems
     getActiveEnemies() {
-        return this.activeEnemies.filter(enemy => enemy.active);
+        return this.activeEnemies.filter((enemy) => enemy.active);
     }
 
     getEnemiesInRange(x, y, range) {
@@ -749,9 +766,7 @@ export class EnemySystem {
         for (const enemy of this.activeEnemies) {
             if (!enemy.active) continue;
 
-            const distanceSquared = MathUtils.distanceSquared(
-                enemy.x, enemy.y, x, y
-            );
+            const distanceSquared = MathUtils.distanceSquared(enemy.x, enemy.y, x, y);
 
             if (distanceSquared <= rangeSquared) {
                 result.push(enemy);
@@ -762,17 +777,7 @@ export class EnemySystem {
     }
 
     getNearbyEnemies(x, y, range) {
-        // OPTIMIZED: Use centralized CollisionSystem for spatial queries
-        if (!this.game.systems.collision) {
-            // Fallback to linear search if collision system not available
-            return this.getEnemiesInRange(x, y, range);
-        }
-
-        // Filter to only return enemy entities
-        return this.game.systems.collision.getEntitiesInRadius(x, y, range, entity => {
-            // Check if this entity is an enemy from our active enemies list
-            return this.activeEnemies.includes(entity) && entity.active;
-        });
+        return this.getEnemiesInRange(x, y, range);
     }
 
     // OPTIMIZED: Return squared distance to avoid expensive Math.sqrt()
@@ -788,9 +793,7 @@ export class EnemySystem {
         }
 
         // Return squared distance for performance using MathUtils
-        const distanceSquared = MathUtils.distanceSquared(
-            enemy.x, enemy.y, this.game.player.x, this.game.player.y
-        );
+        const distanceSquared = MathUtils.distanceSquared(enemy.x, enemy.y, this.game.player.x, this.game.player.y);
         return isFinite(distanceSquared) ? distanceSquared : Infinity;
     }
 
@@ -986,7 +989,7 @@ export class EnemySystem {
         }
 
         // Remove dead enemies from formation list
-        this.activeFormation.enemies = this.activeFormation.enemies.filter(e => e.active);
+        this.activeFormation.enemies = this.activeFormation.enemies.filter((e) => e.active);
 
         // Clear formation when all enemies are dead or 10s max lifetime exceeded
         const maxLifetime = 10;

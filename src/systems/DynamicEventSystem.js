@@ -236,7 +236,7 @@ export class DynamicEventSystem {
         this._cameraFlashShake('#AA0000', 0.5, 6, 0.6);
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('bossWarning', 0.7);
+            this.game.audioManager.playVampireSound('bossWarning', 0.4);
         }
     }
 

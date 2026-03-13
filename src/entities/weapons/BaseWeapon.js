@@ -83,18 +83,22 @@ export class BaseWeapon {
     
     fire() {
         if (!this.ready) return false;
-        
+
         // Start cooldown
         this.cooldownTimer = this.getEffectiveCooldown();
         this.ready = false;
         this.lastFireTime = performance.now();
-        
-        // Enhanced visual and audio feedback
-        this.createFireEffects();
-        
-        // Execute weapon-specific firing logic
+
+        // Enhanced visual and audio feedback (non-critical — must not block firing)
+        try {
+            this.createFireEffects();
+        } catch (e) {
+            console.warn('Weapon fire effects error:', e.message);
+        }
+
+        // Execute weapon-specific firing logic (CRITICAL — this deals damage)
         this.onFire();
-        
+
         return true;
     }
     

@@ -1,4 +1,5 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 
 export class Player {
     constructor(game, x, y) {
@@ -23,14 +24,14 @@ export class Player {
 
         // Player stats (upgradeable)
         this.stats = {
-            damage: 1.0,        // Damage multiplier
-            speed: 1.0,         // Movement speed multiplier
-            health: 1.0,        // Health multiplier
-            luck: 1.0,          // Experience/drop rate multiplier
-            area: 1.0,          // Weapon area multiplier
-            cooldown: 1.0,      // Weapon cooldown multiplier
-            duration: 1.0,      // Weapon duration multiplier
-            projectiles: 0      // Additional projectiles
+            damage: 1.0, // Damage multiplier
+            speed: 1.0, // Movement speed multiplier
+            health: 1.0, // Health multiplier
+            luck: 1.0, // Experience/drop rate multiplier
+            area: 1.0, // Weapon area multiplier
+            cooldown: 1.0, // Weapon cooldown multiplier
+            duration: 1.0, // Weapon duration multiplier
+            projectiles: 0 // Additional projectiles
         };
 
         // Visual properties
@@ -90,7 +91,7 @@ export class Player {
         this.desperationMode = {
             active: false,
             speedMultiplier: 1.4, // 40% speed boost
-            damageMultiplier: 1.6, // 60% damage boost  
+            damageMultiplier: 1.6, // 60% damage boost
             magnetRangeMultiplier: 2.5, // 2.5x magnet range
             iFrameBonus: 0.15, // Additional 0.15s invincibility on movement
             criticalChanceBonus: 0.3 // +30% critical hit chance
@@ -128,35 +129,65 @@ export class Player {
             perfectShots: 0
         };
 
+        this.revivesRemaining = 0;
+        this.reviveHealPercent = 0.5;
+        this.reviveInvulnerabilityDuration = 3.0;
+        this._destroyed = false;
+        this._inputHandlers = null;
+
         this.setupInput();
     }
 
     setupInput() {
-        // Handle movement input
-        this.game.inputManager.on('mouseMove', (e) => {
-            if (this.game && this.game.camera && typeof this.game.camera.screenToWorld === 'function') {
-                const worldPos = this.game.camera.screenToWorld(e.x, e.y);
-                this.setTarget(worldPos.x, worldPos.y);
+        this._inputHandlers = {
+            mouseMove: (e) => {
+                if (this.game && this.game.camera && typeof this.game.camera.screenToWorld === 'function') {
+                    const worldPos = this.game.camera.screenToWorld(e.x, e.y);
+                    this.setTarget(worldPos.x, worldPos.y);
+                }
+            },
+            keyDown: (key) => {
+                this.handleKeyDown(key);
+            },
+            keyUp: (key) => {
+                this.handleKeyUp(key);
+            },
+            click: (e) => {
+                this.handleAimingClick(e);
+            },
+            rightClick: (e) => {
+                this.handleAimingRightClick(e);
             }
-        });
+        };
+
+        // Handle movement input
+        this.game.inputManager.on('mouseMove', this._inputHandlers.mouseMove);
 
         // Handle WASD movement
-        this.game.inputManager.on('keyDown', (key) => {
-            this.handleKeyDown(key);
-        });
+        this.game.inputManager.on('keyDown', this._inputHandlers.keyDown);
 
-        this.game.inputManager.on('keyUp', (key) => {
-            this.handleKeyUp(key);
-        });
+        this.game.inputManager.on('keyUp', this._inputHandlers.keyUp);
 
         // Manual aiming controls
-        this.game.inputManager.on('click', (e) => {
-            this.handleAimingClick(e);
-        });
+        this.game.inputManager.on('click', this._inputHandlers.click);
 
-        this.game.inputManager.on('rightClick', (e) => {
-            this.handleAimingRightClick(e);
-        });
+        this.game.inputManager.on('rightClick', this._inputHandlers.rightClick);
+    }
+
+    destroy() {
+        if (this._destroyed) return;
+
+        this._destroyed = true;
+
+        if (this.game?.inputManager && this._inputHandlers) {
+            this.game.inputManager.off('mouseMove', this._inputHandlers.mouseMove);
+            this.game.inputManager.off('keyDown', this._inputHandlers.keyDown);
+            this.game.inputManager.off('keyUp', this._inputHandlers.keyUp);
+            this.game.inputManager.off('click', this._inputHandlers.click);
+            this.game.inputManager.off('rightClick', this._inputHandlers.rightClick);
+        }
+
+        globalTimerManager.clearContext(this);
     }
 
     handleKeyDown(key) {
@@ -369,7 +400,7 @@ export class Player {
 
         // Audio feedback
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            const volume = Math.min(1.0, 0.6 + damagePercent * 0.4);
+            const volume = Math.min(0.5, 0.3 + damagePercent * 0.2);
             const pitch = 0.8 + Math.random() * 0.4;
             this.game.audioManager.playVampireSound('vampireBite', volume, pitch);
         }
@@ -411,7 +442,7 @@ export class Player {
 
         // Play heartbeat sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            this.game.audioManager.playVampireSound('heartbeat', 0.8, 1.2);
+            this.game.audioManager.playVampireSound('heartbeat', 0.4, 1.2);
         }
     }
 
@@ -464,16 +495,21 @@ export class Player {
                 this.game.systems.particle.createMagnetWave(this.x, this.y, 300); // 300 pixel radius
 
                 // Show "+XP MAGNET!" text
-                setTimeout(() => {
-                    this.game.systems.particle.createEnhancedDamageNumber(
-                        this.x, this.y - 60,
-                        '+XP MAGNET!',
-                        false,
-                        '#00FFFF',
-                        24,
-                        2.5
-                    );
-                }, 200);
+                managedSetTimeout(
+                    () => {
+                        this.game.systems.particle.createEnhancedDamageNumber(
+                            this.x,
+                            this.y - 60,
+                            '+XP MAGNET!',
+                            false,
+                            '#00FFFF',
+                            24,
+                            2.5
+                        );
+                    },
+                    200,
+                    this
+                );
             }
         }
 
@@ -498,39 +534,48 @@ export class Player {
             });
 
             // Secondary burst with different color
-            setTimeout(() => {
-                this.game.systems.particle.createBurst(this.x, this.y, 'gemExplosion', {
-                    color: '#FFA500',
-                    count: 30,
-                    spread: 60,
-                    intensity: 2.0
-                });
-            }, 150);
+            managedSetTimeout(
+                () => {
+                    this.game.systems.particle.createBurst(this.x, this.y, 'gemExplosion', {
+                        color: '#FFA500',
+                        count: 30,
+                        spread: 60,
+                        intensity: 2.0
+                    });
+                },
+                150,
+                this
+            );
 
             // Healing sparkles
             for (let i = 0; i < 20; i++) {
-                setTimeout(() => {
-                    const angle = Math.random() * Math.PI * 2;
-                    const distance = 30 + Math.random() * 40;
-                    this.game.systems.particle.create(
-                        this.x + Math.cos(angle) * distance,
-                        this.y + Math.sin(angle) * distance,
-                        {
-                            vx: Math.cos(angle) * -50,
-                            vy: Math.sin(angle) * -50,
-                            life: 1.5,
-                            size: 5,
-                            color: '#00FF88',
-                            glow: true,
-                            fadeOut: true
-                        }
-                    );
-                }, i * 50);
+                managedSetTimeout(
+                    () => {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 30 + Math.random() * 40;
+                        this.game.systems.particle.create(
+                            this.x + Math.cos(angle) * distance,
+                            this.y + Math.sin(angle) * distance,
+                            {
+                                vx: Math.cos(angle) * -50,
+                                vy: Math.sin(angle) * -50,
+                                life: 1.5,
+                                size: 5,
+                                color: '#00FF88',
+                                glow: true,
+                                fadeOut: true
+                            }
+                        );
+                    },
+                    i * 50,
+                    this
+                );
             }
 
             // Level number display
             this.game.systems.particle.createEnhancedDamageNumber(
-                this.x, this.y - 30,
+                this.x,
+                this.y - 30,
                 this.level,
                 false,
                 '#FFD700',
@@ -548,13 +593,21 @@ export class Player {
 
             // Triumphant chord progression
             if (typeof this.game.audioManager.playVampireSound === 'function') {
-                setTimeout(() => {
-                    this.game.audioManager.playVampireSound('weaponUpgrade', 0.8, 1.2);
-                }, 300);
+                managedSetTimeout(
+                    () => {
+                        this.game.audioManager.playVampireSound('weaponUpgrade', 0.4, 1.2);
+                    },
+                    300,
+                    this
+                );
 
-                setTimeout(() => {
-                    this.game.audioManager.playVampireSound('experienceGain', 0.6, 1.5);
-                }, 600);
+                managedSetTimeout(
+                    () => {
+                        this.game.audioManager.playVampireSound('experienceGain', 0.6, 1.5);
+                    },
+                    600,
+                    this
+                );
             }
         }
 
@@ -765,8 +818,8 @@ export class Player {
         // Simple color lightening - assumes hex color
         const colorValue = parseInt(color.replace('#', ''), 16);
         const red = Math.min(255, Math.floor((colorValue >> 16) + 255 * amount));
-        const green = Math.min(255, Math.floor(((colorValue >> 8) & 0x00FF) + 255 * amount));
-        const blue = Math.min(255, Math.floor((colorValue & 0x0000FF) + 255 * amount));
+        const green = Math.min(255, Math.floor(((colorValue >> 8) & 0x00ff) + 255 * amount));
+        const blue = Math.min(255, Math.floor((colorValue & 0x0000ff) + 255 * amount));
 
         return `#${((red << 16) | (green << 8) | blue).toString(16).padStart(6, '0')}`;
     }
@@ -833,7 +886,7 @@ export class Player {
         // REBALANCED: Much more conservative combo multiplier to prevent exponential XP inflation
         // Old: 1.0 + (count * 0.1) + Math.pow(count / 50, 1.5) could reach 5x+ easily
         // New: Logarithmic scaling with hard cap to maintain progression balance
-        const rawMultiplier = 1.0 + (this.combo.count * 0.02) + Math.log10(Math.max(1, this.combo.count)) * 0.15;
+        const rawMultiplier = 1.0 + this.combo.count * 0.02 + Math.log10(Math.max(1, this.combo.count)) * 0.15;
         this.combo.multiplier = Math.min(rawMultiplier, 2.5); // Hard cap at 2.5x multiplier
     }
 
@@ -855,9 +908,7 @@ export class Player {
         }
 
         // Check for combo celebration thresholds
-        const threshold = this.combo.thresholds.find(t =>
-            this.combo.count === t && this.combo.lastCelebration < t
-        );
+        const threshold = this.combo.thresholds.find((t) => this.combo.count === t && this.combo.lastCelebration < t);
 
         if (threshold) {
             this.celebrateComboMilestone(threshold);
@@ -871,7 +922,6 @@ export class Player {
         // Update UI
         this.game.updateComboDisplay(this.combo.count, this.combo.multiplier);
     }
-
 
     addKillToStreak() {
         // Only count kills if player hasn't taken damage recently
@@ -917,7 +967,7 @@ export class Player {
 
             // Audio feedback
             if (this.game.audioManager) {
-                this.game.audioManager.playVampireSound('criticalHit', 0.8, 1.0 + (streak / 100));
+                this.game.audioManager.playVampireSound('criticalHit', 0.4, 1.0 + streak / 100);
             }
         }
 
@@ -938,7 +988,7 @@ export class Player {
 
         // Temporary power boosts
         if (streak >= 10) {
-            this.activatePowerUp('damageBoost', 10.0, 1.5 + (streak / 100));
+            this.activatePowerUp('damageBoost', 10.0, 1.5 + streak / 100);
         }
         if (streak >= 25) {
             this.activatePowerUp('speedBoost', 8.0, 1.3);
@@ -971,9 +1021,9 @@ export class Player {
 
         // Audio fanfare
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('levelUp', 1.0, 1.2);
+            this.game.audioManager.playVampireSound('levelUp', 0.5, 1.2);
             setTimeout(() => {
-                this.game.audioManager.playVampireSound('criticalHit', 0.8, 1.5);
+                this.game.audioManager.playVampireSound('criticalHit', 0.4, 1.5);
             }, 200);
         }
     }
@@ -994,9 +1044,7 @@ export class Player {
 
         // Particle celebration
         if (this.game.systems.particle) {
-            this.game.systems.particle.createComboExplosion(
-                this.x, this.y, threshold, intensity
-            );
+            this.game.systems.particle.createComboExplosion(this.x, this.y, threshold, intensity);
         }
 
         // Audio celebration
@@ -1005,7 +1053,7 @@ export class Player {
             this.game.audioManager.playCriticalHit();
         } else if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
             // Fallback to generic celebration sound
-            this.game.audioManager.playVampireSound('criticalHit', 1.0, 1.2);
+            this.game.audioManager.playVampireSound('criticalHit', 0.5, 1.2);
         }
 
         // Trigger adaptive music melodic fragment
@@ -1029,13 +1077,13 @@ export class Player {
         }
 
         // Escalating visual feedback
-        const sparkColor = this.combo.count < 25 ? '#FFAA00' :
-            this.combo.count < 50 ? '#FF6600' : '#FF0066';
+        const sparkColor = this.combo.count < 25 ? '#FFAA00' : this.combo.count < 50 ? '#FF6600' : '#FF0066';
         this.addDamageNumber(`x${this.combo.count}`, sparkColor, 'COMBO');
     }
 
     breakCombo() {
-        if (this.combo.count >= 10) { // Only show loss for meaningful combos
+        if (this.combo.count >= 10) {
+            // Only show loss for meaningful combos
             this.addDamageNumber('COMBO LOST', '#FF4444', '');
 
             // Mild punishment to create loss aversion
@@ -1127,18 +1175,14 @@ export class Player {
 
         // Update effect intensity for visual feedback
         if (this.nearDeath.bonusActive) {
-            this.nearDeath.effectIntensity = Math.min(1.0,
-                this.nearDeath.effectIntensity + dt * 2.0
-            );
+            this.nearDeath.effectIntensity = Math.min(1.0, this.nearDeath.effectIntensity + dt * 2.0);
 
             // Dramatic heartbeat effects
             if (this.game.systems.particle && Math.random() < 0.3) {
                 this.game.systems.particle.createHeartbeatEffect(this.x, this.y);
             }
         } else {
-            this.nearDeath.effectIntensity = Math.max(0,
-                this.nearDeath.effectIntensity - dt * 1.5
-            );
+            this.nearDeath.effectIntensity = Math.max(0, this.nearDeath.effectIntensity - dt * 1.5);
         }
 
         // Dramatic entrance/exit of near-death state
@@ -1197,7 +1241,7 @@ export class Player {
             this.game.audioManager.playLastStandActivation();
         } else if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
             // Fallback to generic dramatic sound
-            this.game.audioManager.playVampireSound('vampireBite', 0.9, 0.7);
+            this.game.audioManager.playVampireSound('vampireBite', 0.45, 0.7);
         }
     }
 
@@ -1247,7 +1291,7 @@ export class Player {
 
         // Audio celebration
         if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
-            this.game.audioManager.playVampireSound('experienceGain', 1.0, 1.5);
+            this.game.audioManager.playVampireSound('experienceGain', 0.5, 1.5);
         }
     }
 
@@ -1285,7 +1329,6 @@ export class Player {
 
     // Override damage to include near-death bonuses and power-up effects
     takeDamageEnhanced(amount) {
-
         // Invincibility power-up
         if (this.powerUps.invincible.active) {
             this.addDamageNumber('INVINCIBLE!', '#FFD700', '');
@@ -1302,13 +1345,14 @@ export class Player {
             this.addDamageNumber('REDUCED!', '#FFAA00', 'LAST STAND');
         }
 
-        // ARMOR passive item — flat damage reduction
+        // ARMOR passive item + permanent armor upgrades — flat damage reduction
         const passiveItems = this.game.systems?.passiveItems;
+        const permArmor = this.game.systems?.persistence?.getUpgradeModifiers?.().armor || 0;
         if (passiveItems) {
             const armorReduction = passiveItems.getStatModifiers().armor;
-            if (armorReduction > 0) {
-                finalDamage = Math.max(1, finalDamage - armorReduction);
-            }
+            finalDamage = Math.max(1, finalDamage - armorReduction - permArmor);
+        } else if (permArmor > 0) {
+            finalDamage = Math.max(1, finalDamage - permArmor);
         }
 
         const damage = Math.max(1, Math.floor(finalDamage));
@@ -1340,12 +1384,16 @@ export class Player {
 
         // Death check with dramatic near-miss effects
         if (this.health <= 0) {
+            if (this.tryConsumeRevival()) {
+                return true;
+            }
             this.die();
             return true;
         }
 
         // Last-second save mechanic (psychological relief)
-        if (this.health <= 1 && Math.random() < 0.15) { // 15% chance
+        if (this.health <= 1 && Math.random() < 0.15) {
+            // 15% chance
             this.triggerLastSecondSave();
         }
 
@@ -1379,7 +1427,7 @@ export class Player {
             this.game.audioManager.playMiraculousSave();
         } else if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
             // Fallback to generic triumphant sound
-            this.game.audioManager.playVampireSound('levelUp', 1.0, 1.5);
+            this.game.audioManager.playVampireSound('levelUp', 0.5, 1.5);
         }
     }
 
@@ -1400,15 +1448,17 @@ export class Player {
         // Luck multiplier
         finalExp *= this.stats.luck;
 
+        // Permanent XP gain upgrade
+        const xpGainMultiplier = this.game.systems?.persistence?.getUpgradeModifiers?.().xpGain || 1;
+        finalExp *= xpGainMultiplier;
+
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
 
         // Enhanced visual feedback based on multipliers
-        const color = this.combo.multiplier > 2.0 ? '#FFD700' :
-            this.combo.multiplier > 1.5 ? '#FFAA00' : '#44AAFF';
+        const color = this.combo.multiplier > 2.0 ? '#FFD700' : this.combo.multiplier > 1.5 ? '#FFAA00' : '#44AAFF';
 
-        const prefix = this.combo.multiplier > 1.0 ?
-            `x${this.combo.multiplier.toFixed(1)}` : 'EXP';
+        const prefix = this.combo.multiplier > 1.0 ? `x${this.combo.multiplier.toFixed(1)}` : 'EXP';
 
         this.addDamageNumber(expGain, color, prefix);
 
@@ -1464,10 +1514,52 @@ export class Player {
         // Check if there are more level-ups queued
         if (this.levelUpQueue && this.levelUpQueue.length > 0) {
             // Process the next level-up after a short delay
-            setTimeout(() => {
-                this.processNextLevelUp();
-            }, 500); // Half second delay between level-ups
+            managedSetTimeout(
+                () => {
+                    this.processNextLevelUp();
+                },
+                500,
+                this
+            ); // Half second delay between level-ups
         }
+    }
+
+    applyPersistentUpgrades() {
+        const permMods = this.game.systems?.persistence?.getUpgradeModifiers?.();
+        if (!permMods) return;
+
+        this.maxHealth = Math.floor(this.maxHealth * permMods.maxHealth);
+        this.health = this.maxHealth;
+        this.revivesRemaining = permMods.revival || 0;
+    }
+
+    tryConsumeRevival() {
+        if (this.revivesRemaining <= 0) {
+            return false;
+        }
+
+        this.revivesRemaining--;
+        this.health = Math.max(1, Math.floor(this.maxHealth * this.reviveHealPercent));
+        this.invulnerable = true;
+        this.invulnerabilityTime = this.reviveInvulnerabilityDuration;
+        this.activatePowerUp('invincible', this.reviveInvulnerabilityDuration, 1.0);
+        this.addDamageNumber('REVIVED!', '#FFD700', 'SECOND WIND');
+
+        if (this.game.camera) {
+            this.game.camera.flash('#FFD700', 0.6);
+            this.game.camera.shake(10, 0.5);
+        }
+
+        if (this.game.systems.particle) {
+            this.game.systems.particle.createBurst(this.x, this.y, 'evolution', {
+                color: '#FFD700',
+                count: 24,
+                spread: 70,
+                intensity: 2.0
+            });
+        }
+
+        return true;
     }
 
     // Get effective stats including power-up bonuses
@@ -1486,9 +1578,10 @@ export class Player {
         // effective cooldown as: baseCooldown / stats.cooldown.
         // Interpret fireRate.currentMultiplier as a cooldown reduction fraction (e.g. 0.3 => 30% faster).
         if (this.powerUps.fireRate.active) {
-            const raw = (this.powerUps.fireRate.currentMultiplier != null)
-                ? this.powerUps.fireRate.currentMultiplier
-                : this.powerUps.fireRate.multiplier;
+            const raw =
+                this.powerUps.fireRate.currentMultiplier != null
+                    ? this.powerUps.fireRate.currentMultiplier
+                    : this.powerUps.fireRate.multiplier;
             // Clamp to a sane range to avoid extreme values
             const reduction = Math.max(0.0, Math.min(0.75, raw)); // max 75% faster
             // Convert reduction fraction to a multiplier for stats.cooldown (bigger => faster firing)
@@ -1501,10 +1594,10 @@ export class Player {
         const passiveItems = this.game.systems?.passiveItems;
         if (passiveItems) {
             const mods = passiveItems.getStatModifiers();
-            stats.damage *= (1 + mods.damage);            // Spinach: +10%/level additive
-            stats.speed *= (1 + mods.speed);              // Wings: +10%/level additive
-            stats.cooldown *= (1 + mods.cooldown);        // Empty Tome: +8%/level (bigger = faster)
-            stats.projectiles += mods.projectiles;         // Duplicator: +1/level flat
+            stats.damage *= 1 + mods.damage; // Spinach: +10%/level additive
+            stats.speed *= 1 + mods.speed; // Wings: +10%/level additive
+            stats.cooldown *= 1 + mods.cooldown; // Empty Tome: +8%/level (bigger = faster)
+            stats.projectiles += mods.projectiles; // Duplicator: +1/level flat
             // Armor (mods.armor) is applied in takeDamageEnhanced
             // Attractorb (mods.pickupRange) is applied in ExperienceGem collection range
         }
@@ -1515,8 +1608,8 @@ export class Player {
             const permMods = persistence.getUpgradeModifiers();
             stats.damage *= permMods.damage;
             stats.speed *= permMods.moveSpeed;
-            stats.cooldown *= (2 - permMods.cooldown); // cooldown is inverted: lower = faster
-            // maxHealth and armor applied elsewhere (health init / takeDamage)
+            stats.cooldown *= 2 - permMods.cooldown; // cooldown is inverted: lower = faster
+            // maxHealth, armor, xpGain, and revival are applied elsewhere
         }
 
         // DESPERATION MODE BONUSES - Dramatic comeback mechanics
@@ -1619,10 +1712,10 @@ export class Player {
 
         // Calculate accuracy (1.0 = perfect center, 0.0 = far away)
         const maxAccuracyDistance = nearestEnemy.size + this.manualAiming.aimAssistRadius;
-        this.manualAiming.accuracy = Math.max(0, 1.0 - (distance / maxAccuracyDistance));
+        this.manualAiming.accuracy = Math.max(0, 1.0 - distance / maxAccuracyDistance);
 
         // Calculate damage bonus based on accuracy
-        this.manualAiming.accuracyBonus = 1.0 + (this.manualAiming.accuracy * (this.manualAiming.maxAccuracyBonus - 1.0));
+        this.manualAiming.accuracyBonus = 1.0 + this.manualAiming.accuracy * (this.manualAiming.maxAccuracyBonus - 1.0);
 
         // Perfect shot detection (within enemy hitbox)
         if (distance <= nearestEnemy.size) {
@@ -1690,10 +1783,7 @@ export class Player {
 
         // Enhanced visual effects
         if (this.game.systems.particle) {
-            this.game.systems.particle.createPerfectAimEffect(
-                this.manualAiming.aimX,
-                this.manualAiming.aimY
-            );
+            this.game.systems.particle.createPerfectAimEffect(this.manualAiming.aimX, this.manualAiming.aimY);
         }
 
         // Screen flash
@@ -1729,10 +1819,7 @@ export class Player {
 
             // Cooldown visual feedback
             if (this.game.systems.particle) {
-                this.game.systems.particle.createPrecisionStrikeEffect(
-                    this.manualAiming.aimX,
-                    this.manualAiming.aimY
-                );
+                this.game.systems.particle.createPrecisionStrikeEffect(this.manualAiming.aimX, this.manualAiming.aimY);
             }
         }
     }
@@ -1773,11 +1860,11 @@ export class Player {
 
         // Crosshair
         const crosshairSize = this.manualAiming.crosshairSize;
-        const accuracyAlpha = 0.3 + (this.manualAiming.accuracy * 0.7);
+        const accuracyAlpha = 0.3 + this.manualAiming.accuracy * 0.7;
 
         // Crosshair color based on accuracy
-        const color = this.manualAiming.accuracy > 0.8 ? '#00FF00' :
-            this.manualAiming.accuracy > 0.5 ? '#FFAA00' : '#FF4444';
+        const color =
+            this.manualAiming.accuracy > 0.8 ? '#00FF00' : this.manualAiming.accuracy > 0.5 ? '#FFAA00' : '#FF4444';
 
         ctx.globalAlpha = accuracyAlpha;
         ctx.strokeStyle = color;
@@ -1792,7 +1879,7 @@ export class Player {
         ctx.stroke();
 
         // Accuracy circle
-        ctx.globalAlpha = 0.2 + (this.manualAiming.accuracy * 0.3);
+        ctx.globalAlpha = 0.2 + this.manualAiming.accuracy * 0.3;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.beginPath();

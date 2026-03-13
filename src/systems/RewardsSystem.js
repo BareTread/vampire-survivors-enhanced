@@ -1,23 +1,23 @@
 /**
  * RewardsSystem — Critical Hit Rolls & Experience Multipliers
- * 
+ *
  * PURPOSE:
  * Provides probability-based reward mechanics: critical hit chances and
  * experience multipliers that scale with player performance.
- * 
+ *
  * HOW IT ACTIVATES:
  * 3 callsites already reference `game.systems.rewards` with null guards:
- * 
+ *
  *   - BaseWeapon.js (L440-441): calls rollForCritical() before each attack
  *   - BaseWeapon.js (L454-455): calls calculateExperienceMultiplier() for XP scaling
  *   - Projectile.js (L350-351): calls rollForJackpot() on critical hit projectiles
- * 
+ *
  * DESIGN:
  * - Base crit chance: 5%, +0.5% per player level, capped at 25%
  * - Kill streak tracking: consecutive kills within 3s build a streak
  * - XP multiplier: 1.0 base + streak bonus (cap 2.0x)
  * - Jackpot: 2% chance for bonus gem burst on crit
- * 
+ *
  * NEXT AGENT NOTES:
  * - The Clover passive item (BUILD CRAFT) should add flat crit chance
  * - Jackpot currently logs; integrate with ExperienceSystem for gem burst
@@ -29,25 +29,25 @@ export class RewardsSystem {
         this.game = game;
 
         // Critical hit configuration
-        this.baseCritChance = 0.05;      // 5% base
+        this.baseCritChance = 0.05; // 5% base
         this.critChancePerLevel = 0.005; // +0.5% per level
-        this.maxCritChance = 0.25;       // 25% cap
-        this.bonusCritChance = 0;        // From items/buffs (for future passive items)
+        this.maxCritChance = 0.25; // 25% cap
+        this.bonusCritChance = 0; // From items/buffs (for future passive items)
 
         // Kill streak tracking
         this.killStreak = 0;
         this.killStreakTimer = 0;
         this.killStreakWindow = 3.0; // seconds between kills to maintain streak
-        this.maxKillStreak = 0;      // Best streak this run
+        this.maxKillStreak = 0; // Best streak this run
 
         // XP multiplier config
         this.baseXPMultiplier = 1.0;
-        this.streakXPBonus = 0.02;   // +2% per streak kill
-        this.maxXPMultiplier = 2.0;  // Cap at 2x
+        this.streakXPBonus = 0.02; // +2% per streak kill
+        this.maxXPMultiplier = 2.0; // Cap at 2x
 
         // Jackpot config
-        this.jackpotChance = 0.02;   // 2% on crit
-        this.jackpotCount = 0;       // Total jackpots this run
+        this.jackpotChance = 0.02; // 2% on crit
+        this.jackpotCount = 0; // Total jackpots this run
 
         // Temporary multiplier boosts (from micro-challenges, etc.)
         this.tempXPMultiplier = 1.0;
@@ -67,7 +67,7 @@ export class RewardsSystem {
     rollForCritical() {
         this.totalRolls++;
 
-        const playerLevel = this.game.player ? (this.game.player.level || 1) : 1;
+        const playerLevel = this.game.player ? this.game.player.level || 1 : 1;
         const critChance = Math.min(
             this.maxCritChance,
             this.baseCritChance + (playerLevel - 1) * this.critChancePerLevel + this.bonusCritChance
@@ -93,11 +93,9 @@ export class RewardsSystem {
             this.jackpotCount++;
 
             // Trigger bonus XP burst
-            if (this.game.player) {
+            if (this.game.player && this.game.systems.experience) {
                 const bonusXP = 20 + (this.game.player.level || 1) * 5;
-                if (this.game.systems.experience && this.game.systems.experience.addExperience) {
-                    this.game.systems.experience.addExperience(bonusXP);
-                }
+                this.game.systems.experience.addExperienceToPlayer(bonusXP);
             }
 
             // Visual feedback
@@ -107,7 +105,7 @@ export class RewardsSystem {
 
             // Audio feedback
             if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-                this.game.audioManager.playVampireSound('victoryFanfare', 0.7);
+                this.game.audioManager.playVampireSound('victoryFanfare', 0.4);
             }
         }
     }
@@ -187,7 +185,7 @@ export class RewardsSystem {
     }
 
     getDebugInfo() {
-        const playerLevel = this.game.player ? (this.game.player.level || 1) : 1;
+        const playerLevel = this.game.player ? this.game.player.level || 1 : 1;
         const currentCritChance = Math.min(
             this.maxCritChance,
             this.baseCritChance + (playerLevel - 1) * this.critChancePerLevel + this.bonusCritChance

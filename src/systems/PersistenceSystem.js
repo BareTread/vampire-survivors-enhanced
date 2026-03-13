@@ -335,10 +335,9 @@ export class PersistenceSystem {
     }
 
     /**
-     * Add gold (called during runs when gold coins are collected).
+     * Add gold directly to the bank.
      */
     addGold(amount) {
         this.data.gold += amount;
-        // Don't save every coin — batch at run end
     }
 }

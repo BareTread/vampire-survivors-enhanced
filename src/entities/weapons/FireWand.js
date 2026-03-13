@@ -220,7 +220,7 @@ export class FireWand extends BaseWeapon {
 
         // Explosion sound
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('fireballExplosion', 0.7, 0.9 + this.level * 0.02);
+            this.game.audioManager.playVampireSound('fireballExplosion', 0.4, 0.9 + this.level * 0.02);
         }
     }
 
@@ -287,16 +287,6 @@ export class FireWand extends BaseWeapon {
                     duration: this.burnTickRate + 0.1,
                     source: 'fire_wand_burn'
                 });
-            }
-
-            // Notify systems
-            if (enemy.health <= 0) {
-                if (this.game.systems.flowState && this.game.systems.flowState.onEnemyKilled) {
-                    this.game.systems.flowState.onEnemyKilled(enemy);
-                }
-                if (this.game.systems.achievement) {
-                    this.game.systems.achievement.onEnemyKilled(enemy);
-                }
             }
         }
     }

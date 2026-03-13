@@ -326,16 +326,6 @@ export class BoneBoomerang extends BaseWeapon {
                 });
             }
         }
-
-        // System notifications
-        if (enemy.health <= 0) {
-            if (this.game.systems.flowState && this.game.systems.flowState.onEnemyKilled) {
-                this.game.systems.flowState.onEnemyKilled(enemy);
-            }
-            if (this.game.systems.achievement) {
-                this.game.systems.achievement.onEnemyKilled(enemy);
-            }
-        }
     }
 
     // --- Visual rendering ---

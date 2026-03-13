@@ -217,7 +217,7 @@ export class MicroChallengeSystem {
 
         // Audio
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
-            this.game.audioManager.playVampireSound('challengeComplete', 0.8);
+            this.game.audioManager.playVampireSound('challengeComplete', 0.4);
         }
 
         // Toast

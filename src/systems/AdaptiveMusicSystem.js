@@ -196,7 +196,7 @@ export class AdaptiveMusicSystem {
         const now = this.audioContext.currentTime;
 
         this.bassGain = this.audioContext.createGain();
-        this.bassGain.gain.value = 0.35;
+        this.bassGain.gain.value = 0.25;
         this.bassGain.connect(this.masterGain);
 
         // Primary bass: A1 (55Hz) sine
@@ -284,9 +284,9 @@ export class AdaptiveMusicSystem {
 
         const now = this.audioContext.currentTime;
 
-        // Staccato square wave beat
+        // Staccato triangle wave beat (softer than square)
         const osc = this.audioContext.createOscillator();
-        osc.type = 'square';
+        osc.type = 'triangle';
 
         // Pitch follows a simple pattern: root and fifth alternating
         const beatPitch = Math.random() > 0.5 ? 55 : 82.41;
@@ -308,7 +308,7 @@ export class AdaptiveMusicSystem {
         if (!this.pulseGain) return;
 
         // Fade pulse layer in/out based on intensity
-        const pulseVol = this.intensity > 0.15 ? (0.3 + this.intensity * 0.5) : 0;
+        const pulseVol = this.intensity > 0.15 ? (0.2 + this.intensity * 0.3) : 0;
         try {
             this.pulseGain.gain.setTargetAtTime(pulseVol, this.audioContext.currentTime, 0.3);
         } catch (e) { /* ignore */ }
@@ -405,9 +405,9 @@ export class AdaptiveMusicSystem {
         this.filterNode.Q.value = 2;
         this.filterNode.connect(this.filteredGain);
 
-        // Sawtooth oscillator through the filter (tension sound)
+        // Triangle oscillator through the filter (softer than sawtooth, still creates tension)
         this.filteredOsc = this.audioContext.createOscillator();
-        this.filteredOsc.type = 'sawtooth';
+        this.filteredOsc.type = 'triangle';
         this.filteredOsc.frequency.value = 110; // A2
         this.filteredOsc.connect(this.filterNode);
         this.filteredOsc.start(now);

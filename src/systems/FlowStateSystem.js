@@ -114,6 +114,7 @@ export class FlowStateSystem {
      * @param {Enemy} enemy - The killed enemy
      */
     onEnemyKilled(enemy) {
+        if (!enemy) return;
         this.windowKills++;
         this.totalKills++;
         

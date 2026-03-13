@@ -117,7 +117,7 @@ export class KillMilestoneSystem {
 
         // 5. Audio cue
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('achievementUnlock', 0.9);
+            this.game.audioManager.playVampireSound('achievementUnlock', 0.45);
         }
 
         // 6. Particle burst

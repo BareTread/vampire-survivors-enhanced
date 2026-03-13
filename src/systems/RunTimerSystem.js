@@ -68,7 +68,7 @@ export class RunTimerSystem {
 
         // Audio cue
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('demonRoar', 0.8);
+            this.game.audioManager.playVampireSound('demonRoar', 0.4);
         }
 
         // Floating text
@@ -105,7 +105,7 @@ export class RunTimerSystem {
         }
 
         if (this.game.audioManager) {
-            this.game.audioManager.playVampireSound('bossDefeat', 1.0);
+            this.game.audioManager.playVampireSound('bossDefeat', 0.6);
         }
 
         if (globalDamageNumberPool) {

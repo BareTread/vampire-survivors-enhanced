@@ -795,6 +795,13 @@ export class ParticleSystemCore {
 
     // Generic method for simple effects
     create(x, y, options = {}) {
+        // Backward compatibility: allow create({ x, y, ...options })
+        if (typeof x === 'object' && x !== null) {
+            const cfg = x;
+            const px = typeof cfg.x === 'number' ? cfg.x : 0;
+            const py = typeof cfg.y === 'number' ? cfg.y : 0;
+            return this.createEffectParticle(px, py, cfg);
+        }
         return this.createEffectParticle(x, y, options);
     }
     

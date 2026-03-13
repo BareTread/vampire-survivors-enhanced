@@ -48,7 +48,7 @@ export class TerrainSystem {
             attempts++;
 
             const x = bounds.left + margin + seededRandom() * (bounds.right - bounds.left - margin * 2);
-            const y = bounds.top + margin + seededRandom() * (bounds.right - bounds.left - margin * 2);
+            const y = bounds.top + margin + seededRandom() * (bounds.bottom - bounds.top - margin * 2);
 
             // Skip center spawn area
             if (x * x + y * y < centerClear * centerClear) continue;
@@ -341,7 +341,7 @@ export class TerrainSystem {
 
             // Add screen shake when hitting boundary
             if (hitBoundary && this.game.camera) {
-                this.game.camera.addShake(5, 0.2);
+                this.game.camera.shake(5, 0.2);
             }
 
             // Create particle effect when hitting boundary
@@ -364,7 +364,7 @@ export class TerrainSystem {
 
             // Strong camera shake for hard boundary hit
             if (this.game.camera) {
-                this.game.camera.addShake(12, 0.4);
+                this.game.camera.shake(12, 0.4);
             }
 
             // Create bigger particle effect for hard boundary hit

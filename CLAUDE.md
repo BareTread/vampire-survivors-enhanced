@@ -157,7 +157,8 @@ src/entities/
 
 1. Create weapon class extending `BaseWeapon` in `src/entities/weapons/`
 2. Register in `VampireSurvivorsGame.weaponClasses` Map
-3. Add to level-up options in experience system
+3. Add to level-up options in `availableWeapons` array in `generateLevelUpOptions()`
+4. **CRITICAL**: `BaseWeapon.getDistanceToPlayer()` returns **SQUARED** distance (for performance). If filtering by range, compare against `range * range`, NOT `range`. Using it for sort comparisons is fine (relative order preserved).
 
 ### New Enemy Types
 
@@ -172,6 +173,39 @@ src/entities/
 3. Call update/render methods in game loop
 
 ## Developer Log (most recent first)
+
+### 2026-03-13 (Agent #15 — Runtime Stabilization Pass)
+
+- **Input contract + listener cleanup**: `InputManager` click payloads are now consumed as normalized screen-space `{ x, y }` coordinates in `VampireSurvivorsGame.handleClick()`. Title/summary/level-up hover routing now listens through `InputManager` instead of a raw canvas mousemove path. `Player` now stores its input callbacks, unregisters them in `destroy()`, clears player-scoped managed timers, and `VampireSurvivorsGame.disposePlayer()` is called before new runs and on return-to-menu so old runs stop receiving input.
+- **Progression correctness fixes**: `GoldSystem.collectCoin()` no longer mutates persistent bank gold immediately; gold is banked once through `PersistenceSystem.recordRunEnd()`. `gameOver()` now persists `player.combo.maxCombo` instead of nonexistent `combo.best`. `Player.applyPersistentUpgrades()` now applies permanent max health and revives at run start, `gainExperienceEnhanced()` applies `xpGain`, `takeDamageEnhanced()` applies permanent armor, and fatal damage consumes a purchased revive before `gameOver()`.
+- **Jackpot XP fixed**: `RewardsSystem.rollForJackpot()` now calls `ExperienceSystem.addExperienceToPlayer()` instead of checking for a nonexistent `experience.addExperience()` API, so jackpot rewards grant real XP again.
+- **Pooling + kill accounting fixes**: `Projectile.destroy()` and `ExperienceGem.destroy()` now only mark entities inactive; their owning systems reclaim them during compaction/cleanup. `ProjectileSystem.updateProjectiles()` and `ExperienceSystem.updateGems()` now re-check `active` after per-entity update so destroyed objects are not retained for the rest of the frame. `Enemy.die()` now guards against duplicate side effects with `_deathProcessed`, and duplicate kill notifications were removed from `FireWand`, `LightningChain`, `GarlicAura`, and `BoneBoomerang` so achievements/flow-state hooks fire from one place only.
+- **Runtime query cleanup**: `EnemySystem.getNearbyEnemies()` and `ProjectileSystem.getProjectilesInArea()` now use live active-collection scans directly instead of routing gameplay queries through the dormant collision system.
+- **Tooling + tests**: `package.json` Jest scripts now run with Node ESM support (`NODE_OPTIONS=--experimental-vm-modules`) and the invalid `extensionsToTreatAsEsm` config was removed. Added regression coverage in `tests/runtime-regressions.test.js` and `tests/pooling-regressions.test.js`, updated `tests/projectile.test.js` for ESM + new pool ownership behavior, and extended `tests/setup.js` with stable `localStorage`/`fetch` mocks. Verified with `npm test -- --runInBand` and `node --check` on all touched runtime files.
+
+### 2026-02-25 (Agent #14 — Level-Up Fix + Health Bars + Polish)
+
+- **Level-Up Click Handling (CRITICAL FIX)**: `handleClick()` had early return during `levelUpActive`, assuming DOM events handled level-up selection — but `#level-up-ui` DOM element doesn't exist in `index.html`. Game was permanently trapped at level-up screen. **Fixed** with canvas-based click detection matching card layout geometry. Also added mousemove hover highlight (brighter background + gold border) with pointer cursor.
+- **Level-Up Hint Text**: Changed "press 1-N" to "click or press 1-N" so users know clicking works.
+- **Dead DOM Code Removed**: `showLevelUpUI()` no longer references nonexistent `#level-up-ui`. `hideLevelUpUI()` cleaned up. Entire `updateLevelUpOptionsUI()` method removed (built DOM buttons for nonexistent `#level-up-options` container).
+- **Enemy Health Bars Always Visible**: Changed from conditional (`health < maxHealth`) to always render. Full-health enemies show a subtle thin green bar (`rgba(0,255,0,0.25)`, 2px). Damaged enemies get full health bar with color coding as before.
+- **Double timeScale Fix**: `update(dt)` received `dt = deltaTime * timeScale` from gameLoop, then applied `scaledDt = dt * timeScale` again — systems got `deltaTime * timeScale²`. **Fixed** by removing the second multiplication; all systems now receive `dt` directly (already scaled once by gameLoop).
+- **Whip Targeting Range Fix (CRITICAL)**: Whip `targetingRange` was 80px — same as attack range. Every other weapon uses 200-300px. Whip barely ever fired because `shouldFire()` requires enemies within targeting range. **Fixed** to 200px. Also increased base range 80→100px and damage 16→22 to match rebalanced enemy HP.
+- **Enemy HP Rebalance**: All enemy types had inflated HP values (comments said "HARDER", "TANKIER", "DOUBLED"). Fast enemies had 20 HP vs Whip's 16 damage — couldn't one-shot. **Rebalanced**: basic 35→20, fast 20→12, tank 100→60, ranged 25→15, elite 150→100, berserker 120→80, summoner 90→60, juggernaut 300→200. Also rebalanced damage/speed/XP to match. Difficulty multiplier still scales HP over time.
+- **Headless Puppeteer Test Verified**: Standing still, whip fires at T+3s (200px targeting), combo reaches 17 by T+17s, player levels up at T+14s, level-up click handler works. Enemies die in one hit (22 dmg > 12 HP fast).
+- **All syntax checks pass** (`node --check` on all modified files).
+
+### 2026-02-25 (Agent #13 — Critical Bugfixes)
+
+- **NaN First-Frame Fix**: `VampireSurvivorsGame.start()` called `this.gameLoop()` without argument → `currentTime = undefined` → first 2 frames had NaN deltaTime → permanently corrupted `TitleScreenSystem.time` → `hsl(NaN,...)` = black screen. **Fixed** by using `requestAnimationFrame(this.gameLoop)`.
+- **Whip Hit Detection Fix**: `Whip.isEnemyInWhipArc()` compared `getDistanceToPlayer()` (squared distance) against `attack.range` (linear 80px). Whip only hit within ~9px — effectively never. **Fixed** to compare against `attack.range * attack.range`. **IMPORTANT**: `BaseWeapon.getDistanceToPlayer()` returns SQUARED distance. Any future weapon doing range filtering must square the range threshold.
+- **TerrainSystem Fixes**: Y-coord generation used `right - left` instead of `bottom - top`. Two calls to nonexistent `camera.addShake()` changed to `camera.shake()`.
+- **EnemySystem Spawn Nudge**: Obstacle avoidance nudge increased from 40px to 50px (max obstacle radius is 45px).
+- **Level-Up UI Safety**: Added null guards to `hideLevelUpUI()` and `updateLevelUpOptionsUI()` for DOM element access.
+- **Canvas Pause Overlay**: Added dark overlay + "PAUSED" text + "Press ESC to resume" hint when `gameState === 'paused'`.
+- **Canvas Level-Up Overlay**: Added full canvas-rendered level-up screen with semi-transparent backdrop, "LEVEL UP!" title, numbered option cards with rarity border colors, descriptions, and rarity tags.
+- **Magic Missile in Weapon Pool**: Added `magic_missile` to `availableWeapons` array in `generateLevelUpOptions()` — was missing, could never be offered.
+- **All syntax checks pass**. Method existence verified across all 15+ systems.
 
 ### 2026-02-25 (Agent #12)
 

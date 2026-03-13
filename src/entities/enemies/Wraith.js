@@ -62,6 +62,16 @@ export class Wraith extends Enemy {
         if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
             this.damage = Math.floor(this.damage * this.game.systems.flowState.adaptiveDamageMultiplier);
         }
+
+        // Damage cap safety net (mirrors Enemy.initializeType)
+        if (this.game && typeof this.game.gameTime === 'number') {
+            const gameTimeMin = this.game.gameTime / 60;
+            const playerMaxHP = this.game.player?.maxHealth || 100;
+            if (gameTimeMin < 10) {
+                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
+                this.damage = Math.min(this.damage, Math.floor(playerMaxHP * capPercent));
+            }
+        }
     }
 
     update(dt) {

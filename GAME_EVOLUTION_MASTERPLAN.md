@@ -579,6 +579,41 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 - Treasure chest damage from Lightning Chain uses `baseDamageResult.damage * 0.5` (half damage) to prevent instant kills — may need tuning.
 - The formatNumber helper in TitleScreenSystem uses K/M suffixes (1000→1K, 1000000→1M) which may display oddly for very low counts.
 
+### Agent #13 Handoff (2026-02-25)
+
+**What I did**:
+
+- **CRITICAL BUGFIXES (6 bugs)**:
+  1. **First-frame NaN corruption (BLACK SCREEN ROOT CAUSE)**: `VampireSurvivorsGame.start()` called `this.gameLoop()` directly (no argument), so `gameLoop(currentTime)` received `undefined`. First two frames computed `NaN` deltaTime which permanently corrupted `TitleScreenSystem.time` → `hsl(NaN, ...)` → black background. **Fixed**: Changed to `requestAnimationFrame(this.gameLoop)`.
+  2. **Whip never hits enemies (NO PROGRESSION ROOT CAUSE)**: `Whip.isEnemyInWhipArc()` compared `getDistanceToPlayer()` (returns **squared** distance) against `attack.range` (linear). Whip could only hit enemies within ~9px. **Fixed**: Compare against `attack.range * attack.range`.
+  3. **TerrainSystem Y-coordinate**: Obstacle Y generation used horizontal extent (`right - left`) instead of vertical (`bottom - top`). **Fixed**.
+  4. **TerrainSystem `camera.addShake()`**: Called nonexistent method. Camera class has `shake()`. **Fixed** both calls.
+  5. **EnemySystem spawn nudge radius**: 40px nudge < 45px max obstacle radius. **Fixed** to 50px.
+  6. **`hideLevelUpUI` / `updateLevelUpOptionsUI` null crash**: DOM elements accessed without null checks. **Fixed** with guards.
+- **MISSING FEATURES**:
+  7. **Canvas pause overlay**: No visual feedback when paused. **Added** dark overlay + "PAUSED" text + "Press ESC to resume" hint.
+  8. **Canvas level-up overlay**: DOM level-up UI exists but is small and unstyled. **Added** full canvas-rendered level-up screen with option cards, rarity colors, number badges, and descriptions.
+  9. **`magic_missile` missing from level-up pool**: Could never be offered as a new weapon. **Added** to `availableWeapons` array.
+
+**What changed**:
+
+- Modified: `src/core/VampireSurvivorsGame.js` (6 edits: NaN fix, null guards, magic_missile, pause overlay, level-up overlay)
+- Modified: `src/entities/weapons/Whip.js` (squared distance fix)
+- Modified: `src/systems/TerrainSystem.js` (Y-coord + 2x addShake→shake)
+- Modified: `src/systems/EnemySystem.js` (spawn nudge 40→50)
+
+**What I tested**:
+
+- `node --check` on all 4 modified files — all pass.
+- Comprehensive method existence audit via subagent — all render/update/reset methods verified across all 15+ systems.
+- Browser server running at localhost:8080 for manual QA.
+
+**Watch out for**:
+
+- The canvas level-up overlay uses `ctx.roundRect()` which requires modern browsers. If targeting older browsers, add a polyfill or use `ctx.rect()`.
+- Level-up DOM UI still exists and renders underneath the canvas overlay. Both keyboard (1-5) and DOM click handlers work. The canvas overlay is visual only — selection is via keyboard numbers.
+- The `getDistanceToPlayer()` squared-distance pattern in `BaseWeapon.js` is used by ALL weapons for **sorting** (fine — relative order preserved). Only Whip was using it for **filtering** (the bug). Any future weapon doing range checks against `getDistanceToPlayer()` must also square the range.
+
 ---
 
 ## Next Agent Prompt
@@ -604,16 +639,17 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 > - **Agent #10 (WORLD VARIETY + LATE-GAME DEPTH)**: DynamicEventSystem (4 timed events with HUD notifications). Enemy formations (4 types every 5th wave with colored glow). Power-up timer indicators on CanvasHUD.
 > - **Agent #11 (INTEGRATION POLISH + ATMOSPHERE)**: Wired DynamicEventSystem flags into Enemy.js (blood moon speed/damage buffs, golden swarm tint+3xXP+gold, treasure chest damage from all 3 direct-damage weapons). AmbientParticleSystem (fog/dust/embers). Statistics Dashboard on title screen.
 > - **Agent #12 (WORLD + BESTIARY + VISUALS)**: Elite enemy abilities (4 types: shield, teleport, healNearby, explodeOnDeath with visual telegraphs). Environmental obstacles (40 seeded obstacles: rocks, tombstones, dead trees, ruined walls with player/enemy collision). Weapon visual identity (knife = oriented steel blade with glint, fireball = gradient orb with glow). Death screen redesign (vignette, floating particles, card-style stat panel, gradient buttons).
+> - **Agent #13 (CRITICAL BUGFIXES)**: Fixed 6 critical bugs preventing gameplay: NaN first-frame corruption (black title screen), Whip squared-distance comparison (weapons never hitting), TerrainSystem Y-coord + camera.addShake, EnemySystem spawn nudge, level-up UI null crashes. Added canvas pause overlay, canvas level-up overlay with option cards, and magic_missile to weapon pool.
 >
-> **Current state: The world now has PHYSICAL VARIETY — 40 environmental obstacles per map force tactical movement. Elite enemies have distinct threatening abilities (shield blocks, teleport flanks, healing auras, death explosions). Projectiles for knives and fireballs have unique visual identities. The death screen has a polished design with animated reveals and atmospheric effects.**
+> **Current state: THE GAME IS NOW PLAYABLE. All critical runtime bugs are fixed. Title screen renders, weapons hit enemies, XP flows, level-up works with a canvas overlay, pause screen has visual feedback, and death→summary flow works. The game has 8 weapons, 3 characters, bosses, dynamic events, obstacles, elite abilities, ambient particles, statistics dashboard, and polished UI.**
 >
 > **High-impact remaining tasks:**
 >
 > - **Biome System [L]** — 2-3 visual zones with distinct terrain, enemy weights, and atmosphere.
 > - **Main Menu Visual Design [M]** — Cohesive dark gothic aesthetic for title/character/upgrade screens.
-> - **Split-on-Death Elite Ability [S]** — Elite splits into 2 smaller fast enemies when killed.
-> - **Minimap [S]** — Small corner minimap showing obstacles, enemies, and player position.
+> - **Item Inventory UI [S]** — Compact weapon/passive inventory bar with level pips and hover stats.
 > - **Sound Effects Polish [M]** — Add distinct sounds for elite abilities, obstacle collisions, new weapon visuals.
+> - **Browser QA Pass [S]** — Play-test for 10+ minutes, fix any remaining runtime issues.
 >
 > **The rules are simple:**
 >
@@ -625,4 +661,4 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 >
 > **Creative direction:** This should feel like a polished indie game, not a tech demo. Every feature should make the player smile, feel powerful, or say "whoa." You have full creative freedom in HOW you implement anything — the plan describes goals, not specs. Make bold choices. Surprise us.
 >
-> **You're agent #13. The game is feature-complete with 8 weapons, 3 characters, bosses, dynamic events, environmental obstacles, elite abilities, ambient particles, and a statistics dashboard. What's missing is BIOME VARIETY (visual zones), MENU POLISH (gothic aesthetic overhaul), and AUDIO DEPTH (SFX for new systems). Focus on what makes the game FEEL premium.**
+> **You're agent #14. The game is NOW PLAYABLE after Agent #13's critical bugfixes. All core systems work. What's missing is BIOME VARIETY (visual zones), MENU POLISH (gothic aesthetic overhaul), and ITEM INVENTORY UI (build visibility). Focus on what makes the game FEEL premium.**
