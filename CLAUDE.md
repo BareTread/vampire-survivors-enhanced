@@ -176,6 +176,14 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-03-14 (Agent #17 - Audio Pleasantness Redesign)
+
+- **Shared mix + ambient bed**: `src/core/AudioManager.js` now routes synth audio through internal `ambient`, `music`, `combat`, `reward`, and `ui` buses with per-bus EQ shaping. Added persistent loop controllers for `windHowl`, `lowDrone`, `ritualPulse`, `gothicOrgan`, and refresh-to-hold `heartbeat`, so runs now start with a soft layered bed instead of incidental one-shots.
+- **Spam smoothing + cue cleanup**: `experienceGain` and `enemyDeath` now aggregate into short composite phrases, family-wide concurrency caps prevent dense combat stacks from turning into crackle walls, and load softening lowers brightness before level. Added defined defaults for previously missing `bossSpawn`, `bossWarning`, and `weaponFire` cues.
+- **Weapon/reward voicing pass**: The audio palette shifted toward warmer glass, reed, bell, drum, cloth, ceramic, and bone textures. Magic Missile, Whip, Lightning, Fire Wand, Bone Boomerang, Garlic Aura, boss, UI, and progression cues now use dedicated softer synth recipes instead of sharing generic bright combat tones.
+- **Adaptive music retune**: `src/systems/AdaptiveMusicSystem.js` now routes into the shared music bus, swaps the C-minor palette for D harmonic minor / Phrygian dominant material, uses a warmer D/A drone, denser hand-drum pulse patterns, softer modal ornaments, and a gentler filtered layer so intensity grows through rhythm and density instead of shrill top-end.
+- **Tests + verification**: Added `tests/audio-manager.test.js` covering aggregation and family concurrency caps. Verified with `node --check src/core/AudioManager.js`, `node --check src/systems/AdaptiveMusicSystem.js`, `node --check tests/audio-manager.test.js`, and `npm test -- --runInBand tests/audio-manager.test.js`. Browser ear-tuning is still recommended as a final polish pass.
+
 ### 2026-03-14 (Agent #16 - Build Depth + Inventory Overlay)
 
 - **Progression bug fix + leak removal**: `VampireSurvivorsGame.selectLevelUpOption()` now applies cooldown upgrades as a reduction (`*= 1 - 0.08 * rarityMultiplier`) instead of accidentally increasing cooldown. `generateLevelUpOptions()` no longer constructs throwaway weapon instances to read names/descriptions; it now uses a static `WEAPON_METADATA` map for all 8 weapons.

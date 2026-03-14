@@ -22,11 +22,12 @@ export class AdaptiveMusicSystem {
 
         // Master output
         this.masterGain = null;
+        this.masterTone = null;
         this.masterVolume = 0.25; // Keep music under SFX
 
         // State
         this.playing = false;
-        this.intensity = 0;         // 0-1, smoothed
+        this.intensity = 0; // 0-1, smoothed
         this.targetIntensity = 0;
         this.smoothingFactor = 0.02; // Slow crossfade
 
@@ -54,22 +55,25 @@ export class AdaptiveMusicSystem {
         this.filteredGain = null;
         this.filteredOsc = null;
 
-        // C-minor scale frequencies for melodies (C3 to C5)
-        this.cMinorScale = [
-            130.81, 146.83, 155.56, 174.61, 196.00, 207.65, 233.08, // C3-Bb3
-            261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16, // C4-Bb4
-            523.25  // C5
+        this.dHarmonicMinor = [
+            146.83, 164.81, 174.61, 196.0, 220.0, 233.08, 277.18, 293.66, 329.63, 349.23, 392.0, 440.0, 466.16, 554.37
         ];
-
-        // Arpeggio patterns (scale degree indices)
-        this.arpeggioPatterns = [
-            [0, 2, 4, 7],      // Cm: C Eb G C
-            [0, 3, 5, 7],      // Cm7: C Eb G Bb → C
-            [5, 7, 9, 12],     // Ab: Ab C Eb Ab
-            [3, 5, 7, 10],     // Fm: F Ab C F
-            [7, 9, 11, 14],    // C octave higher
-            [2, 4, 7, 9],      // Eb→G→C→Eb
+        this.dPhrygianDominant = [
+            146.83, 155.56, 185.0, 196.0, 220.0, 233.08, 261.63, 293.66, 311.13, 369.99, 392.0, 440.0
         ];
+        this.melodicPatterns = [
+            [0, 2, 4, 6],
+            [0, 1, 4, 6],
+            [4, 3, 1, 0],
+            [0, 4, 3, 1],
+            [7, 6, 4, 2]
+        ];
+        this.pulsePatterns = {
+            low: [1, 0, 0, 0, 1, 0, 0, 0],
+            medium: [1, 0, 1, 0, 1, 0, 0, 1],
+            high: [1, 1, 0, 1, 1, 0, 1, 1]
+        };
+        this.pulseStep = 0;
 
         // Timing
         this.updateTimer = 0;
@@ -91,7 +95,7 @@ export class AdaptiveMusicSystem {
 
         // Resume context if suspended (browser autoplay policy)
         if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume().catch(() => { });
+            this.audioContext.resume().catch(() => {});
         }
 
         this.playing = true;
@@ -122,7 +126,9 @@ export class AdaptiveMusicSystem {
             try {
                 this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
                 this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1);
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+                /* ignore */
+            }
 
             // Schedule cleanup
             setTimeout(() => this._cleanup(), 1200);
@@ -187,7 +193,14 @@ export class AdaptiveMusicSystem {
     _createMasterChain() {
         this.masterGain = this.audioContext.createGain();
         this.masterGain.gain.value = 0.0001;
-        this.masterGain.connect(this.audioContext.destination);
+
+        this.masterTone = this.audioContext.createBiquadFilter();
+        this.masterTone.type = 'lowpass';
+        this.masterTone.frequency.value = 4200;
+        this.masterTone.Q.value = 0.2;
+
+        this.masterGain.connect(this.masterTone);
+        this.masterTone.connect(this.audioManager.getBusInput('music'));
     }
 
     // ── PRIVATE — Layer 1: Bass Drone ──────────────────────────
@@ -196,32 +209,32 @@ export class AdaptiveMusicSystem {
         const now = this.audioContext.currentTime;
 
         this.bassGain = this.audioContext.createGain();
-        this.bassGain.gain.value = 0.25;
+        this.bassGain.gain.value = 0.18;
         this.bassGain.connect(this.masterGain);
 
-        // Primary bass: A1 (55Hz) sine
+        // Root drone: D2
         this.bassOsc1 = this.audioContext.createOscillator();
         this.bassOsc1.type = 'sine';
-        this.bassOsc1.frequency.value = 55;
+        this.bassOsc1.frequency.value = 73.42;
         this.bassOsc1.connect(this.bassGain);
         this.bassOsc1.start(now);
 
-        // Secondary bass: E2 (82Hz) triangle, softer — power fifth
+        // Fifth drone: A2
         this.bassOsc2 = this.audioContext.createOscillator();
         this.bassOsc2.type = 'triangle';
-        this.bassOsc2.frequency.value = 82.41;
+        this.bassOsc2.frequency.value = 110;
         const bassOsc2Gain = this.audioContext.createGain();
-        bassOsc2Gain.gain.value = 0.15;
+        bassOsc2Gain.gain.value = 0.12;
         this.bassOsc2.connect(bassOsc2Gain);
         bassOsc2Gain.connect(this.bassGain);
         this.bassOsc2.start(now);
 
-        // LFO for slow frequency modulation (eerie drift)
+        // Slow drift for a less mechanical bed
         this.bassLFO = this.audioContext.createOscillator();
         this.bassLFO.type = 'sine';
-        this.bassLFO.frequency.value = 0.15; // Very slow
+        this.bassLFO.frequency.value = 0.09;
         this.bassLFOGain = this.audioContext.createGain();
-        this.bassLFOGain.gain.value = 3; // ±3Hz modulation
+        this.bassLFOGain.gain.value = 2.4;
         this.bassLFO.connect(this.bassLFOGain);
         this.bassLFOGain.connect(this.bassOsc1.frequency);
         this.bassLFO.start(now);
@@ -230,26 +243,41 @@ export class AdaptiveMusicSystem {
     _updateBassDrone() {
         if (!this.bassGain) return;
 
-        // Bass gets slightly louder and the LFO faster at high intensity
-        const bassVol = 0.25 + this.intensity * 0.2;
+        const bassVol = 0.16 + this.intensity * 0.12;
         try {
             this.bassGain.gain.setTargetAtTime(bassVol, this.audioContext.currentTime, 0.5);
-        } catch (e) { /* ignore */ }
-
-        // LFO speed increases with intensity (eerie → unsettling)
-        if (this.bassLFO) {
-            const lfoSpeed = 0.1 + this.intensity * 0.4;
-            try {
-                this.bassLFO.frequency.setTargetAtTime(lfoSpeed, this.audioContext.currentTime, 0.3);
-            } catch (e) { /* ignore */ }
+        } catch (e) {
+            /* ignore */
         }
 
-        // Modulation depth increases
+        if (this.bassLFO) {
+            const lfoSpeed = 0.08 + this.intensity * 0.18;
+            try {
+                this.bassLFO.frequency.setTargetAtTime(lfoSpeed, this.audioContext.currentTime, 0.3);
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
         if (this.bassLFOGain) {
-            const modDepth = 2 + this.intensity * 8;
+            const modDepth = 2 + this.intensity * 3;
             try {
                 this.bassLFOGain.gain.setTargetAtTime(modDepth, this.audioContext.currentTime, 0.3);
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        if (this.masterTone) {
+            try {
+                this.masterTone.frequency.setTargetAtTime(
+                    3600 + this.intensity * 900,
+                    this.audioContext.currentTime,
+                    0.6
+                );
+            } catch (e) {
+                /* ignore */
+            }
         }
     }
 
@@ -267,8 +295,7 @@ export class AdaptiveMusicSystem {
     _schedulePulse() {
         if (!this.pulseActive || !this.playing) return;
 
-        // BPM scales: 70 at low intensity → 140 at high
-        this.pulseBPM = 70 + this.intensity * 70;
+        this.pulseBPM = 62 + this.intensity * 54;
         const intervalMs = (60 / this.pulseBPM) * 1000;
 
         this.pulseInterval = setTimeout(() => {
@@ -284,34 +311,66 @@ export class AdaptiveMusicSystem {
 
         const now = this.audioContext.currentTime;
 
-        // Staccato triangle wave beat (softer than square)
+        const pattern =
+            this.intensity > 0.68
+                ? this.pulsePatterns.high
+                : this.intensity > 0.35
+                  ? this.pulsePatterns.medium
+                  : this.pulsePatterns.low;
+        const accent = pattern[this.pulseStep % pattern.length];
+        this.pulseStep++;
+        if (!accent) return;
+
         const osc = this.audioContext.createOscillator();
         osc.type = 'triangle';
-
-        // Pitch follows a simple pattern: root and fifth alternating
-        const beatPitch = Math.random() > 0.5 ? 55 : 82.41;
-        osc.frequency.value = beatPitch;
+        const pulsePitch = this.pulseStep % 4 === 0 ? 110 : this.pulseStep % 2 === 0 ? 98 : 73.42;
+        osc.frequency.value = pulsePitch;
 
         const env = this.audioContext.createGain();
-        const vol = Math.min(0.12, this.intensity * 0.15);
+        const vol = Math.min(0.09, 0.035 + this.intensity * 0.06);
         env.gain.setValueAtTime(0.0001, now);
-        env.gain.exponentialRampToValueAtTime(vol, now + 0.01);
-        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        env.gain.exponentialRampToValueAtTime(vol, now + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
 
-        osc.connect(env);
+        const tone = this.audioContext.createBiquadFilter();
+        tone.type = 'lowpass';
+        tone.frequency.value = 900 + this.intensity * 700;
+
+        osc.connect(tone);
+        tone.connect(env);
         env.connect(this.pulseGain);
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.14);
+
+        if (this.intensity > 0.45) {
+            const noise = this.audioContext.createBufferSource();
+            noise.buffer = this.audioManager.getNoiseBuffer();
+            const bp = this.audioContext.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.value = 700;
+            bp.Q.value = 0.5;
+            const noiseEnv = this.audioContext.createGain();
+            noiseEnv.gain.setValueAtTime(0.0001, now);
+            noiseEnv.gain.exponentialRampToValueAtTime(0.018 + this.intensity * 0.02, now + 0.006);
+            noiseEnv.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+
+            noise.connect(bp);
+            bp.connect(noiseEnv);
+            noiseEnv.connect(this.pulseGain);
+            noise.start(now);
+            noise.stop(now + 0.1);
+        }
     }
 
     _updateRhythmicPulse() {
         if (!this.pulseGain) return;
 
-        // Fade pulse layer in/out based on intensity
-        const pulseVol = this.intensity > 0.15 ? (0.2 + this.intensity * 0.3) : 0;
+        const pulseVol = this.intensity > 0.15 ? 0.08 + this.intensity * 0.16 : 0;
         try {
             this.pulseGain.gain.setTargetAtTime(pulseVol, this.audioContext.currentTime, 0.3);
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            /* ignore */
+        }
     }
 
     // ── PRIVATE — Layer 3: Melodic Fragments ───────────────────
@@ -321,10 +380,9 @@ export class AdaptiveMusicSystem {
             this.melodicCooldown -= dt;
         }
 
-        // Auto-trigger melodic fragments at high intensity
-        if (this.intensity > 0.6 && this.melodicCooldown <= 0 && Math.random() < 0.03) {
+        if (this.intensity > 0.52 && this.melodicCooldown <= 0 && Math.random() < 0.035) {
             this._playArpeggio();
-            this.melodicCooldown = 4.0 + Math.random() * 3;
+            this.melodicCooldown = 3.2 + Math.random() * 2.4;
         }
     }
 
@@ -332,46 +390,50 @@ export class AdaptiveMusicSystem {
         if (!this.audioContext || !this.masterGain) return;
 
         const now = this.audioContext.currentTime;
-        const pattern = this.arpeggioPatterns[Math.floor(Math.random() * this.arpeggioPatterns.length)];
+        const scale = this.intensity > 0.58 && Math.random() < 0.45 ? this.dPhrygianDominant : this.dHarmonicMinor;
+        const pattern = this.melodicPatterns[Math.floor(Math.random() * this.melodicPatterns.length)];
+        const rootDrift = 0.992 + Math.random() * 0.024;
 
-        // Create a melodic gain node for this fragment
         const fragGain = this.audioContext.createGain();
-        const vol = 0.08 + this.intensity * 0.06;
+        const vol = 0.05 + this.intensity * 0.045;
         fragGain.gain.value = vol;
         fragGain.connect(this.masterGain);
 
-        // Play arpeggio notes with stagger
-        const noteSpacing = 0.12 - this.intensity * 0.04; // Faster at high intensity
-        const noteDuration = 0.3 + (1 - this.intensity) * 0.2;
+        const noteSpacing = 0.17 - this.intensity * 0.05;
+        const noteDuration = 0.24 + (1 - this.intensity) * 0.16;
 
         pattern.forEach((degreeIdx, i) => {
-            const freq = this.cMinorScale[Math.min(degreeIdx, this.cMinorScale.length - 1)];
+            const freq = scale[Math.min(degreeIdx, scale.length - 1)] * rootDrift;
             const noteTime = now + i * noteSpacing;
 
-            // Sine tone
             const osc = this.audioContext.createOscillator();
-            osc.type = 'sine';
+            osc.type = i % 2 === 0 ? 'sine' : 'triangle';
             osc.frequency.value = freq;
+            osc.detune.value = (Math.random() - 0.5) * 8;
 
-            // Second oscillator: triangle an octave up (shimmer)
             const osc2 = this.audioContext.createOscillator();
             osc2.type = 'triangle';
-            osc2.frequency.value = freq * 2;
+            osc2.frequency.value = freq * (Math.random() < 0.5 ? 1.5 : 2);
 
             const noteGain = this.audioContext.createGain();
-            const noteVol = 0.1 * (1 - i * 0.15); // Slight decay per note
+            const noteVol = (0.065 + this.intensity * 0.025) * (1 - i * 0.12);
             noteGain.gain.setValueAtTime(0.0001, noteTime);
-            noteGain.gain.exponentialRampToValueAtTime(Math.max(0.001, noteVol), noteTime + 0.02);
+            noteGain.gain.exponentialRampToValueAtTime(Math.max(0.001, noteVol), noteTime + 0.015);
             noteGain.gain.setValueAtTime(noteVol * 0.7, noteTime + noteDuration * 0.5);
             noteGain.gain.exponentialRampToValueAtTime(0.0001, noteTime + noteDuration);
 
             const shimmerGain = this.audioContext.createGain();
-            shimmerGain.gain.value = 0.03;
+            shimmerGain.gain.value = 0.018 + this.intensity * 0.01;
+
+            const noteFilter = this.audioContext.createBiquadFilter();
+            noteFilter.type = 'lowpass';
+            noteFilter.frequency.value = 1800 + this.intensity * 900;
 
             osc.connect(noteGain);
             osc2.connect(shimmerGain);
             shimmerGain.connect(noteGain);
-            noteGain.connect(fragGain);
+            noteGain.connect(noteFilter);
+            noteFilter.connect(fragGain);
 
             osc.start(noteTime);
             osc.stop(noteTime + noteDuration + 0.01);
@@ -379,13 +441,17 @@ export class AdaptiveMusicSystem {
             osc2.stop(noteTime + noteDuration + 0.01);
         });
 
-        // Fade out fragment gain after full arpeggio
         const totalDur = pattern.length * noteSpacing + noteDuration;
-        setTimeout(() => {
-            try {
-                fragGain.disconnect();
-            } catch (e) { /* ignore */ }
-        }, (totalDur + 0.5) * 1000);
+        setTimeout(
+            () => {
+                try {
+                    fragGain.disconnect();
+                } catch (e) {
+                    /* ignore */
+                }
+            },
+            (totalDur + 0.5) * 1000
+        );
     }
 
     // ── PRIVATE — Layer 4: Intensity Filter ────────────────────
@@ -393,22 +459,19 @@ export class AdaptiveMusicSystem {
     _startIntensityFilter() {
         const now = this.audioContext.currentTime;
 
-        // Create a broadband noise/tone source that gets filtered
         this.filteredGain = this.audioContext.createGain();
         this.filteredGain.gain.value = 0;
         this.filteredGain.connect(this.masterGain);
 
-        // High-pass filter — starts closed (high cutoff), opens up
         this.filterNode = this.audioContext.createBiquadFilter();
-        this.filterNode.type = 'highpass';
-        this.filterNode.frequency.value = 4000; // Start closed
-        this.filterNode.Q.value = 2;
+        this.filterNode.type = 'bandpass';
+        this.filterNode.frequency.value = 520;
+        this.filterNode.Q.value = 0.8;
         this.filterNode.connect(this.filteredGain);
 
-        // Triangle oscillator through the filter (softer than sawtooth, still creates tension)
         this.filteredOsc = this.audioContext.createOscillator();
         this.filteredOsc.type = 'triangle';
-        this.filteredOsc.frequency.value = 110; // A2
+        this.filteredOsc.frequency.value = 220;
         this.filteredOsc.connect(this.filterNode);
         this.filteredOsc.start(now);
     }
@@ -416,20 +479,15 @@ export class AdaptiveMusicSystem {
     _updateIntensityFilter() {
         if (!this.filterNode || !this.filteredGain) return;
 
-        // Filter opens (lower cutoff) as intensity rises
-        // At intensity 0: cutoff 4000Hz (barely audible), volume 0
-        // At intensity 1: cutoff 200Hz (full roar), volume 0.2
-        const cutoff = 4000 - this.intensity * 3800;
-        const filterVol = this.intensity > 0.3 ? (this.intensity - 0.3) * 0.3 : 0;
+        const cutoff = 420 + this.intensity * 760;
+        const filterVol = this.intensity > 0.2 ? (this.intensity - 0.2) * 0.12 : 0;
 
         try {
-            this.filterNode.frequency.setTargetAtTime(
-                Math.max(50, cutoff),
-                this.audioContext.currentTime,
-                0.5
-            );
+            this.filterNode.frequency.setTargetAtTime(cutoff, this.audioContext.currentTime, 0.5);
             this.filteredGain.gain.setTargetAtTime(filterVol, this.audioContext.currentTime, 0.3);
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            /* ignore */
+        }
     }
 
     // ── PRIVATE — Intensity Calculation ────────────────────────
@@ -467,31 +525,48 @@ export class AdaptiveMusicSystem {
     // ── PRIVATE — Cleanup ──────────────────────────────────────
 
     _cleanup() {
-        const nodes = [
-            this.bassOsc1, this.bassOsc2, this.bassLFO,
-            this.filteredOsc
-        ];
+        const nodes = [this.bassOsc1, this.bassOsc2, this.bassLFO, this.filteredOsc];
 
         for (const node of nodes) {
             if (node) {
-                try { node.stop(); } catch (e) { /* already stopped */ }
-                try { node.disconnect(); } catch (e) { /* ignore */ }
+                try {
+                    node.stop();
+                } catch (e) {
+                    /* already stopped */
+                }
+                try {
+                    node.disconnect();
+                } catch (e) {
+                    /* ignore */
+                }
             }
         }
 
         const gains = [
-            this.bassGain, this.bassLFOGain, this.pulseGain,
-            this.filteredGain, this.masterGain
+            this.bassGain,
+            this.bassLFOGain,
+            this.pulseGain,
+            this.filteredGain,
+            this.masterGain,
+            this.masterTone
         ];
 
         for (const gain of gains) {
             if (gain) {
-                try { gain.disconnect(); } catch (e) { /* ignore */ }
+                try {
+                    gain.disconnect();
+                } catch (e) {
+                    /* ignore */
+                }
             }
         }
 
         if (this.filterNode) {
-            try { this.filterNode.disconnect(); } catch (e) { /* ignore */ }
+            try {
+                this.filterNode.disconnect();
+            } catch (e) {
+                /* ignore */
+            }
         }
 
         if (this.pulseInterval) {
@@ -510,7 +585,9 @@ export class AdaptiveMusicSystem {
         this.filteredGain = null;
         this.filterNode = null;
         this.masterGain = null;
+        this.masterTone = null;
         this.pulseActive = false;
+        this.pulseStep = 0;
     }
 
     // ── Debug ──────────────────────────────────────────────────
