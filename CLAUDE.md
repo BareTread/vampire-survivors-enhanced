@@ -72,6 +72,7 @@ src/systems/
 ├── TitleScreenSystem.js     # Canvas-rendered title screen + upgrade shop + character select (menu/characters/upgrades states)
 ├── RunSummarySystem.js      # Canvas-rendered post-death stats overlay with character info (summary state)
 ├── CanvasHUD.js             # Canvas-rendered HUD replacing DOM (XP bar, health bar, level, kills, weapon/passive inventory, synergies, power-up timers)
+├── InventoryOverlaySystem.js # Full-screen Tab build overlay (weapons, passives, synergies, evolution progress)
 ├── DynamicEventSystem.js    # Timed narrative events (Treasure chest, Golden Swarm, Blood Moon, Calm Eye)
 └── AmbientParticleSystem.js # Persistent atmospheric particles (fog wisps, dust motes, floating embers)
 ```
@@ -141,7 +142,8 @@ src/entities/
 - **WASD/Arrow Keys**: Movement
 - **Mouse**: Look/aim direction
 - **Auto-Attack**: Weapons fire automatically
-- **ESC**: Pause/Resume
+- **ESC**: Pause/Resume (also closes build inventory overlay)
+- **TAB**: Open/close build inventory overlay
 - **1-5**: Select level-up options
 
 ### Debug Features
@@ -173,6 +175,14 @@ src/entities/
 3. Call update/render methods in game loop
 
 ## Developer Log (most recent first)
+
+### 2026-03-14 (Agent #16 - Build Depth + Inventory Overlay)
+
+- **Progression bug fix + leak removal**: `VampireSurvivorsGame.selectLevelUpOption()` now applies cooldown upgrades as a reduction (`*= 1 - 0.08 * rarityMultiplier`) instead of accidentally increasing cooldown. `generateLevelUpOptions()` no longer constructs throwaway weapon instances to read names/descriptions; it now uses a static `WEAPON_METADATA` map for all 8 weapons.
+- **Character roster expanded**: `src/data/characters.js` now includes 4 additional unlockable characters - Mortimer (Fire Wand), Sera (Garlic Aura), Dante (Lightning Chain), and Luna (Holy Bible) - bringing the roster to 7 total. `PersistenceSystem.checkCharacterUnlocks()` now parses simple `field >= value` unlock conditions instead of hardcoding individual characters.
+- **Build visibility UI**: Added `src/systems/InventoryOverlaySystem.js`, a full-screen canvas overlay toggled with `Tab` during gameplay. It pauses action via `timeScale = 0`, renders equipped weapons with level/max/evolved state, passive items, active synergies, and weapon evolution recipe progress, and closes via `Tab` or `Escape`.
+- **Input + lifecycle wiring**: `InputManager` now treats `Tab` as a valid key, `VampireSurvivorsGame.handleKeyDown()` routes `Tab` to the inventory overlay, `Escape` closes it, `startGame()` resets it, and the overlay renders above the gameplay HUD.
+- **Verification**: Re-ran `npm test -- --runInBand` successfully (23 tests / 3 suites passing). Prior implementation session also reported `node --check` passing for all touched runtime files and a browser smoke test with the game loading correctly.
 
 ### 2026-03-13 (Agent #15 — Runtime Stabilization Pass)
 

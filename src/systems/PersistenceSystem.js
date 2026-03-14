@@ -306,15 +306,14 @@ export class PersistenceSystem {
             if (this.data.characterUnlocks[char.id]) continue;
             if (!char.unlockCondition) continue;
 
-            let unlocked = false;
-            if (char.unlockCondition === 'maxLevel >= 15') {
-                unlocked = r.maxLevel >= 15;
-            } else if (char.unlockCondition === 'highestKillCount >= 500') {
-                unlocked = r.highestKillCount >= 500;
-            }
-
-            if (unlocked) {
-                this.data.characterUnlocks[char.id] = true;
+            // Parse condition string: "field >= value"
+            const match = char.unlockCondition.match(/^(\w+)\s*>=\s*(\d+)$/);
+            if (match) {
+                const field = match[1];
+                const threshold = parseInt(match[2], 10);
+                if (typeof r[field] === 'number' && r[field] >= threshold) {
+                    this.data.characterUnlocks[char.id] = true;
+                }
             }
         }
     }

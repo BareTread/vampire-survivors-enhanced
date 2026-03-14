@@ -48,6 +48,19 @@ import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
 import { SettingsMenu } from '../ui/SettingsMenu.js';
 import { HelpOverlay } from '../ui/HelpOverlay.js';
+import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
+
+// Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
+const WEAPON_METADATA = {
+    magic_missile: { name: 'Magic Missile', description: 'Automatically fires homing projectiles at nearby enemies' },
+    whip: { name: 'Whip', description: 'Strikes in an arc, hitting multiple enemies' },
+    throwing_knife: { name: 'Throwing Knife', description: 'Fast projectiles that pierce through enemies' },
+    lightning_chain: { name: 'Lightning Chain', description: 'Strikes the nearest enemy with lightning that chains to nearby foes' },
+    garlic_aura: { name: 'Garlic Aura', description: 'Damages nearby enemies with a pulsing aura of garlic essence' },
+    holy_bible: { name: 'Holy Bible', description: 'Orbiting crosses that circle the player, damaging enemies on contact' },
+    fire_wand: { name: 'Fire Wand', description: 'Launches fireballs that explode on impact, leaving burning ground' },
+    bone_boomerang: { name: 'Bone Boomerang', description: 'Thrown bone that returns to the player, hitting enemies both ways' }
+};
 
 export class VampireSurvivorsGame {
     constructor(canvas, config) {
@@ -107,7 +120,8 @@ export class VampireSurvivorsGame {
             ambientParticles: new AmbientParticleSystem(this),
             titleScreen: new TitleScreenSystem(this),
             runSummary: new RunSummarySystem(this),
-            canvasHUD: new CanvasHUD(this)
+            canvasHUD: new CanvasHUD(this),
+            inventory: new InventoryOverlaySystem(this)
         };
 
         // Debug systems
@@ -541,6 +555,10 @@ export class VampireSurvivorsGame {
                 } else if (this.gameState === 'paused') {
                     this.resumeGame();
                 }
+                // Also close inventory if open
+                if (this.systems.inventory?.visible) {
+                    this.systems.inventory.hide();
+                }
                 break;
             case 'f1':
                 // Toggle settings menu
@@ -581,6 +599,12 @@ export class VampireSurvivorsGame {
             case 'h':
                 // Toggle help overlay
                 this.helpOverlay.toggle();
+                break;
+            case 'tab':
+                // Toggle build inventory overlay
+                if (this.gameState === 'playing' || this.systems.inventory?.visible) {
+                    this.systems.inventory.toggle();
+                }
                 break;
             case 'f4':
             case 'g':
@@ -870,6 +894,7 @@ export class VampireSurvivorsGame {
         this.systems.gold.reset();
         this.systems.weaponEvolution.reset();
         this.systems.synergy.reset();
+        this.systems.inventory.reset();
         this.systems.boss.reset();
         this.systems.dynamicEvents.reset();
         this.systems.ambientParticles.reset();
@@ -1046,6 +1071,7 @@ export class VampireSurvivorsGame {
         }
 
         // New weapons (if player has weapon slots)
+        // Uses static metadata to avoid constructing throwaway weapon instances
         if (this.player.weapons.size < this.player.maxWeapons) {
             const availableWeapons = [
                 'whip',
@@ -1059,14 +1085,13 @@ export class VampireSurvivorsGame {
             ];
             for (const weaponType of availableWeapons) {
                 if (!Array.from(this.player.weapons.values()).some((w) => w.id === weaponType)) {
-                    const WeaponClass = this.weaponClasses.get(weaponType);
-                    if (WeaponClass) {
-                        const tempWeapon = new WeaponClass(this, this.player);
+                    const meta = WEAPON_METADATA[weaponType];
+                    if (meta && this.weaponClasses.has(weaponType)) {
                         options.push({
                             type: 'new_weapon',
                             weaponType: weaponType,
-                            name: tempWeapon.name,
-                            description: tempWeapon.description
+                            name: meta.name,
+                            description: meta.description
                         });
                     }
                 }
@@ -1195,7 +1220,7 @@ export class VampireSurvivorsGame {
                 this.player.stats.area *= 1 + 0.15 * rarityMultiplier;
                 break;
             case 'cooldown':
-                this.player.stats.cooldown *= 1 + 0.1 * rarityMultiplier;
+                this.player.stats.cooldown *= 1 - 0.08 * rarityMultiplier;
                 break;
         }
 
@@ -1789,6 +1814,11 @@ export class VampireSurvivorsGame {
         this.systems.dynamicEvents.render(this.ctx);
         this.systems.canvasHUD.render(this.ctx);
         this.renderUIOverlays();
+
+        // Build inventory overlay (renders on top of everything)
+        if (this.systems.inventory) {
+            this.systems.inventory.render(this.ctx);
+        }
 
         // Pause overlay
         if (this.gameState === 'paused') {
