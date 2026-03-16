@@ -7,17 +7,17 @@ export class GarlicAura extends BaseWeapon {
             name: 'Garlic Aura',
             description: 'Damages nearby enemies with a pulsing aura of garlic essence',
             type: 'aura',
-            damage: 5,
-            cooldown: 0.5, // Tick rate — NOT weapon cooldown in the traditional sense
-            range: 60, // Aura radius
+            damage: 4,
+            cooldown: 0.6, // Tick rate — NOT weapon cooldown in the traditional sense
+            range: 55, // Aura radius
             speed: 0,
             duration: 0,
             projectiles: 0,
             piercing: 0,
             color: '#7CFC00',
-            size: 60,
+            size: 55,
             autoTarget: true,
-            targetingRange: 60,
+            targetingRange: 55,
             canEvolve: true,
             maxLevel: 8,
             ...config
@@ -26,8 +26,8 @@ export class GarlicAura extends BaseWeapon {
         super(game, player, weaponConfig);
 
         // Aura-specific properties
-        this.auraRadius = 60;
-        this.tickRate = 0.5;
+        this.auraRadius = 55;
+        this.tickRate = 0.6;
         this.knockbackForce = 0;
         this.slowEffect = false;
         this.dotEffect = false;
@@ -40,14 +40,14 @@ export class GarlicAura extends BaseWeapon {
 
         // Level progression
         this.levelProgression = {
-            1: { damage: 5, radius: 60, tickRate: 0.5 },
-            2: { damage: 7, radius: 70, tickRate: 0.5 },
-            3: { damage: 9, radius: 80, tickRate: 0.45 },
-            4: { damage: 12, radius: 90, tickRate: 0.4, knockback: 80 },
-            5: { damage: 15, radius: 105, tickRate: 0.35 },
-            6: { damage: 18, radius: 120, tickRate: 0.3, slow: true },
-            7: { damage: 22, radius: 140, tickRate: 0.25 },
-            8: { damage: 30, radius: 160, tickRate: 0.2, dot: true, dotDps: 8 }
+            1: { damage: 4, radius: 55, tickRate: 0.6 },
+            2: { damage: 5, radius: 65, tickRate: 0.55 },
+            3: { damage: 7, radius: 75, tickRate: 0.5, knockback: 60 },
+            4: { damage: 8, radius: 85, tickRate: 0.45, knockback: 100 },
+            5: { damage: 10, radius: 100, tickRate: 0.4, knockback: 140 },
+            6: { damage: 12, radius: 115, tickRate: 0.38, knockback: 180, slow: true },
+            7: { damage: 14, radius: 130, tickRate: 0.35, knockback: 220 },
+            8: { damage: 18, radius: 150, tickRate: 0.3, knockback: 260, slow: true, dot: true, dotDps: 5 }
         };
     }
 
@@ -93,8 +93,9 @@ export class GarlicAura extends BaseWeapon {
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const nx = dx / dist;
                 const ny = dy / dist;
-                enemy.x += nx * this.knockbackForce * 0.1;
-                enemy.y += ny * this.knockbackForce * 0.1;
+                const pushStrength = this.knockbackForce * 0.3;
+                enemy.x += nx * pushStrength;
+                enemy.y += ny * pushStrength;
             }
 
             // Slow effect (via StatusEffectSystem if available)
@@ -151,7 +152,7 @@ export class GarlicAura extends BaseWeapon {
     getEffectiveCooldown() {
         // Tick rate is the "cooldown" for aura weapons
         const cdMultiplier = this.player.stats ? this.player.stats.cooldown : 1.0;
-        return this.tickRate / cdMultiplier;
+        return Math.max(this.minCooldown || 0.15, this.tickRate / cdMultiplier);
     }
 
     // --- Visual rendering ---
@@ -299,7 +300,7 @@ export class GarlicAura extends BaseWeapon {
                 this.description = 'Slows nearby enemies';
                 break;
             case 8:
-                this.description = 'Burns enemies on contact';
+                this.description = 'Repels and burns nearby enemies';
                 break;
         }
     }

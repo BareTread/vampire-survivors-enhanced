@@ -22,8 +22,8 @@ export class ExperienceGem {
         this.grounded = false;
 
         // Collection mechanics - IMPROVED MAGNETISM
-        this.magnetRange = 120; // Distance at which gem starts moving toward player (was 80) - WIDER RANGE
-        this.magnetStrength = 350; // Attraction force (was 200) - MUCH STRONGER PULL
+        this.magnetRange = 80;
+        this.magnetStrength = 280;
         this.baseMagnetStrength = this.magnetStrength; // Keep base for pulses
         this.beingMagnetized = false;
         this.forceMagnetTimer = 0; // While > 0, ignore range and pull toward player
@@ -203,7 +203,7 @@ export class ExperienceGem {
                     this.game && this.game.systems && this.game.systems.experience
                         ? this.game.systems.experience.globalMagnetTimer || 0
                         : 0;
-                const minBase = this.baseMagnetStrength * Math.max(3, cm + 2); // baseline pull strength
+                const minBase = this.baseMagnetStrength * Math.max(2.5, cm + 1.5);
                 const timeBudget = Math.max(0.3, Math.min(remaining * 0.9, 3.0)); // arrive before boost ends
                 const requiredSpeed = distance / timeBudget;
                 // Respect per-frame delta safety clamp (< 500)
@@ -212,7 +212,7 @@ export class ExperienceGem {
                 speed = Math.min(Math.max(minBase, requiredSpeed), maxSpeed);
             } else {
                 // Forced pulse (forceMagnetTimer only)
-                speed = this.baseMagnetStrength * 5;
+                speed = this.baseMagnetStrength * 4;
             }
             this.velocity.x = nx * speed;
             this.velocity.y = ny * speed;

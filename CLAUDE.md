@@ -28,7 +28,7 @@ This project uses **vanilla JavaScript with ES6 modules** - no build step requir
 
 ### Key Entry Points
 
-- `vampire-survivors.html` - Main HTML file and game launcher
+- `index.html` - Main HTML file and game launcher
 - `src/vampireMain.js` - Bootstrap and initialization
 - `src/core/VampireSurvivorsGame.js` - Main game engine and loop
 
@@ -74,7 +74,8 @@ src/systems/
 ├── CanvasHUD.js             # Canvas-rendered HUD replacing DOM (XP bar, health bar, level, kills, weapon/passive inventory, synergies, power-up timers)
 ├── InventoryOverlaySystem.js # Full-screen Tab build overlay (weapons, passives, synergies, evolution progress)
 ├── DynamicEventSystem.js    # Timed narrative events (Treasure chest, Golden Swarm, Blood Moon, Calm Eye)
-└── AmbientParticleSystem.js # Persistent atmospheric particles (fog wisps, dust motes, floating embers)
+├── AmbientParticleSystem.js # Persistent atmospheric particles (fog wisps, dust motes, floating embers)
+└── FloorItemSystem.js       # World-space collectible drops: health orbs, vacuum, rosary, treasure chests
 ```
 
 ### Data
@@ -101,7 +102,9 @@ src/entities/
     ├── GarlicAura.js        # Passive damage aura around player
     ├── HolyBible.js         # Orbiting crosses that circle the player
     ├── FireWand.js          # Fireballs + explosions + burn zones
-    └── BoneBoomerang.js     # Out-and-back boomerang projectile
+    ├── BoneBoomerang.js     # Out-and-back boomerang projectile
+    ├── IceShard.js          # Freeze projectiles + AoE ice burst (L4+), evoles → Blizzard
+    └── ShadowDagger.js      # Telegraph + burst melee, bleed (L4+), chain (L7+), evolves → Phantom Assassin
 ```
 
 ## Game Features
@@ -110,7 +113,7 @@ src/entities/
 
 - **Auto-targeting**: Weapons automatically target nearest enemies
 - **Upgradeable**: Level up weapons through experience system
-- **Multiple Weapons**: 8 total | Magic Missile, Whip, Throwing Knife, Lightning Chain, Garlic Aura, Holy Bible, Fire Wand, Bone Boomerang. Distinct playstyles — each with unique behaviors
+- **Multiple Weapons**: 10 total | Magic Missile, Whip, Throwing Knife, Lightning Chain, Garlic Aura, Holy Bible, Fire Wand, Bone Boomerang, Ice Shard, Shadow Dagger. Distinct playstyles — each with unique behaviors
 - **Factory Pattern**: Use `WeaponFactory` to create weapons, register new types in `VampireSurvivorsGame.weaponClasses`
 - **Weapon Rendering**: Weapons with visual effects (aura rings, lightning bolts, charging) render via the weapon render loop in `VampireSurvivorsGame.render()`
 
@@ -175,6 +178,79 @@ src/entities/
 3. Call update/render methods in game loop
 
 ## Developer Log (most recent first)
+
+### 2026-03-16 (Agent #25 - Challenge System Completion)
+
+**Challenge modifiers are now fully wired, selectable from the title screen, and regression-covered (`85/85` passing).**
+
+- **Challenge hooks finished**: `src/entities/Player.js` now blocks level-up full heals under `no_heals` and halves XP under `famine`; `src/core/VampireSurvivorsGame.js` now suppresses passive-item level-up options under `iron_will`; `src/systems/GoldSystem.js` now applies the active challenge gold multiplier on coin pickup.
+- **Challenge menu added**: `src/systems/TitleScreenSystem.js` now includes a `CHALLENGES` main-menu entry, locked/unlocked challenge panel, toggleable modifier rows, hover/keyboard/click handling, and a live pending gold-multiplier readout for up to 3 selected modifiers.
+- **Menu/game-state routing completed**: `src/core/VampireSurvivorsGame.js` now treats `challenges` like the other title-screen states for input, mouse hover, update, render, and escape-to-menu routing.
+- **Gold pickup feedback corrected**: Challenge-scaled coin pickups now show the actual earned gold amount in floating text instead of the pre-multiplier base value.
+- **Title-screen HUD leak fixed**: The legacy DOM HUD now starts hidden and `start()` re-applies UI visibility immediately, which removed the top-left HUD panel that was leaking over the menu in browser smoke testing.
+- **Tests + verification**: Extended `tests/new-features.test.js` with 8 ChallengeSystem regression tests covering `no_heals`, `famine`, `iron_will`, gold multiplier stacking, unlock gating, selection cap, and `glass_cannon`. Verified with `node --check src/entities/Player.js`, `node --check src/core/VampireSurvivorsGame.js`, `node --check src/systems/GoldSystem.js`, `node --check src/systems/TitleScreenSystem.js`, `node --check tests/new-features.test.js`, full `npm test -- --runInBand` (`85 tests / 8 suites` passing), and headless Chromium title-screen smoke screenshots confirming the `CHALLENGES` entry renders cleanly.
+
+### 2026-03-15 (Agent #24 - Major Content Sprint)
+
+**New systems, weapons, characters, and UI — all wired, tested, 77/77 passing.**
+
+- **FloorItemSystem** (`src/systems/FloorItemSystem.js`): World-space collectible drops — `health_orb` (restores 15–25% HP, ~20% elite drop), `vacuum` (gem magnet, ~6%), `rosary` (kills all on-screen enemies, 0.5% elite / boss-guaranteed), `treasure_chest` (gold burst, stat boost, or weapon level — guaranteed boss drop). Bob animation + glow. Hooked into `Enemy.die()`, `BossSystem._onBossDeath()`, and game update/render loop.
+- **IceShard** (`src/entities/weapons/IceShard.js`): Weapon #9. Slow ice projectiles that freeze enemies on hit via `StatusEffectSystem.applyFreezeEffect()`. L4+ adds AoE ice burst at impact that spreads freeze to nearby enemies. Evolution: **Blizzard** (+ Empty Tome). Synergy: **Permafrost** (+ Armor → +35% dmg to frozen enemies).
+- **ShadowDagger** (`src/entities/weapons/ShadowDagger.js`): Weapon #10. Teleports a shadow blade to nearest enemy with a visual telegraph then strikes for massive burst. L4+ adds bleed. L7+ chains to 2 additional targets. Evolution: **Phantom Assassin** (+ Wings). Synergy: **Death Mark** (+ Spinach → +30% dmg to bleeding enemies).
+- **Viktor & Nyx** (`src/data/characters.js`): 2 new characters → 9 total. Viktor (Cryomancer, Ice Shard, +15% area / −10% speed, unlock: 15-min run). Nyx (Assassin, Shadow Dagger, +15% dmg / −15% HP, unlock: 1000-kill run).
+- **Elite Aura System** (`src/entities/Enemy.js`, `src/systems/EnemySystem.js`): After wave 8, one elite per wave can spawn with a zone aura — **Warchief** (red, +30% dmg to nearby enemies), **Lifebinder** (green, heals 5 HP/s to nearby enemies), **Frostlord** (blue, slows player 15% when in range), **Void Herald** (purple, spawns 2 fast clones every 8 s). Aura elites have +50% HP and always drop a chest. Rendered as pulsing dashed ring with rotating accent dot.
+- **Minimap** (`src/systems/CanvasHUD.js`): 110×110 px top-left overlay. Shows player (white), enemy (red/orange for boss/elite), and floor item (green/gold) dots. Clipped to panel, semi-transparent dark background.
+- **Evolutions & synergies**: Blizzard + Phantom Assassin recipes in `WeaponEvolutionSystem.js`; Permafrost + Death Mark in `SynergySystem.js`.
+- **Tests**: `tests/new-features.test.js` — 26 tests covering FloorItemSystem (11), IceShard (5), ShadowDagger (5), character registry (5). Full suite: **77 tests / 8 suites**.
+
+### 2026-03-15 (Agent #23 - Attractorb Bug Fix)
+
+- **Attractorb pickup range was inverted (REAL BUG)**: `ExperienceSystem.autoCollectGems()` computed `pickupBonus = mods.pickupRange` where `mods.pickupRange` is an _additive_ bonus (0.25 per level). This made L1 Attractorb shrink the effective magnet range from 80 px to 20 px instead of extending it to 100 px. Only L5 gave any benefit at all (100 px vs intended 180 px). **Fixed** to `pickupBonus = 1 + (mods.pickupRange || 0)`.
+- **Attractorb now actually extends magnetism range**: The fix also adds force-magnetization for gems in the extended range (beyond the gem's own 80 px magnetRange but inside Attractorb's effective range). Gems in that band get `forceMagnetTimer = 0.1s` each frame so they visibly drift toward the player.
+- **Regression tests added**: Two new tests in `tests/balance-regressions.test.js` — L1 check (85 px gem gets pulled), L5 check (170 px gem gets pulled). Verified with `node --check src/systems/ExperienceSystem.js` and full `npm test -- --runInBand` (`51 tests / 7 suites` passing).
+
+### 2026-03-15 (Agent #22 - Full Balance Sprint + Combat Text Cleanup)
+
+- **Float-text leak fixed at the source**: `src/systems/ParticleSystemCore.js` no longer stringifies numeric damage values before routing them into `globalDamageNumberPool`, and `src/core/DamageNumberPool.js` now rounds both raw numeric inputs and plain numeric strings before display. This closes the visible raw-float leak where values like `11.024000000000003` could appear on screen.
+- **Combat text clutter reduced**: `src/core/DamageNumberPool.js` now caps active floating numbers at 30 and shortens lifetimes (`0.7s` normal / `0.9s` crit). `src/core/VampireSurvivorsGame.js` also stops rendering floating damage numbers, achievements, micro-challenge overlays, and kill-milestone overlays while paused, so pause state no longer stacks over combat text.
+- **Player feedback spam toned down**: `src/entities/Player.js` now rounds numeric text before display, reduces combo popups to every 10 kills instead of every 5, halves combo-milestone flash/shake intensity, and only shows power-up expiration text for `invincible` instead of every temporary buff ending.
+- **Hidden balance bugs removed**: `src/entities/weapons/BaseWeapon.js` no longer boosts weapon damage from XP multiplier logic. `src/entities/Player.js` removes the 15% RNG `triggerLastSecondSave()` mechanic entirely and converts XP gain stacking from multiplicative to additive with a hard `2.5x` cap, preventing combo + desperation + luck + persistence from exploding progression.
+- **Garlic and Holy Bible identities retuned**: `src/entities/weapons/GarlicAura.js` now starts weaker, ticks slower, and leans hard into knockback/zone denial instead of top-tier AoE DPS. `src/entities/weapons/HolyBible.js` now deals less damage, runs at slightly wider orbit radii, grants player damage reduction (`5%` per level, capped at `40%`), and caps orbiters at `5` normally / `6` evolved via `src/systems/WeaponEvolutionSystem.js`.
+- **Pickup + economy tightened**: `src/systems/ExperienceSystem.js` and `src/entities/ExperienceGem.js` reduce baseline gem magnet range/strength so routing matters more again. `src/systems/PersistenceSystem.js` now uses exponential upgrade costs (`base * 1.8^level`) with lower max levels on key meta upgrades, while `src/systems/GoldSystem.js` shifts gold scaling toward wave-based drop chance/value instead of runaway time-only growth.
+- **Regression coverage expanded**: `tests/balance-regressions.test.js` now covers XP multiplier not affecting damage, deterministic no-RNG-death-save behavior, additive XP cap behavior, and Holy Bible's defensive/orbiter caps. Verified with `node --check` on all touched runtime files, `npm test -- --runInBand tests/balance-regressions.test.js`, and full `npm test -- --runInBand` (`49 tests / 7 suites` passing).
+
+### 2026-03-14 (Agent #21 - Dense-Fight Readability Follow-Up)
+
+- **Enhanced VFX now back off during real combat load**: `src/core/GraphicsUpgrade.js` no longer routes every critical hit, death cue, and damage number through the oversized enhanced effects layer when the screen is already dense. The wrapper now only uses enhanced combat VFX in calmer scenes (good FPS, lower enemy count, low active effect load), and otherwise falls back to the lean base particle/damage systems.
+- **Enemy readability degrades sooner on purpose**: `src/systems/EnemySystem.js` now switches to `medium` / `low` detail earlier (`>70` / `>120` enemies, or lower FPS thresholds), and `src/entities/Enemy.js` now simplifies standard enemy bodies for both medium and low detail, removes internal face/detail rendering outside high detail, suppresses ranged reticles in low detail, and only keeps always-visible full-health bars for elites in reduced-detail modes.
+- **Canvas startup log corrected**: `src/vampireMain.js` now logs canvas size after `resizeCanvas()` so startup diagnostics reflect the actual viewport size instead of the browser default `300x150` canvas dimensions.
+- **Regression coverage**: Extended `tests/enemy-system.test.js` to verify dense fights drop to low-detail rendering earlier.
+- **Verification**: Verified with `node --check src/core/GraphicsUpgrade.js`, `node --check src/entities/Enemy.js`, `node --check src/systems/EnemySystem.js`, `node --check src/vampireMain.js`, `node --check tests/enemy-system.test.js`, and `npm test -- --runInBand tests/enemy-system.test.js`. Full suite re-run is the next verification step.
+
+### 2026-03-14 (Agent #20 - Runtime Maintenance + Console Noise Fixes)
+
+- **Runaway cleanup loop fixed**: `src/core/VampireSurvivorsGame.js` now tracks `totalFrameCount` separately from the FPS sampling counter. `performMemoryCleanup()` was previously tied to `frameCount`, but `updatePerformanceStats()` resets that counter every second, which caused cleanup to fire almost constantly instead of every ~30 seconds.
+- **Conflicting quality auto-adjust removed from the hot path**: Stopped calling the legacy `adjustPerformanceQuality()` loop from `gameLoop()`. That older delta-sample adjuster was fighting the newer adaptive quality systems and producing noisy quality oscillation logs with bogus early FPS readings.
+- **Startup perf metrics stabilized**: `start()` now seeds `performanceStats.lastFpsUpdate` and `lastPerformanceReport` from the current clock so the first FPS/perf report is not skewed by pre-start time.
+- **Console/debug spam reduced**: Memory cleanup logs, enemy scaling/rage logs, graphics auto-adjust logs, particle-limit logs, and telemetry milestone logs are now gated behind debug visibility. `ProgressionTelemetry.render()` also stays hidden unless both telemetry and the debug overlay are on, preventing accidental dev overlay leakage into regular play.
+- **Particle limit regression fixed**: `src/systems/ParticleSystemCore.js` had an inverted clamp in `adaptParticleLimits()` that could increase effect/splatter caps under low FPS. It now actually reduces caps under pressure and restores only to the intended baseline ceilings.
+- **Regression coverage**: Extended `tests/particle-system-core.test.js` to verify low-FPS adaptive limits shrink instead of inflate, and extended `tests/runtime-regressions.test.js` to ensure telemetry does not render unless debug overlay is active.
+- **Verification**: Verified with `node --check src/core/VampireSurvivorsGame.js`, `node --check src/debug/ProgressionTelemetry.js`, `node --check src/entities/Enemy.js`, `node --check src/systems/VisualEffectsSystem.js`, `node --check src/core/GraphicsUpgrade.js`, `node --check src/systems/ParticleSystemCore.js`, targeted Jest runs for particle/runtime regressions, and full `npm test -- --runInBand` (37 tests / 6 suites passing).
+
+### 2026-03-14 (Agent #19 - Particle Readability Budget Pass)
+
+- **Dense-fight particle prioritization**: `src/systems/ParticleSystemCore.js` now assigns effect priorities (`critical`, `combat`, `cosmetic`) and derives a live load profile from FPS + active enemy count. Heavy load reduces the total effect budget, suppresses cosmetic glow first, and scales burst counts by priority so boss/evolution/last-stand feedback stays visible while low-value filler gets cut.
+- **Important effects survive saturation**: When the effect budget is full, higher-priority particles can now evict older lower-priority particles instead of silently losing critical feedback. Update-time budget enforcement also trims excess cosmetic/combat particles before simulation, so clutter drops quickly once fights get dense.
+- **Focused regression coverage**: Added `tests/particle-system-core.test.js` covering heavy-load glow suppression, priority-based replacement at capacity, and update-time trimming of cosmetic overflow.
+- **Verification**: Verified with `node --check src/systems/ParticleSystemCore.js`, `node --check tests/particle-system-core.test.js`, and `npm test -- --runInBand tests/particle-system-core.test.js`. Full suite re-run is the next verification step after the current pass.
+
+### 2026-03-14 (Agent #18 - Swarm Stability Pass)
+
+- **Enemy pacing corrected**: `src/systems/EnemySystem.js` now uses real `dt` for `updateDifficulty()`, `updatePerformanceTracking()`, and `updatePressureSurge()` instead of fixed `0.016` assumptions, so difficulty and surge timing no longer vary with framerate.
+- **Spawn pressure rebalanced**: Reduced baseline caps/pool sizes from the prior chaos-heavy tuning, lowered spawn-rate ceilings, cut per-wave spawn burst size to a max of 5, and added `getSpawnThrottle()` so density and low FPS automatically suppress spawning before performance collapses.
+- **Surge/formations fixed**: Pressure surges now actually force the `swarm` pattern via `chooseSpawnPattern()`. Boss and formation spawns now respect remaining enemy capacity instead of freely overshooting active-enemy limits.
+- **Enemy render degradation path**: `src/entities/Enemy.js` now accepts a render detail level from `EnemySystem.render()`. Under heavy density/low FPS, standard enemies skip radial gradients and some cosmetic details, and full-health bars are hidden for non-elites to preserve clarity and reduce draw cost.
+- **Tests + verification**: Added `tests/enemy-system.test.js` covering dt-based timers, spawn throttling, surge pattern selection, and low-vs-high detail rendering. Verified with `node --check src/systems/EnemySystem.js`, `node --check src/entities/Enemy.js`, `node --check tests/enemy-system.test.js`, `npm test -- --runInBand tests/enemy-system.test.js`, and full `npm test -- --runInBand` (32 tests / 5 suites passing).
 
 ### 2026-03-14 (Agent #17 - Audio Pleasantness Redesign)
 
@@ -372,6 +448,6 @@ Quick testing recipe:
 ## Developer Log (Agent #4 — 2026-02-24)
 
 - **AdaptiveMusicSystem.js**: 4-layer procedural music (bass drone, rhythmic pulse, C-minor arpeggios, intensity filter sweep). Shares `AudioManager.audioContext`. Intensity = 60% FlowState stress + 40% enemy density + player health urgency. Starts on `startGame()`, stops on `gameOver()`/`returnToMenu()`. Melodic fragments triggered by combo milestones.
-- **PassiveItemSystem.js**: 6 items × 5 levels. Integrated into `generateLevelUpOptions()` and `selectLevelUpOption()` as `new_passive`/`passive_upgrade` types. Stats applied in `Player.getEffectiveStats()`. Armor reduction in `Player.takeDamageEnhanced()`. HUD via `updatePassiveItemsHUD()`. Note: Attractorb `pickupRange` modifier is set but not read by ExperienceSystem yet.
+- **PassiveItemSystem.js**: 6 items × 5 levels. Integrated into `generateLevelUpOptions()` and `selectLevelUpOption()` as `new_passive`/`passive_upgrade` types. Stats applied in `Player.getEffectiveStats()`. Armor reduction in `Player.takeDamageEnhanced()`. HUD via `updatePassiveItemsHUD()`. Attractorb `pickupRange` modifier is read by `ExperienceSystem.autoCollectGems()` (formula fixed in Agent #23).
 - **Enemy death animations**: Per-type effects in `Enemy.die()`: fast=scatter, tank=dissolve, ranged=explosion, elite=multi-stage, basic=radial burst. Scale with combo level. Stack with existing `createEnhancedDeathEffect()`.
 - **Not browser-tested** — code follows established patterns but next agent should verify on first load.

@@ -86,5 +86,29 @@ export const CHARACTERS = [
         unlocked: false,
         unlockCondition: 'totalRuns >= 10',
         unlockDesc: 'Complete 10 runs'
+    },
+    {
+        id: 'viktor',
+        name: 'Viktor',
+        title: 'The Cryomancer',
+        color: '#00BFFF',
+        startingWeapon: 'ice_shard',
+        description: 'Freeze zones ripple wider. Moves cautiously through the cold.',
+        statModifiers: { area: 1.15, speed: 0.90 },
+        unlocked: false,
+        unlockCondition: 'longestSurvival >= 900',
+        unlockDesc: 'Survive for 15 minutes'
+    },
+    {
+        id: 'nyx',
+        name: 'Nyx',
+        title: 'The Assassin',
+        color: '#7C3AED',
+        startingWeapon: 'shadow_dagger',
+        description: 'Lethal precision. Glass cannon — high damage, low health.',
+        statModifiers: { damage: 1.15, health: 0.85 },
+        unlocked: false,
+        unlockCondition: 'highestKillCount >= 1000',
+        unlockDesc: 'Kill 1,000 enemies in a single run'
     }
 ];

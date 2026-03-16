@@ -322,7 +322,7 @@ export class Enemy {
         const cappedMultiplier = Math.min(finalMultiplier, 50.0);
 
         // Debug logging for balance verification
-        if (gameTime > 240 && Math.random() < 0.01) {
+        if (this.game.showDebug && gameTime > 240 && Math.random() < 0.01) {
             // Log occasionally after 4 minutes
             console.log(
                 `ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`
@@ -439,7 +439,8 @@ export class Enemy {
             const separation = this.getSeparationForce();
 
             // Blood Moon speed buff
-            const speedMult = this.game.systems.dynamicEvents?.bloodMoonSpeedMult ?? 1;
+            const speedMult = (this.game.systems.dynamicEvents?.bloodMoonSpeedMult ?? 1)
+                            * (this.game.systems.enemy?.enemySpeedMultiplier ?? 1);
             this.velocity.x = normalizedX * this.speed * speedMult + separation.x;
             this.velocity.y = normalizedY * this.speed * speedMult + separation.y;
 
@@ -539,8 +540,10 @@ export class Enemy {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
 
-        // Deal damage to player (Blood Moon buff)
-        const dmgMult = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
+        // Deal damage to player (Blood Moon buff + Warchief aura buff)
+        const bloodMoon  = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
+        const auraBoost  = this.auraBuffed ? 1.30 : 1.0;
+        const dmgMult    = bloodMoon * auraBoost;
         player.takeDamage(Math.round(this.damage * dmgMult));
 
         // Reset cooldown
@@ -554,8 +557,9 @@ export class Enemy {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
 
-        // Blood Moon damage buff for ranged attacks
-        const dmgMult = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
+        // Blood Moon + Warchief aura damage buff
+        const auraBoost = this.auraBuffed ? 1.30 : 1.0;
+        const dmgMult   = (this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1) * auraBoost;
 
         // Create highly visible projectile towards player
         this.game.systems.projectile.createEnemyProjectile(
@@ -706,11 +710,8 @@ export class Enemy {
         const finalDamage = this.lastDamageAmount || this.maxHealth;
         const wasCritical = this.lastDamageWasCritical || false;
 
-        // Enhanced experience rewards based on combo
+        // Drop raw enemy XP once; pickup-time systems apply player multipliers.
         let expReward = this.expReward;
-        if (this.game.player && this.game.player.combo) {
-            expReward = Math.floor(expReward * this.game.player.combo.multiplier);
-        }
 
         // Golden Swarm: 3x XP + bonus gold drop
         if (this.game.systems.dynamicEvents?.goldenSwarmActive) {
@@ -986,6 +987,11 @@ export class Enemy {
             this.game.systems.gold.onEnemyKilled(this);
         }
 
+        // Floor item drops (health orbs, vacuum, rosary, chests for elites)
+        if (this.game.systems.floorItems) {
+            this.game.systems.floorItems.onEnemyDeath(this);
+        }
+
         // Audio: enemy death sound (throttled by AudioManager)
         if (this.game.audioManager && this.game.audioManager.playEnemyDeath) {
             this.game.audioManager.playEnemyDeath();
@@ -1008,61 +1014,153 @@ export class Enemy {
 
     // updateDamageNumbers removed - now handled by globalDamageNumberPool
 
-    render(renderer) {
+    lightenColor(color, amount) {
+        if (!color) return '#ffffff';
+        let hex = color.replace('#', '');
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + 255 * amount);
+        const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + 255 * amount);
+        const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + 255 * amount);
+        return (
+            '#' +
+            Math.round(r).toString(16).padStart(2, '0') +
+            Math.round(g).toString(16).padStart(2, '0') +
+            Math.round(b).toString(16).padStart(2, '0')
+        );
+    }
+
+    darkenColor(color, amount) {
+        if (!color) return '#000000';
+        let hex = color.replace('#', '');
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        const r = Math.max(0, parseInt(hex.substr(0, 2), 16) * (1 - amount));
+        const g = Math.max(0, parseInt(hex.substr(2, 2), 16) * (1 - amount));
+        const b = Math.max(0, parseInt(hex.substr(4, 2), 16) * (1 - amount));
+        return (
+            '#' +
+            Math.round(r).toString(16).padStart(2, '0') +
+            Math.round(g).toString(16).padStart(2, '0') +
+            Math.round(b).toString(16).padStart(2, '0')
+        );
+    }
+
+    render(renderer, detailLevel = 'high') {
         if (!this.active) return;
 
         const ctx = renderer.ctx;
+        const simplifyBody = detailLevel !== 'high' && !['elite', 'summoner', 'juggernaut'].includes(this.type);
         ctx.save();
 
         // Spawn animation
         if (this.currentSpawnTime > 0) {
             const spawnProgress = 1 - this.currentSpawnTime / this.spawnTime;
             ctx.globalAlpha = spawnProgress;
+            ctx.translate(this.x, this.y);
             ctx.scale(spawnProgress, spawnProgress);
+            ctx.translate(-this.x, -this.y);
         }
 
+        // 1. Ground shadow
+        ctx.fillStyle = 'rgba(10, 6, 14, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y + this.size * 0.42, this.size * 0.92, this.size * 0.44, 0, 0, Math.PI * 2);
+        ctx.fill();
+
         // Flash effect when damaged
-        if (this.flashTime > 0) {
+        const isFlashing = this.flashTime > 0;
+        if (isFlashing) {
             ctx.shadowColor = '#FFFFFF';
             ctx.shadowBlur = 10;
         }
 
         // Draw enemy body (Golden Swarm tint)
         const isGoldenSwarm = this.game.systems.dynamicEvents?.goldenSwarmActive;
+        let bodyColor = this.color;
         if (isGoldenSwarm) {
-            ctx.fillStyle = '#FFD700';
+            bodyColor = '#FFD700';
             ctx.shadowColor = '#FFD700';
             ctx.shadowBlur = 6;
-        } else {
-            ctx.fillStyle = this.color;
         }
+
+        if (simplifyBody) {
+            ctx.fillStyle = isFlashing ? '#FFFFFF' : bodyColor;
+        } else {
+            const grad = ctx.createRadialGradient(
+                this.x - this.size * 0.2,
+                this.y - this.size * 0.2,
+                0,
+                this.x,
+                this.y,
+                this.size
+            );
+            grad.addColorStop(0, isFlashing ? '#FFFFFF' : this.lightenColor(bodyColor, 0.28));
+            grad.addColorStop(0.7, bodyColor);
+            grad.addColorStop(1, this.darkenColor(bodyColor, 0.45));
+            ctx.fillStyle = grad;
+        }
+
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
+
         if (isGoldenSwarm) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
         }
+        ctx.shadowBlur = 0; // Turn off shadow blur for internal details
+
+        // 4. Internal Details (personality/menace)
+        if (!isFlashing && detailLevel === 'high') {
+            ctx.save();
+            // Rotate facing player
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.direction);
+
+            // "Eyes" or core slits depending on enemy type
+            if (this.type === 'ranged' || this.type === 'summoner') {
+                // Central glowing diamond core
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.moveTo(0, -this.size * 0.28);
+                ctx.lineTo(this.size * 0.24, 0);
+                ctx.lineTo(0, this.size * 0.28);
+                ctx.lineTo(-this.size * 0.24, 0);
+                ctx.closePath();
+                ctx.fill();
+            } else if (this.type === 'juggernaut' || this.type === 'tank') {
+                // Single cyclops slit
+                ctx.fillStyle = '#FFEB3B';
+                ctx.fillRect(-this.size * 0.12, -this.size * 0.28, this.size * 0.24, this.size * 0.56);
+            } else {
+                // Classic aggressive dual hollow eyes
+                ctx.fillStyle = '#FFDDDD';
+                ctx.beginPath();
+                ctx.arc(-this.size * 0.22, -this.size * 0.12, this.size * 0.16, 0, Math.PI * 2);
+                ctx.arc(this.size * 0.22, -this.size * 0.12, this.size * 0.16, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
 
         // Draw type-specific details
-        this.renderTypeDetails(ctx);
+        this.renderTypeDetails(ctx, detailLevel);
 
-        // Always show health bar
-        this.renderHealthBar(ctx);
+        this.renderHealthBar(ctx, detailLevel);
 
         ctx.restore();
 
         // Note: Damage numbers now rendered by globalDamageNumberPool
     }
 
-    renderTypeDetails(ctx) {
-        // Render variant indicators first
-        if (this.variant) {
+    renderTypeDetails(ctx, detailLevel = 'high') {
+        if (this.variant && detailLevel === 'high') {
             this.renderVariantIndicator(ctx);
         }
 
         switch (this.type) {
             case 'fast':
+                if (detailLevel === 'low') break;
                 // Draw speed lines
                 ctx.strokeStyle = '#FFFFFF';
                 ctx.lineWidth = 1;
@@ -1081,6 +1179,7 @@ export class Enemy {
                 break;
 
             case 'tank':
+                if (detailLevel === 'low') break;
                 // Draw armor plating
                 ctx.strokeStyle = '#333333';
                 ctx.lineWidth = 2;
@@ -1090,6 +1189,7 @@ export class Enemy {
                 break;
 
             case 'ranged':
+                if (detailLevel === 'low') break;
                 // Draw targeting reticle
                 if (this.attackCooldown <= 0.5) {
                     ctx.strokeStyle = '#FF0000';
@@ -1109,6 +1209,11 @@ export class Enemy {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y - this.size - 3, 3, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Aura ring (rendered before ability indicator so it's behind)
+                if (this.auraType) {
+                    this.renderAura(ctx);
+                }
 
                 // Elite ability visual telegraphs
                 if (this.eliteAbility) {
@@ -1209,6 +1314,48 @@ export class Enemy {
                 break;
             }
         }
+    }
+
+    renderAura(ctx) {
+        if (!this.auraType) return;
+        const time = performance.now() * 0.001;
+        const r    = this.auraRadius || 150;
+        const pulse = 0.15 + Math.sin(time * 2.5) * 0.06;
+
+        const auraColors = {
+            warchief:    { stroke: '#FF4422', glow: 'rgba(255,68,34,0.35)' },
+            lifebinder:  { stroke: '#22CC55', glow: 'rgba(34,204,85,0.35)' },
+            frostlord:   { stroke: '#44BBFF', glow: 'rgba(68,187,255,0.35)' },
+            void_herald: { stroke: '#CC44FF', glow: 'rgba(204,68,255,0.35)' }
+        };
+        const col = auraColors[this.auraType];
+        if (!col) return;
+
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = col.stroke;
+        ctx.lineWidth   = 2.5;
+        ctx.shadowColor = col.stroke;
+        ctx.shadowBlur  = 14;
+        ctx.setLineDash([8, 5]);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Rotating accent dot
+        const dotAngle = time * 1.8;
+        ctx.globalAlpha = 0.7;
+        ctx.shadowBlur  = 8;
+        ctx.fillStyle   = col.stroke;
+        ctx.beginPath();
+        ctx.arc(
+            this.x + Math.cos(dotAngle) * r,
+            this.y + Math.sin(dotAngle) * r,
+            4, 0, Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
     }
 
     renderVariantIndicator(ctx) {
@@ -1367,15 +1514,18 @@ export class Enemy {
         }
     }
 
-    renderHealthBar(ctx) {
+    renderHealthBar(ctx, detailLevel = 'high') {
         const barWidth = Math.max(24, this.size * 2.5);
-        const barHeight = 4;
+        const barHeight = detailLevel === 'low' ? 3 : 4;
         const barX = this.x - barWidth / 2;
         const barY = this.y - this.size - 10;
         const healthRatio = this.health / this.maxHealth;
+        const alwaysShow = detailLevel === 'high' || this.type === 'elite';
 
-        // At full health, show subtle thin bar
         if (healthRatio >= 1.0) {
+            if (!alwaysShow) {
+                return;
+            }
             ctx.fillStyle = 'rgba(0, 255, 0, 0.25)';
             ctx.fillRect(barX, barY, barWidth, 2);
             return;
@@ -1400,8 +1550,7 @@ export class Enemy {
         ctx.fillStyle = healthColor;
         ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
 
-        // Add subtle glow for better visibility
-        if (healthRatio < 0.5) {
+        if (detailLevel !== 'low' && healthRatio < 0.5) {
             ctx.shadowColor = healthColor;
             ctx.shadowBlur = 4;
             ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
@@ -1450,8 +1599,26 @@ export class Enemy {
         this.teleportCooldown = 0;
         this.healTimer = 0;
 
+        // Elite aura state (set externally by EnemySystem after wave 8)
+        this.auraType   = null;
+        this.auraTimer  = 0;
+        this.auraBuffed = false; // set each frame by EnemySystem.applyAuraEffects()
+
         this.initializeType(type);
         this.health = this.maxHealth;
+    }
+
+    /**
+     * Assign an aura to this elite enemy (called by EnemySystem).
+     * @param {'warchief'|'lifebinder'|'frostlord'|'void_herald'} type
+     */
+    setAura(type) {
+        this.auraType  = type;
+        this.auraTimer = 0;
+        // Aura elites are tougher
+        this.maxHealth  = Math.round(this.maxHealth * 1.5);
+        this.health     = this.maxHealth;
+        this.auraRadius = 150; // default buffing radius (px)
     }
 
     updateEliteBehaviors(dt) {
@@ -1463,7 +1630,9 @@ export class Enemy {
                 this.speed *= 1.5; // 50% speed boost
                 this.damage *= 1.3; // 30% damage boost
                 this.color = '#FF0000'; // Turn red when berserking
-                console.log('💀 Berserker entering rage mode!');
+                if (this.game.showDebug) {
+                    console.log('💀 Berserker entering rage mode!');
+                }
             }
         }
 

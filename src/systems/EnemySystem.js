@@ -11,7 +11,7 @@ export class EnemySystem {
         // Enemy pools for performance
         this.enemyPool = new Map(); // Pool by enemy type
         this.activeEnemies = [];
-        this.maxActiveEnemies = 300; // Increased from 150 for more chaos
+        this.maxActiveEnemies = 140;
 
         // Spawning configuration - BALANCED FOR FUN
         this.spawnRate = 1.5; // Starting enemies per second - gradual ramp-up
@@ -46,6 +46,9 @@ export class EnemySystem {
         this.pressureSurgeActive = false;
         this.nextSurgeTime = 180; // First surge at 3 minutes (was 2 min — collided with difficulty spike)
 
+        // Elite aura tracking (max 1 aura elite per wave, unlocked after wave 8)
+        this.auraEliteThisWave = false;
+
         // Enemy type configurations - EARLIER INTRODUCTION
         this.enemyTypes = {
             basic: { weight: 30, minWave: 1 },
@@ -62,7 +65,7 @@ export class EnemySystem {
 
         // Dynamic difficulty adjustment - NEW
         this.performanceTracking = {
-            playerHealthAverage: 100,
+            playerHealthAverage: 1.0,
             timeSinceLastDamage: 0,
             complacencyMultiplier: 1.0
         };
@@ -77,25 +80,25 @@ export class EnemySystem {
 
         // OPTIMIZED: Removed redundant spatial grid - now using centralized CollisionSystem
         // Pre-allocated structures for performance
-        this.tempEnemyArray = new Array(500); // Increased for more enemies
+        this.tempEnemyArray = new Array(320);
         this.nearbyResults = new Array(100); // Increased for dense swarms
 
         this.initializePools();
     }
 
     initializePools() {
-        // Pre-create LARGER enemy pools for 1000 enemy support
+        // Pre-create enemy pools sized for sustained swarms without front-loading too much memory
         const poolSizes = {
-            basic: 200, // Increased from 50 - most common enemy
-            fast: 150, // Increased from 30 - second most common
-            tank: 100, // Increased from 20
-            ranged: 100, // Increased from 25
-            wraith: 50, // Increased from 15
-            demon: 50, // Increased from 15
-            elite: 40, // Increased from 10
-            berserker: 30, // Increased from 8
-            summoner: 20, // Increased from 6
-            juggernaut: 10 // Increased from 4 - rare enemy
+            basic: 100,
+            fast: 80,
+            tank: 45,
+            ranged: 45,
+            wraith: 24,
+            demon: 20,
+            elite: 18,
+            berserker: 12,
+            summoner: 8,
+            juggernaut: 6
         };
 
         for (const [type, size] of Object.entries(poolSizes)) {
@@ -120,10 +123,13 @@ export class EnemySystem {
         }
 
         // Update difficulty
-        this.updateDifficulty();
+        this.updateDifficulty(dt);
 
         // Update spawning
         this.updateSpawning(dt);
+
+        // Apply elite aura effects BEFORE enemy updates so auraBuffed is live during attack()
+        this.applyAuraEffects(dt);
 
         // Update all active enemies
         this.updateEnemies(dt);
@@ -137,7 +143,7 @@ export class EnemySystem {
         }
     }
 
-    updateDifficulty() {
+    updateDifficulty(dt) {
         // AGGRESSIVE difficulty scaling for engaging gameplay
         if (!this.game || typeof this.game.gameTime !== 'number') {
             this.difficultyMultiplier = 1.0;
@@ -173,7 +179,7 @@ export class EnemySystem {
         const rawMultiplier = timeMultiplier * waveMultiplier;
 
         // Apply dynamic performance adjustment
-        this.updatePerformanceTracking();
+        this.updatePerformanceTracking(dt);
         const adjustedMultiplier = rawMultiplier * this.performanceTracking.complacencyMultiplier;
 
         if (isFinite(adjustedMultiplier) && adjustedMultiplier > 0) {
@@ -183,31 +189,25 @@ export class EnemySystem {
         }
 
         // BALANCED spawn rates for fun progression
-        let baseSpawnRate = 1.5; // Starting at comfortable level
+        let baseSpawnRate = 1.35;
         let rawSpawnRate;
 
         if (timeMinutes <= 2) {
-            // First 2 minutes: Gentle introduction
-            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 0.8;
-        } else if (timeMinutes <= 5) {
-            // Early-mid game: Steady growth
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.7) * 2.5;
-        } else if (timeMinutes <= 10) {
-            // Mid game: Meaningful challenge
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.6) * 4.0;
+            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 0.45;
+        } else if (timeMinutes <= 6) {
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.65) * 1.35;
+        } else if (timeMinutes <= 12) {
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.55) * 1.8;
         } else {
-            // Late game: Intense but manageable
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 5.5;
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 2.2;
         }
 
-        // Apply pressure surge multiplier
         if (this.pressureSurgeActive) {
-            rawSpawnRate *= 2.5; // 2.5x spawn rate during surges (not 4x)
+            rawSpawnRate *= 1.4;
         }
 
-        // Balanced spawn rate cap
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
-            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 35.0 : 20.0);
+            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 8.5 : 6.0);
         } else {
             this.spawnRate = baseSpawnRate;
         }
@@ -215,14 +215,12 @@ export class EnemySystem {
         // Update elite spawn chance more aggressively
         this.updateEliteSpawnRate();
 
-        // Much higher enemy caps for epic battles
-        const baseMaxEnemies = 300; // Start higher (was 150)
-        const timeBonus = Math.floor(timeMinutes * 50); // +50 per minute (was 25)
-        const waveBonus = (cappedWave - 1) * 10; // +10 per wave (was 5)
-        this.maxActiveEnemies = Math.min(1000, baseMaxEnemies + timeBonus + waveBonus); // Cap at 1000!
+        const baseMaxEnemies = 140;
+        const timeBonus = Math.floor(timeMinutes * 10);
+        const waveBonus = (cappedWave - 1) * 5;
+        this.maxActiveEnemies = Math.min(320, baseMaxEnemies + timeBonus + waveBonus);
 
-        // Check for pressure surge activation
-        this.updatePressureSurge();
+        this.updatePressureSurge(dt);
 
         // Debug: Gate difficulty logging behind showDebug flag
         if (this.game.showDebug) {
@@ -255,18 +253,19 @@ export class EnemySystem {
 
         // Combo-based scaling for skilled players
         if (this.game.player && this.game.player.combo) {
-            const comboBonus = Math.min(this.game.player.combo.count / 50, 2.0);
+            const comboBonus = Math.min(this.game.player.combo.count / 60, 1.0);
             baseRate *= 1 + comboBonus;
         }
 
-        // Apply surge bonus and cap the final elite spawn chance
         baseRate += this.surgeEliteBonus;
-        this.eliteSpawnChance = Math.min(baseRate, 0.35); // Increased max from 0.25 to 0.35
+        this.eliteSpawnChance = Math.min(baseRate, 0.25);
     }
 
-    updatePerformanceTracking() {
+    updatePerformanceTracking(dt) {
         // Track player performance for dynamic difficulty
         if (!this.game.player) return;
+
+        const safeDt = Math.max(0, dt || 0);
 
         const player = this.game.player;
         const healthPercent = player.health / player.maxHealth;
@@ -279,7 +278,7 @@ export class EnemySystem {
         if (player.health < player.maxHealth) {
             this.performanceTracking.timeSinceLastDamage = 0;
         } else {
-            this.performanceTracking.timeSinceLastDamage += 0.016; // Assume 60fps
+            this.performanceTracking.timeSinceLastDamage += safeDt;
         }
 
         // Calculate complacency multiplier - punish players who are too comfortable
@@ -295,49 +294,41 @@ export class EnemySystem {
         }
     }
 
-    updatePressureSurge() {
-        // Pressure surge system - MORE FREQUENT overwhelming moments
+    updatePressureSurge(dt) {
         const gameTime = this.game.gameTime || 0;
+        const safeDt = Math.max(0, dt || 0);
 
-        // Check if it's time for a surge
         if (!this.pressureSurgeActive && gameTime >= this.nextSurgeTime) {
-            // Activate INTENSE surge!
             this.pressureSurgeActive = true;
-            this.pressureSurgeTimer = 20; // 20 second surge (was 30) - MORE INTENSE
-            this.surgeEliteBonus = 0.25; // +25% elite spawn chance during surge (was 15%)
+            this.pressureSurgeTimer = 12;
+            this.surgeEliteBonus = 0.12;
 
-            // Schedule next surge MORE FREQUENTLY (every 60-90 seconds instead of 2-3 minutes)
-            this.nextSurgeTime = gameTime + 60 + Math.random() * 30;
+            this.nextSurgeTime = gameTime + 90 + Math.random() * 30;
 
-            // More intense visual feedback for surge
             if (this.game.camera && typeof this.game.camera.shake === 'function') {
-                this.game.camera.shake(15, 0.8); // Stronger shake (fixed method name)
+                this.game.camera.shake(10, 0.6);
                 if (typeof this.game.camera.flash === 'function') {
-                    this.game.camera.flash('#FF0000', 0.3); // Red flash
+                    this.game.camera.flash('#FF0000', 0.2);
                 }
             }
 
-            // Spawn pattern changes to swarm during surge
             this.currentPattern = 'swarm';
         }
 
-        // Update surge timer
         if (this.pressureSurgeActive) {
-            this.pressureSurgeTimer -= 0.016; // Assume 60fps
+            this.pressureSurgeTimer -= safeDt;
 
             if (this.pressureSurgeTimer <= 0) {
-                // End surge - SHORTER relief period
                 this.pressureSurgeActive = false;
                 this.surgeEliteBonus = 0;
-                this.surgeSpawnMultiplier = 0.7; // Less relief (was 0.5)
-                this.currentPattern = 'random'; // Back to normal pattern
+                this.surgeSpawnMultiplier = 0.85;
+                this.currentPattern = 'random';
 
-                // Shorter relief period (10 seconds instead of 15)
                 managedSetTimeout(
                     () => {
                         this.surgeSpawnMultiplier = 1.0;
                     },
-                    10000,
+                    8000,
                     this
                 );
             }
@@ -347,11 +338,9 @@ export class EnemySystem {
     updateSpawning(dt) {
         if (!this.game.player || !this.game.player.isAlive()) return;
 
-        // Apply surge multiplier and reduce spawn rate if too many enemies
-        let effectiveSpawnRate = this.spawnRate * this.surgeSpawnMultiplier;
-        if (this.activeEnemies.length > this.maxActiveEnemies * 0.8) {
-            effectiveSpawnRate *= 0.5;
-        }
+        const challengeMult = this.spawnRateMultiplier || 1.0;
+        let effectiveSpawnRate = this.spawnRate * this.surgeSpawnMultiplier * this.getSpawnThrottle() * challengeMult;
+        effectiveSpawnRate = Math.max(0.5, effectiveSpawnRate);
 
         this.spawnTimer -= dt;
         if (this.spawnTimer <= 0) {
@@ -360,15 +349,39 @@ export class EnemySystem {
         }
     }
 
+    getSpawnThrottle() {
+        let throttle = 1.0;
+        const density = this.activeEnemies.length / Math.max(this.maxActiveEnemies, 1);
+
+        if (density >= 0.95) {
+            throttle *= 0.2;
+        } else if (density >= 0.85) {
+            throttle *= 0.35;
+        } else if (density >= 0.7) {
+            throttle *= 0.6;
+        }
+
+        const fps = this.game.performanceStats?.fps;
+        if (typeof fps === 'number' && fps > 0) {
+            if (fps < 45) {
+                throttle *= 0.45;
+            } else if (fps < 52) {
+                throttle *= 0.7;
+            }
+        }
+
+        return Math.max(0.2, throttle);
+    }
+
     spawnEnemyWave() {
-        // REBALANCED: Scale number of enemies per spawn based on difficulty for swarm encounters
-        const baseSpawnCount = Math.min(1 + Math.floor(this.difficultyMultiplier / 2), 8); // Up to 8 enemies per spawn (was 3)
-
-        // Additional swarm bonus after 5 minutes for epic battles
         const timeMinutes = this.game.gameTime / 60;
-        const swarmBonus = timeMinutes > 5 ? Math.floor((timeMinutes - 5) / 2) : 0; // +1 enemy per spawn every 2 minutes after 5min
+        const difficultyBonus = Math.min(Math.floor(Math.max(0, this.difficultyMultiplier - 1) / 4), 2);
+        const timeBonus = timeMinutes >= 8 ? Math.min(1 + Math.floor((timeMinutes - 8) / 6), 2) : 0;
+        const surgeBonus = this.pressureSurgeActive ? 1 : 0;
+        const availableSlots = Math.max(0, this.maxActiveEnemies - this.activeEnemies.length);
+        const spawnCount = Math.min(1 + difficultyBonus + timeBonus + surgeBonus, 5, availableSlots);
 
-        const spawnCount = Math.min(baseSpawnCount + swarmBonus, 12); // Cap at 12 enemies per spawn for epic swarms
+        if (spawnCount <= 0) return;
 
         for (let i = 0; i < spawnCount; i++) {
             this.spawnSingleEnemy();
@@ -417,6 +430,19 @@ export class EnemySystem {
 
         // Initialize enemy
         enemy.reset(spawnPos.x, spawnPos.y, enemyType);
+
+        // Elite Aura: after wave 8, 15% chance this elite becomes an aura carrier (max 1/wave)
+        if (
+            enemyType === 'elite' &&
+            this.currentWave >= 8 &&
+            !this.auraEliteThisWave &&
+            Math.random() < 0.15
+        ) {
+            const auraTypes = ['warchief', 'lifebinder', 'frostlord', 'void_herald'];
+            enemy.setAura(auraTypes[Math.floor(Math.random() * auraTypes.length)]);
+            this.auraEliteThisWave = true;
+        }
+
         this.activeEnemies.push(enemy);
     }
 
@@ -447,7 +473,8 @@ export class EnemySystem {
     }
 
     chooseSpawnPattern() {
-        // Change pattern based on wave progress
+        if (this.currentPattern === 'swarm' || this.pressureSurgeActive) return 'swarm';
+
         if (this.waveProgress < 0.3) return 'circle';
         if (this.waveProgress < 0.6) return 'random';
         if (this.waveProgress < 0.8) return 'cluster';
@@ -696,6 +723,7 @@ export class EnemySystem {
         this.currentWave++;
         this.waveTimer = 0;
         this.waveProgress = 0;
+        this.auraEliteThisWave = false; // allow one new aura elite in the new wave
 
         // Check for formation wave
         if (this.currentWave % this.formationWaveInterval === 0) {
@@ -727,6 +755,8 @@ export class EnemySystem {
     }
 
     spawnBoss() {
+        if (this.activeEnemies.length >= this.maxActiveEnemies) return;
+
         const player = this.game.player;
         const angle = Math.random() * Math.PI * 2;
         const distance = this.spawnDistance * 1.5; // Spawn bosses further away
@@ -740,10 +770,13 @@ export class EnemySystem {
         enemy.reset(x, y, 'elite');
 
         // Boss buffs
-        enemy.maxHealth *= 2;
+        const bonusWaveCount = Math.max(0, this.currentWave - 5);
+        const healthMultiplier = 3 + Math.min(bonusWaveCount * 0.15, 1.5);
+        const damageMultiplier = 1.75 + Math.min(bonusWaveCount * 0.05, 0.5);
+        enemy.maxHealth = Math.floor(enemy.maxHealth * healthMultiplier);
         enemy.health = enemy.maxHealth;
-        enemy.damage *= 1.5;
-        enemy.expReward *= 3;
+        enemy.damage = Math.floor(enemy.damage * damageMultiplier);
+        enemy.expReward *= 4;
 
         this.activeEnemies.push(enemy);
 
@@ -810,10 +843,18 @@ export class EnemySystem {
     }
 
     render(renderer) {
-        // Render all active enemies
+        const fps = this.game.performanceStats?.fps || 60;
+        let renderDetail = 'high';
+
+        if (this.activeEnemies.length > 120 || fps < 50) {
+            renderDetail = 'low';
+        } else if (this.activeEnemies.length > 70 || fps < 58) {
+            renderDetail = 'medium';
+        }
+
         for (const enemy of this.activeEnemies) {
             if (enemy.active) {
-                enemy.render(renderer);
+                enemy.render(renderer, renderDetail);
             }
         }
 
@@ -842,8 +883,11 @@ export class EnemySystem {
         // Don't stack formations
         if (this.activeFormation) return;
 
+        const availableSlots = Math.max(0, this.maxActiveEnemies - this.activeEnemies.length);
+        if (availableSlots < 4) return;
+
         const type = this.formationTypes[Math.floor(Math.random() * this.formationTypes.length)];
-        const count = Math.min(8 + Math.floor(this.difficultyMultiplier), 16);
+        const count = Math.min(8 + Math.floor(this.difficultyMultiplier), 12, availableSlots);
 
         this.activeFormation = { type, enemies: [], glowTimer: 3.0 };
 
@@ -1055,5 +1099,95 @@ export class EnemySystem {
         this.activeFormation = null;
         this.formationTimer = 0;
         this.formationCooldown = 0;
+        this.auraEliteThisWave = false;
+    }
+
+    /**
+     * Each frame: iterate aura-carrying elites and apply their zone effects to
+     * nearby enemies / the player. Called from update() after updateEnemies().
+     */
+    applyAuraEffects(dt) {
+        const player = this.game.player;
+
+        // Reset all per-frame aura buff flags before re-applying this frame's buffs
+        for (const e of this.activeEnemies) e.auraBuffed = false;
+
+        for (const elite of this.activeEnemies) {
+            if (!elite.active || !elite.auraType) continue;
+
+            const r  = elite.auraRadius || 150;
+            const rSq = r * r;
+
+            switch (elite.auraType) {
+
+                case 'warchief':
+                    // +30% damage to all non-aura enemies within radius
+                    for (const e of this.activeEnemies) {
+                        if (!e.active || e === elite) continue;
+                        const dx = e.x - elite.x, dy = e.y - elite.y;
+                        if (dx * dx + dy * dy <= rSq) e.auraBuffed = true;
+                    }
+                    break;
+
+                case 'lifebinder':
+                    // Heal nearby enemies 5 HP/s
+                    for (const e of this.activeEnemies) {
+                        if (!e.active || e === elite || e.auraType) continue;
+                        const dx = e.x - elite.x, dy = e.y - elite.y;
+                        if (dx * dx + dy * dy <= rSq) {
+                            e.health = Math.min(e.maxHealth, e.health + 5 * dt);
+                        }
+                    }
+                    break;
+
+                case 'frostlord':
+                    // Slow player by 15% when within radius
+                    if (player && player.isAlive()) {
+                        const dx = player.x - elite.x, dy = player.y - elite.y;
+                        if (dx * dx + dy * dy <= rSq) {
+                            // Dampen velocity (applied once per frame — feels like sticky mud)
+                            if (player.velocity) {
+                                player.velocity.x *= 0.85;
+                                player.velocity.y *= 0.85;
+                            }
+                        }
+                    }
+                    break;
+
+                case 'void_herald':
+                    // Spawn 2 fast shadow clone enemies every 8 seconds
+                    elite.auraTimer = (elite.auraTimer || 0) + dt;
+                    if (elite.auraTimer >= 8.0) {
+                        elite.auraTimer = 0;
+                        for (let c = 0; c < 2; c++) {
+                            if (this.activeEnemies.length < this.maxActiveEnemies) {
+                                const a  = Math.random() * Math.PI * 2;
+                                const cx = elite.x + Math.cos(a) * 60;
+                                const cy = elite.y + Math.sin(a) * 60;
+                                const clone = this.getEnemyFromPool('fast');
+                                if (clone) {
+                                    clone.reset(cx, cy, 'fast');
+                                    clone.color = '#CC44FF';
+                                    // Clones have reduced HP
+                                    clone.maxHealth = Math.round(clone.maxHealth * 0.5);
+                                    clone.health    = clone.maxHealth;
+                                    this.activeEnemies.push(clone);
+                                }
+                            }
+                        }
+                        // Purple flash at herald position
+                        if (this.game.systems.particle) {
+                            for (let i = 0; i < 10; i++) {
+                                const a = (i / 10) * Math.PI * 2;
+                                this.game.systems.particle.create(elite.x, elite.y, {
+                                    vx: Math.cos(a) * 80, vy: Math.sin(a) * 80,
+                                    life: 0.4, size: 3, color: '#CC44FF', fadeOut: true
+                                });
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
     }
 }

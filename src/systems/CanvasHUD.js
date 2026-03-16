@@ -118,6 +118,7 @@ export class CanvasHUD {
         this.renderWeaponInventory(ctx, player, W, H);
         this.renderPassiveItems(ctx, W, H);
         this.renderSynergyBadges(ctx, W, H);
+        this.renderMinimap(ctx, W, H);
 
         ctx.restore();
     }
@@ -679,6 +680,97 @@ export class CanvasHUD {
             ctx.arcTo(x, y, x + r, y, r);
             ctx.closePath();
         }
+    }
+
+    // ── Minimap (top-left corner) ────────────────────────────
+    renderMinimap(ctx, W, H) {
+        const MAP_SIZE   = 110; // px square
+        const MARGIN     = 10;
+        const mx         = MARGIN;
+        const my         = MARGIN + 18; // below XP bar
+        const worldRange = 1800; // half-extent of world shown on minimap (px)
+
+        const player = this.game.player;
+        if (!player) return;
+
+        ctx.save();
+
+        // Background panel
+        ctx.globalAlpha = 0.65;
+        ctx.fillStyle   = '#0A0A14';
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth   = 1;
+        ctx.beginPath();
+        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.globalAlpha = 1;
+
+        // Clip to minimap bounds
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
+        ctx.clip();
+
+        // Translate: world → minimap coords
+        const toMap = (wx, wy) => ({
+            x: mx + MAP_SIZE / 2 + ((wx - player.x) / worldRange) * (MAP_SIZE / 2),
+            y: my + MAP_SIZE / 2 + ((wy - player.y) / worldRange) * (MAP_SIZE / 2)
+        });
+
+        // Enemy dots (red)
+        const enemies = this.game.systems.enemy?.activeEnemies || [];
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const { x, y } = toMap(e.x, e.y);
+            if (x < mx || x > mx + MAP_SIZE || y < my || y > my + MAP_SIZE) continue;
+            const isBoss  = e.isBoss;
+            const isElite = e.type === 'elite';
+            ctx.fillStyle = isBoss ? '#FF8800' : isElite ? '#FF4400' : '#FF2222';
+            ctx.beginPath();
+            ctx.arc(x, y, isBoss ? 4 : isElite ? 2.5 : 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Floor items (green / gold dots)
+        const floorItems = this.game.systems.floorItems?.items || [];
+        for (const item of floorItems) {
+            const { x, y } = toMap(item.x, item.y);
+            if (x < mx || x > mx + MAP_SIZE || y < my || y > my + MAP_SIZE) continue;
+            ctx.fillStyle = item.type === 'treasure_chest' ? '#FFD700' : '#44FF88';
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Player dot (white, center)
+        const { x: px, y: py } = toMap(player.x, player.y);
+        ctx.fillStyle   = '#FFFFFF';
+        ctx.shadowColor = '#FFFFFF';
+        ctx.shadowBlur  = 6;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore(); // remove clip
+
+        // Border (above clip so it's crisp)
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth   = 1;
+        ctx.beginPath();
+        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle   = 'rgba(255,255,255,0.35)';
+        ctx.font        = '9px monospace';
+        ctx.textAlign   = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('MAP', mx + 3, my + 2);
+
+        ctx.restore();
     }
 
     _darken(color, amount) {

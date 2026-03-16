@@ -17,15 +17,15 @@ export class HolyBible extends BaseWeapon {
             name: 'Holy Bible',
             description: 'Orbiting crosses that circle the player, damaging enemies on contact',
             type: 'orbital',
-            damage: 8,
-            cooldown: 0.25,          // damage tick rate (how often each orbiter can hit)
-            range: 60,               // orbit radius
-            speed: 2.0,              // radians per second
+            damage: 6,
+            cooldown: 0.25, // damage tick rate (how often each orbiter can hit)
+            range: 68, // orbit radius
+            speed: 2.0, // radians per second
             duration: Infinity,
-            projectiles: 1,          // orbiter count
+            projectiles: 1, // orbiter count
             piercing: 0,
             color: '#FFD700',
-            size: 10,                // orbiter collision/visual radius
+            size: 10, // orbiter collision/visual radius
             autoTarget: false,
             targetingRange: 0,
             canEvolve: true,
@@ -36,22 +36,24 @@ export class HolyBible extends BaseWeapon {
         super(game, player, weaponConfig);
 
         // Orbital state
-        this.orbitAngle = 0;                     // current rotation (radians)
+        this.orbitAngle = 0; // current rotation (radians)
         this.orbiterCount = 1;
-        this.orbitRadius = 60;
-        this.orbitSpeed = 2.0;                   // rad/s
+        this.orbitRadius = 68;
+        this.orbitSpeed = 2.0; // rad/s
         this.orbiterSize = 10;
         this.knockbackForce = 0;
         this.showTrail = false;
         this.showHitGlow = false;
         this.sizeMultiplier = 1.0;
+        this.maxOrbiters = 5;
+        this.maxEvolvedOrbiters = 6;
 
         // Per-orbiter hit cooldown: Map<enemyId, lastHitTime>  per orbiter
         this.hitCooldowns = new Map();
-        this.hitCooldownDuration = 0.5;          // seconds between hits on same enemy
+        this.hitCooldownDuration = 0.5; // seconds between hits on same enemy
 
         // Visual trail history (ring of recent positions per orbiter)
-        this.trailHistory = [];                   // [ [{x,y,alpha}, ...], ... ] per orbiter
+        this.trailHistory = []; // [ [{x,y,alpha}, ...], ... ] per orbiter
         this.maxTrailLength = 8;
 
         // Pulse animation
@@ -59,14 +61,94 @@ export class HolyBible extends BaseWeapon {
 
         // Level progression
         this.levelProgression = {
-            1: { damage: 8, orbiterCount: 1, orbitRadius: 60, orbitSpeed: 2.0, orbiterSize: 10, knockback: 0, trail: false, hitGlow: false, sizeMult: 1.0 },
-            2: { damage: 10, orbiterCount: 1, orbitRadius: 65, orbitSpeed: 2.2, orbiterSize: 11, knockback: 0, trail: false, hitGlow: false, sizeMult: 1.0 },
-            3: { damage: 12, orbiterCount: 2, orbitRadius: 70, orbitSpeed: 2.4, orbiterSize: 12, knockback: 0, trail: false, hitGlow: false, sizeMult: 1.0 },
-            4: { damage: 15, orbiterCount: 2, orbitRadius: 80, orbitSpeed: 2.6, orbiterSize: 13, knockback: 80, trail: false, hitGlow: false, sizeMult: 1.0 },
-            5: { damage: 18, orbiterCount: 3, orbitRadius: 90, orbitSpeed: 2.8, orbiterSize: 14, knockback: 100, trail: false, hitGlow: false, sizeMult: 1.0 },
-            6: { damage: 22, orbiterCount: 3, orbitRadius: 100, orbitSpeed: 3.0, orbiterSize: 15, knockback: 120, trail: true, hitGlow: false, sizeMult: 1.0 },
-            7: { damage: 26, orbiterCount: 4, orbitRadius: 110, orbitSpeed: 3.2, orbiterSize: 16, knockback: 140, trail: true, hitGlow: true, sizeMult: 1.0 },
-            8: { damage: 35, orbiterCount: 4, orbitRadius: 120, orbitSpeed: 3.5, orbiterSize: 18, knockback: 200, trail: true, hitGlow: true, sizeMult: 1.5 },
+            1: {
+                damage: 6,
+                orbiterCount: 1,
+                orbitRadius: 68,
+                orbitSpeed: 2.0,
+                orbiterSize: 10,
+                knockback: 0,
+                trail: false,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            2: {
+                damage: 7,
+                orbiterCount: 1,
+                orbitRadius: 74,
+                orbitSpeed: 2.2,
+                orbiterSize: 11,
+                knockback: 0,
+                trail: false,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            3: {
+                damage: 9,
+                orbiterCount: 2,
+                orbitRadius: 82,
+                orbitSpeed: 2.4,
+                orbiterSize: 12,
+                knockback: 0,
+                trail: false,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            4: {
+                damage: 11,
+                orbiterCount: 2,
+                orbitRadius: 90,
+                orbitSpeed: 2.6,
+                orbiterSize: 13,
+                knockback: 80,
+                trail: false,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            5: {
+                damage: 13,
+                orbiterCount: 3,
+                orbitRadius: 98,
+                orbitSpeed: 2.8,
+                orbiterSize: 14,
+                knockback: 100,
+                trail: false,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            6: {
+                damage: 15,
+                orbiterCount: 3,
+                orbitRadius: 108,
+                orbitSpeed: 3.0,
+                orbiterSize: 15,
+                knockback: 120,
+                trail: true,
+                hitGlow: false,
+                sizeMult: 1.0
+            },
+            7: {
+                damage: 18,
+                orbiterCount: 4,
+                orbitRadius: 118,
+                orbitSpeed: 3.2,
+                orbiterSize: 16,
+                knockback: 140,
+                trail: true,
+                hitGlow: true,
+                sizeMult: 1.0
+            },
+            8: {
+                damage: 25,
+                orbiterCount: 4,
+                orbitRadius: 130,
+                orbitSpeed: 3.5,
+                orbiterSize: 18,
+                knockback: 200,
+                trail: true,
+                hitGlow: true,
+                sizeMult: 1.3
+            }
         };
     }
 
@@ -96,7 +178,9 @@ export class HolyBible extends BaseWeapon {
 
             // Query enemies near this orbiter
             const enemies = this.game.systems.enemy.getEnemiesInRange(
-                pos.x, pos.y, hitRadius + 20  // small padding for edge cases
+                pos.x,
+                pos.y,
+                hitRadius + 20 // small padding for edge cases
             );
 
             for (const enemy of enemies) {
@@ -188,7 +272,7 @@ export class HolyBible extends BaseWeapon {
 
         // Advance orbit angle
         this.orbitAngle += this.orbitSpeed * dt;
-        if (this.orbitAngle > Math.PI * 200) this.orbitAngle -= Math.PI * 200;  // prevent float overflow
+        if (this.orbitAngle > Math.PI * 200) this.orbitAngle -= Math.PI * 200; // prevent float overflow
 
         // Pulse animation
         this.pulsePhase += dt * 4;
@@ -197,10 +281,10 @@ export class HolyBible extends BaseWeapon {
         if (this.showTrail) {
             const positions = this._getOrbiterPositions();
             // Ensure trail arrays exist for each orbiter
-            while (this.trailHistory.length < this.orbiterCount) {
+            while (this.trailHistory.length < positions.length) {
                 this.trailHistory.push([]);
             }
-            for (let i = 0; i < this.orbiterCount; i++) {
+            for (let i = 0; i < positions.length; i++) {
                 const trail = this.trailHistory[i];
                 if (!trail) continue;
                 trail.push({ x: positions[i].x, y: positions[i].y, alpha: 1.0 });
@@ -234,7 +318,7 @@ export class HolyBible extends BaseWeapon {
 
         // Draw trails
         if (this.showTrail) {
-            for (let i = 0; i < Math.min(this.trailHistory.length, this.orbiterCount); i++) {
+            for (let i = 0; i < Math.min(this.trailHistory.length, positions.length); i++) {
                 const trail = this.trailHistory[i];
                 if (!trail || trail.length < 2) continue;
                 ctx.beginPath();
@@ -253,6 +337,7 @@ export class HolyBible extends BaseWeapon {
         for (let i = 0; i < positions.length; i++) {
             const pos = positions[i];
             const s = effectiveSize * pulse;
+            const orbiterCount = Math.max(1, positions.length);
 
             // Glow
             ctx.globalAlpha = 0.35;
@@ -272,7 +357,7 @@ export class HolyBible extends BaseWeapon {
             const armH = s;
 
             // Rotate the cross to match orbit angle
-            const crossAngle = this.orbitAngle + (i / this.orbiterCount) * Math.PI * 2;
+            const crossAngle = this.orbitAngle + (i / orbiterCount) * Math.PI * 2;
             ctx.save();
             ctx.translate(pos.x, pos.y);
             ctx.rotate(crossAngle);
@@ -303,15 +388,29 @@ export class HolyBible extends BaseWeapon {
     _getOrbiterPositions() {
         const area = this.player.stats?.area || 1;
         const r = this.orbitRadius * area;
+        const orbiterCount = this.getEffectiveOrbiterCount();
         const positions = [];
-        for (let i = 0; i < this.orbiterCount; i++) {
-            const angle = this.orbitAngle + (i / this.orbiterCount) * Math.PI * 2;
+        for (let i = 0; i < orbiterCount; i++) {
+            const angle = this.orbitAngle + (i / orbiterCount) * Math.PI * 2;
             positions.push({
                 x: this.player.x + Math.cos(angle) * r,
                 y: this.player.y + Math.sin(angle) * r
             });
         }
         return positions;
+    }
+
+    getEffectiveOrbiterCount() {
+        const playerStats =
+            typeof this.player.getEffectiveStats === 'function' ? this.player.getEffectiveStats() : this.player.stats;
+        const bonusProjectiles = playerStats?.projectiles || 0;
+        const cap = this.evolved ? this.maxEvolvedOrbiters : this.maxOrbiters;
+        return Math.max(1, Math.min(cap, this.orbiterCount + bonusProjectiles));
+    }
+
+    getPlayerDamageReduction() {
+        if (!this.enabled) return 0;
+        return Math.min(0.4, this.level * 0.05);
     }
 
     playOrbiterHitSound(hitCount) {
@@ -387,7 +486,7 @@ export class HolyBible extends BaseWeapon {
             name: this.name,
             level: this.level,
             damage: Math.floor(this.getEffectiveDamage()),
-            orbiters: this.orbiterCount,
+            orbiters: this.getEffectiveOrbiterCount(),
             radius: Math.floor(this.orbitRadius * (this.player.stats?.area || 1)),
             speed: this.orbitSpeed.toFixed(1) + ' rad/s',
             description: this.description

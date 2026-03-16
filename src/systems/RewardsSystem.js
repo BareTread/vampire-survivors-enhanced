@@ -67,10 +67,12 @@ export class RewardsSystem {
     rollForCritical() {
         this.totalRolls++;
 
-        const playerLevel = this.game.player ? this.game.player.level || 1 : 1;
+        const player = this.game.player;
+        const playerLevel = player ? player.level || 1 : 1;
+        const desperationBonus = player?.desperationMode?.active ? player.desperationMode.criticalChanceBonus || 0 : 0;
         const critChance = Math.min(
             this.maxCritChance,
-            this.baseCritChance + (playerLevel - 1) * this.critChancePerLevel + this.bonusCritChance
+            this.baseCritChance + (playerLevel - 1) * this.critChancePerLevel + this.bonusCritChance + desperationBonus
         );
 
         // Streak bonus: +1% per 5 streak kills

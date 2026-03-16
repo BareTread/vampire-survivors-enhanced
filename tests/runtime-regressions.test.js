@@ -4,6 +4,7 @@ import { Player } from '../src/entities/Player.js';
 import { GoldSystem } from '../src/systems/GoldSystem.js';
 import { PersistenceSystem } from '../src/systems/PersistenceSystem.js';
 import { RewardsSystem } from '../src/systems/RewardsSystem.js';
+import { ProgressionTelemetry } from '../src/debug/ProgressionTelemetry.js';
 
 const createInputManager = () => {
     const listeners = new Map();
@@ -176,6 +177,33 @@ describe('Runtime regression coverage', () => {
 
         expect(goldSystem.runGold).toBe(7);
         expect(game.systems.persistence.addGold).not.toHaveBeenCalled();
+    });
+
+    test('progression telemetry overlay stays hidden unless debug overlay is on', () => {
+        const telemetry = new ProgressionTelemetry({ showDebug: false });
+        telemetry.enabled = true;
+        telemetry.currentMetrics = {
+            gameTime: 90,
+            playerLevel: 10,
+            playerDPS: 250,
+            enemyKillRate: 2.5,
+            difficultyMultiplier: 1.8,
+            enemySpawnRate: 3.2,
+            activeEnemyCount: 18
+        };
+
+        const ctx = {
+            canvas: { height: 600 },
+            fillRect: jest.fn(),
+            fillText: jest.fn(),
+            fillStyle: '',
+            font: ''
+        };
+
+        telemetry.render(ctx);
+
+        expect(ctx.fillRect).not.toHaveBeenCalled();
+        expect(ctx.fillText).not.toHaveBeenCalled();
     });
 
     test('run persistence banks gold once and stores max combo record', () => {

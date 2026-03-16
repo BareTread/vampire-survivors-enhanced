@@ -43,23 +43,41 @@ import { GarlicAura } from '../entities/weapons/GarlicAura.js';
 import { HolyBible } from '../entities/weapons/HolyBible.js';
 import { FireWand } from '../entities/weapons/FireWand.js';
 import { BoneBoomerang } from '../entities/weapons/BoneBoomerang.js';
+import { IceShard } from '../entities/weapons/IceShard.js';
+import { ShadowDagger } from '../entities/weapons/ShadowDagger.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
 import { SettingsMenu } from '../ui/SettingsMenu.js';
 import { HelpOverlay } from '../ui/HelpOverlay.js';
 import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
+import { FloorItemSystem } from '../systems/FloorItemSystem.js';
+import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
     magic_missile: { name: 'Magic Missile', description: 'Automatically fires homing projectiles at nearby enemies' },
     whip: { name: 'Whip', description: 'Strikes in an arc, hitting multiple enemies' },
     throwing_knife: { name: 'Throwing Knife', description: 'Fast projectiles that pierce through enemies' },
-    lightning_chain: { name: 'Lightning Chain', description: 'Strikes the nearest enemy with lightning that chains to nearby foes' },
+    lightning_chain: {
+        name: 'Lightning Chain',
+        description: 'Strikes the nearest enemy with lightning that chains to nearby foes'
+    },
     garlic_aura: { name: 'Garlic Aura', description: 'Damages nearby enemies with a pulsing aura of garlic essence' },
-    holy_bible: { name: 'Holy Bible', description: 'Orbiting crosses that circle the player, damaging enemies on contact' },
+    holy_bible: {
+        name: 'Holy Bible',
+        description: 'Orbiting crosses that circle the player, damaging enemies on contact'
+    },
     fire_wand: { name: 'Fire Wand', description: 'Launches fireballs that explode on impact, leaving burning ground' },
-    bone_boomerang: { name: 'Bone Boomerang', description: 'Thrown bone that returns to the player, hitting enemies both ways' }
+    bone_boomerang: {
+        name: 'Bone Boomerang',
+        description: 'Thrown bone that returns to the player, hitting enemies both ways'
+    },
+    ice_shard: { name: 'Ice Shard', description: 'Slow ice projectiles that freeze enemies on impact' },
+    shadow_dagger: {
+        name: 'Shadow Dagger',
+        description: 'Teleports a shadow blade to the nearest enemy for massive burst damage'
+    }
 };
 
 export class VampireSurvivorsGame {
@@ -69,7 +87,7 @@ export class VampireSurvivorsGame {
         this.config = config;
 
         // Game state
-        this.gameState = 'menu'; // menu, characters, upgrades, statistics, playing, paused, levelUp, gameOver, summary
+        this.gameState = 'menu'; // menu, characters, upgrades, challenges, statistics, playing, paused, levelUp, gameOver, summary
         this.timeScale = 1.0;
         this.gameTime = 0;
         this.score = 0;
@@ -121,7 +139,9 @@ export class VampireSurvivorsGame {
             titleScreen: new TitleScreenSystem(this),
             runSummary: new RunSummarySystem(this),
             canvasHUD: new CanvasHUD(this),
-            inventory: new InventoryOverlaySystem(this)
+            inventory: new InventoryOverlaySystem(this),
+            floorItems: new FloorItemSystem(this),
+            challenge: new ChallengeSystem(this)
         };
 
         // Debug systems
@@ -150,6 +170,7 @@ export class VampireSurvivorsGame {
         this.deltaTime = 0;
         this.running = false;
         this.frameCount = 0;
+        this.totalFrameCount = 0;
 
         // OPTIMIZED: Frame rate management
         this.targetFrameTime = 16.67; // 60 FPS target
@@ -203,7 +224,9 @@ export class VampireSurvivorsGame {
             ['garlic_aura', GarlicAura],
             ['holy_bible', HolyBible],
             ['fire_wand', FireWand],
-            ['bone_boomerang', BoneBoomerang]
+            ['bone_boomerang', BoneBoomerang],
+            ['ice_shard', IceShard],
+            ['shadow_dagger', ShadowDagger]
         ]);
 
         this.setupInput();
@@ -248,6 +271,7 @@ export class VampireSurvivorsGame {
                 this.gameState === 'menu' ||
                 this.gameState === 'upgrades' ||
                 this.gameState === 'characters' ||
+                this.gameState === 'challenges' ||
                 this.gameState === 'statistics'
             ) {
                 this.systems.titleScreen.handleMouseMove(x, y);
@@ -336,6 +360,7 @@ export class VampireSurvivorsGame {
             top: max(20px, env(safe-area-inset-top));
             left: 20px; /* fallback */
             left: max(20px, env(safe-area-inset-left));
+            display: none;
             color: #E6E6FA;
             font-family: 'Cinzel', 'Times New Roman', serif;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(138, 43, 226, 0.4);
@@ -545,6 +570,7 @@ export class VampireSurvivorsGame {
                 if (
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
+                    this.gameState === 'challenges' ||
                     this.gameState === 'statistics'
                 ) {
                     this.gameState = 'menu';
@@ -626,6 +652,7 @@ export class VampireSurvivorsGame {
                     this.gameState === 'menu' ||
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
+                    this.gameState === 'challenges' ||
                     this.gameState === 'statistics'
                 ) {
                     this.systems.titleScreen.handleInput(key);
@@ -641,6 +668,7 @@ export class VampireSurvivorsGame {
                     this.gameState === 'menu' ||
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
+                    this.gameState === 'challenges' ||
                     this.gameState === 'statistics'
                 ) {
                     this.systems.titleScreen.handleInput(key);
@@ -829,6 +857,7 @@ export class VampireSurvivorsGame {
             this.gameState === 'menu' ||
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
+            this.gameState === 'challenges' ||
             this.gameState === 'statistics'
         ) {
             this.systems.titleScreen.handleClick(x, y);
@@ -872,6 +901,9 @@ export class VampireSurvivorsGame {
 
         this.player.applyPersistentUpgrades();
 
+        // Apply challenge modifiers (must come AFTER persistent upgrades so HP is final)
+        this.systems.challenge.applyToRun(this.player);
+
         // Give character starting weapon
         const WeaponClass = this.weaponClasses.get(character.startingWeapon);
         this.player.addWeapon(WeaponClass || MagicMissile);
@@ -899,6 +931,8 @@ export class VampireSurvivorsGame {
         this.systems.dynamicEvents.reset();
         this.systems.ambientParticles.reset();
         this.systems.canvasHUD.reset();
+        this.systems.floorItems.reset();
+        this.systems.challenge.reset(); // clear per-run multipliers
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
 
@@ -1081,7 +1115,9 @@ export class VampireSurvivorsGame {
                 'garlic_aura',
                 'holy_bible',
                 'fire_wand',
-                'bone_boomerang'
+                'bone_boomerang',
+                'ice_shard',
+                'shadow_dagger'
             ];
             for (const weaponType of availableWeapons) {
                 if (!Array.from(this.player.weapons.values()).some((w) => w.id === weaponType)) {
@@ -1117,8 +1153,9 @@ export class VampireSurvivorsGame {
             });
         }
 
-        // Passive item options (upgrades + new items)
-        if (this.systems.passiveItems) {
+        // Passive item options (upgrades + new items) — blocked by iron_will challenge
+        const allowPassives = !this.systems.challenge?.hasModifier('iron_will');
+        if (allowPassives && this.systems.passiveItems) {
             const passiveOptions = this.systems.passiveItems.getLevelUpOptions();
             options.push(...passiveOptions);
         }
@@ -1245,6 +1282,11 @@ export class VampireSurvivorsGame {
         this.running = true;
         this.lastTime = performance.now();
         this.gameState = 'menu';
+        this.frameCount = 0;
+        this.totalFrameCount = 0;
+        this.performanceStats.lastFpsUpdate = this.lastTime;
+        this.lastPerformanceReport = this.lastTime;
+        this.updateUIVisibility();
 
         requestAnimationFrame(this.gameLoop);
     }
@@ -1261,12 +1303,6 @@ export class VampireSurvivorsGame {
     gameLoop = (currentTime) => {
         try {
             if (!this.running) return;
-
-            // Memory pressure check - prevent crashes at high levels
-            if (this.frameCount % 1800 === 0) {
-                // Every 30 seconds at 60fps
-                this.performMemoryCleanup();
-            }
 
             // PERFORMANCE THROTTLING for low-end devices
             // Track FPS and auto-adjust quality
@@ -1285,17 +1321,18 @@ export class VampireSurvivorsGame {
             this.deltaTime = rawDeltaTime > 0.033 ? 0.033 : rawDeltaTime < 0.001 ? 0.001 : rawDeltaTime; // Branchless clamp
             this.lastTime = currentTime;
             this.frameCount++;
+            this.totalFrameCount++;
+
+            // Memory pressure check - prevent crashes at high levels
+            if (this.totalFrameCount % 1800 === 0) {
+                // Every 30 seconds at 60fps
+                this.performMemoryCleanup();
+            }
 
             // Track FPS for throttling
             this.performanceThrottle.samples.push(rawDeltaTime);
             if (this.performanceThrottle.samples.length > this.performanceThrottle.sampleSize) {
                 this.performanceThrottle.samples.shift();
-            }
-
-            // Adjust quality if needed
-            if (currentTime - this.performanceThrottle.lastAdjust > this.performanceThrottle.adjustInterval) {
-                this.adjustPerformanceQuality();
-                this.performanceThrottle.lastAdjust = currentTime;
             }
 
             // Apply time scale with single multiplication
@@ -1339,7 +1376,7 @@ export class VampireSurvivorsGame {
                 (this.systems.projectile?.activeProjectiles?.length || 0);
             const monitoringFreq = entityCount > 150 ? 60 : entityCount > 100 ? 45 : 30;
 
-            if (this.frameCount % monitoringFreq === 0) {
+            if (this.totalFrameCount % monitoringFreq === 0) {
                 try {
                     this.updatePerformanceStats(currentTime);
 
@@ -1443,17 +1480,22 @@ export class VampireSurvivorsGame {
      */
     performMemoryCleanup() {
         try {
+            let cleanupActions = 0;
+
             // Clear damage number pool periodically
             if (globalDamageNumberPool.getStats().available < 20) {
                 globalDamageNumberPool.clear();
+                cleanupActions++;
             }
 
             // Clean up particle systems
             if (this.systems.particle && this.systems.particle.clear) {
                 const particleStats = this.systems.particle.getPerformanceInfo();
-                if (particleStats.effectParticles > 300) {
+                const effectParticles = particleStats.effectParticles || particleStats.original?.effectParticles || 0;
+                if (effectParticles > 300) {
                     // Reduce particle count by half
                     this.systems.particle.adaptParticleLimits();
+                    cleanupActions++;
                 }
             }
 
@@ -1462,7 +1504,9 @@ export class VampireSurvivorsGame {
                 window.gc();
             }
 
-            console.log('🧹 Memory cleanup performed');
+            if (this.showDebug && cleanupActions > 0) {
+                console.log(`🧹 Memory cleanup performed (${cleanupActions} actions)`);
+            }
         } catch (error) {
             console.warn('Memory cleanup failed:', error);
         }
@@ -1575,6 +1619,7 @@ export class VampireSurvivorsGame {
             this.gameState === 'menu' ||
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
+            this.gameState === 'challenges' ||
             this.gameState === 'statistics'
         ) {
             this.systems.titleScreen.update(dt);
@@ -1640,6 +1685,7 @@ export class VampireSurvivorsGame {
                 this.systems.boss.update(dt);
                 this.systems.dynamicEvents.update(dt);
                 this.systems.ambientParticles.update(dt);
+                this.systems.floorItems.update(dt);
 
                 // 6. Power-ups (benefit from all position updates)
                 this.updatePowerUpDrops(dt);
@@ -1648,14 +1694,14 @@ export class VampireSurvivorsGame {
                 const entityCount =
                     this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
                 const audioFreq = entityCount > 120 ? 16 : 8;
-                if (this.frameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
+                if (this.totalFrameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
                     const intensity = Math.min(1, entityCount * 0.02);
                     this.audioManager.setGameIntensity(intensity);
                 }
 
                 // 8. UI updates (adaptive frequency based on entity density)
                 const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
-                if (this.frameCount % uiUpdateFreq === 0) {
+                if (this.totalFrameCount % uiUpdateFreq === 0) {
                     this.updateGameUI();
                 }
             }
@@ -1692,6 +1738,7 @@ export class VampireSurvivorsGame {
             this.gameState === 'menu' ||
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
+            this.gameState === 'challenges' ||
             this.gameState === 'statistics'
         ) {
             this.systems.titleScreen.render(this.ctx);
@@ -1727,6 +1774,9 @@ export class VampireSurvivorsGame {
         // 2.6 Gold coins (world-space, between power-ups and enemies)
         this.systems.gold.render(this.ctx);
 
+        // 2.7 Floor items — health orbs, vacuum, rosary, treasure chests (world-space)
+        this.systems.floorItems.render(this.ctx);
+
         // 3. Enemies (group by type for potential batching)
         this.systems.enemy.render(this.renderer);
 
@@ -1757,7 +1807,9 @@ export class VampireSurvivorsGame {
         this.systems.particle.render(this.renderer, this.qualitySettings);
 
         // 7. Damage numbers (rendered after particles for proper layering)
-        globalDamageNumberPool.render(this.ctx, this.camera);
+        if (this.gameState !== 'paused') {
+            globalDamageNumberPool.render(this.ctx, this.camera);
+        }
 
         // 7b. Death entity (world-space, renders within camera transform)
         this.systems.runTimer.renderDeath(this.ctx);
@@ -1799,9 +1851,11 @@ export class VampireSurvivorsGame {
         }
 
         // Achievement & micro-challenge overlays (screen space, above debug)
-        this.systems.achievement.render(this.ctx, this.camera);
-        this.systems.microChallenge.render(this.ctx, this.camera);
-        this.systems.killMilestone.render(this.ctx);
+        if (this.gameState !== 'paused') {
+            this.systems.achievement.render(this.ctx, this.camera);
+            this.systems.microChallenge.render(this.ctx, this.camera);
+            this.systems.killMilestone.render(this.ctx);
+        }
 
         // UI overlays (screen space)
         this.renderUIOverlays();
@@ -2346,11 +2400,14 @@ export class VampireSurvivorsGame {
         const stats = this.performanceStats;
         const particleStats = this.systems.particle.getPerformanceInfo();
         const rendererStats = this.renderer.getPerformanceStats();
+        const effectiveQuality = this.qualitySettings?.particleReduction
+            ? Math.round(this.qualitySettings.particleReduction * 100)
+            : stats.qualityLevel;
 
         // Only log performance issues, not regular reports
         if (stats.fps < 45 || stats.entityCount > 300 || stats.dropped60FpsFrames > 30) {
             console.warn(
-                `⚠️ Performance Issue - FPS: ${stats.fps}, Entities: ${stats.entityCount}, Dropped: ${stats.dropped60FpsFrames}, Quality: ${stats.qualityLevel}%`
+                `⚠️ Performance Issue - FPS: ${stats.fps}, Entities: ${stats.entityCount}, Dropped: ${stats.dropped60FpsFrames}, Quality: ${effectiveQuality}%`
             );
         }
 

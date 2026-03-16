@@ -27,8 +27,8 @@ export class BossSystem {
         this.nextSpawnIndex = 0;
 
         // Active boss tracking
-        this.activeBoss = null;   // { type, def, phase, attackTimers }
-        this.bossEnemy = null;    // Reference to the Enemy instance
+        this.activeBoss = null; // { type, def, phase, attackTimers }
+        this.bossEnemy = null; // Reference to the Enemy instance
 
         // Warning state
         this.warningActive = false;
@@ -42,8 +42,8 @@ export class BossSystem {
         this.lastBossHealthRatio = 1;
 
         // Boss attack state
-        this.telegraphs = [];     // Active telegraph indicators
-        this.activeEffects = [];  // Active boss attack effects (zones, projectiles, etc.)
+        this.telegraphs = []; // Active telegraph indicators
+        this.activeEffects = []; // Active boss attack effects (zones, projectiles, etc.)
 
         // Boss definitions
         this.bossDefinitions = this._createBossDefinitions();
@@ -68,9 +68,9 @@ export class BossSystem {
                     { threshold: 0.33, attacks: ['bat_swarm', 'dash', 'blood_drain', 'blood_nova'] }
                 ],
                 attacks: {
-                    bat_swarm:  { cooldown: 6,  telegraph: 1.0, damage: 15, range: 200 },
-                    dash:       { cooldown: 4,  telegraph: 0.8, damage: 40, range: 300 },
-                    blood_drain:{ cooldown: 8,  telegraph: 1.5, damage: 5,  range: 150 },
+                    bat_swarm: { cooldown: 6, telegraph: 1.0, damage: 15, range: 200 },
+                    dash: { cooldown: 4, telegraph: 0.8, damage: 40, range: 300 },
+                    blood_drain: { cooldown: 8, telegraph: 1.5, damage: 5, range: 150 },
                     blood_nova: { cooldown: 12, telegraph: 2.0, damage: 25, range: 250 }
                 }
             },
@@ -89,10 +89,10 @@ export class BossSystem {
                     { threshold: 0.33, attacks: ['necrotic_zone', 'soul_bolt', 'bone_wall', 'death_wave'] }
                 ],
                 attacks: {
-                    necrotic_zone: { cooldown: 5,  telegraph: 1.5, damage: 10, range: 120 },
-                    soul_bolt:     { cooldown: 3,  telegraph: 0.6, damage: 30, range: 400 },
-                    bone_wall:     { cooldown: 10, telegraph: 2.0, damage: 0,  range: 200 },
-                    death_wave:    { cooldown: 15, telegraph: 2.5, damage: 35, range: 300 }
+                    necrotic_zone: { cooldown: 5, telegraph: 1.5, damage: 10, range: 120 },
+                    soul_bolt: { cooldown: 3, telegraph: 0.6, damage: 30, range: 400 },
+                    bone_wall: { cooldown: 10, telegraph: 2.0, damage: 0, range: 200 },
+                    death_wave: { cooldown: 15, telegraph: 2.5, damage: 35, range: 300 }
                 }
             },
             werewolf: {
@@ -110,10 +110,10 @@ export class BossSystem {
                     { threshold: 0.33, attacks: ['charge', 'claw_swipe', 'leap', 'howl'] }
                 ],
                 attacks: {
-                    charge:     { cooldown: 5,   telegraph: 1.2, damage: 45, range: 350 },
+                    charge: { cooldown: 5, telegraph: 1.2, damage: 45, range: 350 },
                     claw_swipe: { cooldown: 2.5, telegraph: 0.5, damage: 25, range: 80 },
-                    leap:       { cooldown: 7,   telegraph: 1.0, damage: 35, range: 250 },
-                    howl:       { cooldown: 15,  telegraph: 2.0, damage: 0,  range: 400 }
+                    leap: { cooldown: 7, telegraph: 1.0, damage: 35, range: 250 },
+                    howl: { cooldown: 15, telegraph: 2.0, damage: 0, range: 400 }
                 }
             }
         };
@@ -127,8 +127,7 @@ export class BossSystem {
         const gameTime = this.game.gameTime || 0;
 
         // Check for boss spawn trigger
-        if (this.nextSpawnIndex < this.spawnTimes.length &&
-            !this.activeBoss && !this.warningActive) {
+        if (this.nextSpawnIndex < this.spawnTimes.length && !this.activeBoss && !this.warningActive) {
             if (gameTime >= this.spawnTimes[this.nextSpawnIndex]) {
                 this._startWarning();
             }
@@ -185,11 +184,11 @@ export class BossSystem {
         const def = this.bossDefinitions[this.pendingBossType];
         if (!def) return;
 
-        // Scale boss health with game progression
-        const timeScale = 1 + (this.game.gameTime / 600) * 0.5; // +50% per 10 min
-
         // Spawn at edge of screen, offset from player
         const player = this.game.player;
+        // Scale boss health with game progression and current player power.
+        const timeScale = 1 + (this.game.gameTime / 600) * 0.5; // +50% per 10 min
+        const playerScale = 1 + Math.max(0, (player.level || 1) - 1) * 0.03;
         const angle = Math.random() * Math.PI * 2;
         const spawnDist = 400;
         const spawnX = player.x + Math.cos(angle) * spawnDist;
@@ -201,7 +200,7 @@ export class BossSystem {
         // Override with boss-specific stats
         boss.isBoss = true;
         boss.bossType = this.pendingBossType;
-        boss.maxHealth = Math.floor(def.maxHealth * timeScale);
+        boss.maxHealth = Math.floor(def.maxHealth * timeScale * playerScale);
         boss.health = boss.maxHealth;
         boss.damage = Math.floor(def.damage * timeScale);
         boss.speed = def.speed;
@@ -554,7 +553,7 @@ export class BossSystem {
                 const angle = Math.atan2(boss.y - player.y, boss.x - player.x);
                 const pillarCount = 5 + this.activeBoss.phase;
                 for (let i = 0; i < pillarCount; i++) {
-                    const spread = ((i / (pillarCount - 1)) - 0.5) * Math.PI * 0.8;
+                    const spread = (i / (pillarCount - 1) - 0.5) * Math.PI * 0.8;
                     const pillarAngle = angle + spread;
                     const pillarDist = 120;
                     this.activeEffects.push({
@@ -697,7 +696,11 @@ export class BossSystem {
                         : new Enemy(this.game, mx, my, 'fast');
                     if (minion) {
                         if (minion.reset) minion.reset(mx, my, 'fast');
-                        else { minion.x = mx; minion.y = my; minion.active = true; }
+                        else {
+                            minion.x = mx;
+                            minion.y = my;
+                            minion.active = true;
+                        }
                         if (!enemySystem.activeEnemies.includes(minion)) {
                             enemySystem.activeEnemies.push(minion);
                         }
@@ -834,9 +837,12 @@ export class BossSystem {
                 case 'dash_trail': {
                     if (!eff.hit && player && eff.life > 0.2 && player.isAlive()) {
                         const dist = this._pointToLineDistance(
-                            player.x, player.y,
-                            eff.startX, eff.startY,
-                            eff.endX, eff.endY
+                            player.x,
+                            player.y,
+                            eff.startX,
+                            eff.startY,
+                            eff.endX,
+                            eff.endY
                         );
                         if (dist < eff.width / 2 + 10) {
                             eff.hit = true;
@@ -975,6 +981,11 @@ export class BossSystem {
             this.game.systems.achievement.onBossKilled(this.activeBoss.type);
         }
 
+        // Guaranteed floor item drops: chest + health orb + rosary
+        if (this.game.systems.floorItems) {
+            this.game.systems.floorItems.onBossDeath(bossX, bossY);
+        }
+
         // Clear boss state
         this.activeBoss = null;
         this.bossEnemy = null;
@@ -1039,7 +1050,7 @@ export class BossSystem {
         for (const tel of this.telegraphs) {
             if (tel.timer <= 0) continue;
 
-            const progress = 1 - (tel.timer / tel.duration);
+            const progress = 1 - tel.timer / tel.duration;
             const alpha = 0.15 + progress * 0.35;
 
             ctx.save();
@@ -1129,7 +1140,7 @@ export class BossSystem {
                     const wallAngle = Math.atan2(tel.y - tel.targetY, tel.x - tel.targetX);
                     ctx.fillStyle = '#D4C5A9';
                     for (let j = 0; j < 5; j++) {
-                        const spread = ((j / 4) - 0.5) * Math.PI * 0.8;
+                        const spread = (j / 4 - 0.5) * Math.PI * 0.8;
                         const pillarAngle = wallAngle + spread;
                         const px = tel.targetX + Math.cos(pillarAngle) * 120;
                         const py = tel.targetY + Math.sin(pillarAngle) * 120;
@@ -1275,15 +1286,13 @@ export class BossSystem {
                         ctx.globalAlpha = 0.3 + eff.progress * 0.3;
                         ctx.fillStyle = '#000000';
                         ctx.beginPath();
-                        ctx.ellipse(eff.targetX, eff.targetY,
-                            eff.radius * 0.5, eff.radius * 0.3, 0, 0, Math.PI * 2);
+                        ctx.ellipse(eff.targetX, eff.targetY, eff.radius * 0.5, eff.radius * 0.3, 0, 0, Math.PI * 2);
                         ctx.fill();
 
                         // Boss in air
                         const t = eff.progress;
                         const arcX = eff.startX + (eff.targetX - eff.startX) * t;
-                        const arcY = eff.startY + (eff.targetY - eff.startY) * t
-                            - Math.sin(t * Math.PI) * 100;
+                        const arcY = eff.startY + (eff.targetY - eff.startY) * t - Math.sin(t * Math.PI) * 100;
 
                         ctx.globalAlpha = 0.6;
                         ctx.fillStyle = eff.color;
@@ -1316,7 +1325,7 @@ export class BossSystem {
         const def = this.bossDefinitions[this.pendingBossType];
         if (!def) return;
 
-        const progress = 1 - (this.warningTimer / this.warningDuration);
+        const progress = 1 - this.warningTimer / this.warningDuration;
         const pulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.008);
 
         ctx.save();

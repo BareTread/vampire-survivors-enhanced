@@ -10,8 +10,8 @@ export class ExperienceSystem {
         this.maxActiveGems = 60; // Reduced for visual clarity
 
         // Collection mechanics - ENHANCED
-        this.magnetRange = 120; // Base magnet range (was 80) - WIDER VACUUM
-        this.autoCollectRange = 40; // Auto-collect when very close (was 25) - EASIER PICKUP
+        this.magnetRange = 80;
+        this.autoCollectRange = 25;
 
         // Gem spawn mechanics
         this.gemValues = {
@@ -134,11 +134,14 @@ export class ExperienceSystem {
         if (!this.game.player || !this.game.player.isAlive()) return;
 
         const player = this.game.player;
-        // Read pickupRange from PassiveItemSystem (Attractorb)
+        // Read pickupRange from PassiveItemSystem (Attractorb).
+        // mods.pickupRange is an ADDITIVE bonus: 0 at no item, +0.25 per level (max +1.25 at L5).
+        // Effective multiplier = 1 + bonus → range *increases* with each Attractorb level.
+        // Bug was: `pickupBonus = mods.pickupRange` → 0.25 at L1 would shrink range to 20 px.
         let pickupBonus = 1;
         if (this.game.systems && this.game.systems.passiveItems) {
             const mods = this.game.systems.passiveItems.getStatModifiers();
-            if (mods.pickupRange) pickupBonus = mods.pickupRange;
+            pickupBonus = 1 + (mods.pickupRange || 0);
         }
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1) * pickupBonus;
 
@@ -152,6 +155,15 @@ export class ExperienceSystem {
             const autoCollectRangeSquared = this.autoCollectRange * this.autoCollectRange;
             if (distanceSquared <= autoCollectRangeSquared) {
                 gem.collect();
+            } else if (pickupBonus > 1) {
+                // Attractorb extended range: gems beyond their own magnetRange but inside
+                // effectiveMagnetRange get a brief forced pull so they drift toward the player
+                // even before the gem's own physics would normally kick in.
+                const normalRangeSq =
+                    (gem.magnetRange || this.magnetRange) * (gem.magnetRange || this.magnetRange);
+                if (distanceSquared > normalRangeSq) {
+                    gem.forceMagnetTimer = Math.max(gem.forceMagnetTimer || 0, 0.1);
+                }
             }
         }
     }

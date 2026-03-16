@@ -17,7 +17,7 @@ import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
  *   Throwing Knife + Duplicator   → Thousand Edge     (5x projectiles + penetrate)
  *   Lightning Chain+ Duplicator   → Thunder Loop      (12 chains + area stun)
  *   Garlic Aura    + Attractorb   → Soul Eater        (3x radius + pulls enemies)
- *   Holy Bible     + Armor        → Unholy Vespers    (8 orbiters + explosion trail)
+ *   Holy Bible     + Armor        → Unholy Vespers    (6 orbiters + explosion trail)
  *   Fire Wand      + Spinach      → Hellfire          (3x damage + permanent burns)
  *   Bone Boomerang + Wings        → Death Spiral      (3x boomerangs + constant spin)
  */
@@ -120,14 +120,14 @@ export class WeaponEvolutionSystem {
                     evolvedName: 'Unholy Vespers',
                     evolvedColor: '#8B0000',
                     glowColor: 'rgba(139,0,0,0.4)',
-                    description: '8 orbiters with explosive trails',
+                    description: '6 orbiters with explosive trails',
                     statMultipliers: {
                         damage: 2.0,
                         area: 1.5,
                         duration: 2.0
                     },
                     specialAbility: 'explosive_orbit',
-                    specialStats: { orbiterCount: 8 }
+                    specialStats: { orbiterCount: 6 }
                 }
             ],
             [
@@ -162,6 +162,40 @@ export class WeaponEvolutionSystem {
                         range: 1.5
                     },
                     specialAbility: 'death_spin'
+                }
+            ],
+            [
+                'ice_shard',
+                {
+                    requiredPassive: 'empty_tome',
+                    evolvedName: 'Blizzard',
+                    evolvedColor: '#B3E5FF',
+                    glowColor: 'rgba(179,229,255,0.5)',
+                    description: 'Constant ice storm — 50% slow to all nearby enemies',
+                    statMultipliers: {
+                        damage:     1.8,
+                        cooldown:   0.55,
+                        projectiles: 2,
+                        area:       1.6
+                    },
+                    specialStats: { freezeDuration: 4.5, aoeRadius: 140 },
+                    specialAbility: 'blizzard_storm'
+                }
+            ],
+            [
+                'shadow_dagger',
+                {
+                    requiredPassive: 'wings',
+                    evolvedName: 'Phantom Assassin',
+                    evolvedColor: '#4C1D95',
+                    glowColor: 'rgba(76,29,149,0.5)',
+                    description: 'Daggers chain through 5 enemies; each hit spawns a shadow clone',
+                    statMultipliers: {
+                        damage:   2.2,
+                        cooldown: 0.6
+                    },
+                    specialStats: { chainCount: 4, bleedChance: 0.9 },
+                    specialAbility: 'phantom_chain'
                 }
             ]
         ]);
@@ -462,7 +496,7 @@ export class WeaponEvolutionSystem {
                     const time = this.game.gameTime || 0;
                     const orbitSpeed = weapon.orbitSpeed || 2.5;
                     const orbitRadius = weapon.orbitRadius || 90;
-                    for (let i = 0; i < Math.min(orbCount, 8); i++) {
+                    for (let i = 0; i < Math.min(orbCount, 6); i++) {
                         const angle = (i / orbCount) * Math.PI * 2 + time * orbitSpeed;
                         const ox = player.x + Math.cos(angle) * orbitRadius;
                         const oy = player.y + Math.sin(angle) * orbitRadius;

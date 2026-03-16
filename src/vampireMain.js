@@ -11,7 +11,7 @@ class VampireGameBootstrap {
         this.game = null;
         this.isInitialized = false;
         this.loadingProgress = 0;
-        
+
         // Performance monitoring
         this.frameCount = 0;
         this.lastFPSUpdate = 0;
@@ -22,21 +22,20 @@ class VampireGameBootstrap {
         try {
             // Setup canvas
             this.setupCanvas();
-            
+
             // Update loading status
             this.updateLoadingStatus('Loading core systems...', 20);
-            
+
             // Initialize core systems
             await this.initializeSystems();
             this.updateLoadingStatus('Loading game...', 60);
-            
+
             // Initialize game
             await this.initializeGame();
             this.updateLoadingStatus('Ready!', 100);
-            
+
             // Hide loading screen
             setTimeout(() => this.hideLoadingScreen(), 500);
-            
         } catch (error) {
             console.error('Failed to initialize game:', error);
             this.showErrorScreen(error);
@@ -45,31 +44,30 @@ class VampireGameBootstrap {
 
     setupCanvas() {
         this.canvas = document.getElementById('gameCanvas');
-        
+
         if (!this.canvas) {
             console.error('❌ Canvas element not found! Creating one...');
             this.canvas = this.createCanvas();
         }
-        
+
         this.ctx = this.canvas.getContext('2d', {
             alpha: false,
             desynchronized: true,
             powerPreference: 'high-performance'
         });
-        
+
         if (!this.ctx) {
             throw new Error('Failed to get 2D context from canvas');
         }
-        
-        console.log('✅ Canvas setup complete:', this.canvas.width + 'x' + this.canvas.height);
-        
+
         // Set canvas size
         this.resizeCanvas();
+        console.log('✅ Canvas setup complete:', this.canvas.width + 'x' + this.canvas.height);
         window.addEventListener('resize', () => this.resizeCanvas());
-        
+
         // Disable context menu on canvas
-        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
-        
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
         // Make canvas focusable for keyboard events
         this.canvas.tabIndex = 1;
         this.canvas.focus();
@@ -90,12 +88,12 @@ class VampireGameBootstrap {
             background: #000;
             cursor: crosshair;
         `;
-        
+
         // Clear body content but preserve overflow constraints
         while (document.body.firstChild) {
             document.body.removeChild(document.body.firstChild);
         }
-        
+
         // Ensure body maintains overflow hidden to prevent white rectangle bug
         document.body.style.margin = '0';
         document.body.style.padding = '0';
@@ -104,9 +102,9 @@ class VampireGameBootstrap {
         document.body.style.fontFamily = 'Arial, sans-serif';
         document.body.style.width = '100%';
         document.body.style.height = '100%';
-        
+
         document.body.appendChild(canvas);
-        
+
         return canvas;
     }
 
@@ -114,19 +112,19 @@ class VampireGameBootstrap {
         // Use slightly smaller dimensions to prevent overflow
         const displayWidth = Math.floor(window.innerWidth);
         const displayHeight = Math.floor(window.innerHeight);
-        
+
         // Set canvas size
         this.canvas.width = displayWidth;
         this.canvas.height = displayHeight;
-        
+
         // Use viewport units to ensure no overflow
         this.canvas.style.width = '100vw';
         this.canvas.style.height = '100vh';
         this.canvas.style.position = 'fixed';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
-        this.canvas.style.margin = '0';  // Remove any margin
-        
+        this.canvas.style.margin = '0'; // Remove any margin
+
         // Update game camera if game exists
         if (this.game && this.game.camera) {
             this.game.camera.resize(displayWidth, displayHeight);
@@ -136,7 +134,7 @@ class VampireGameBootstrap {
     async initializeSystems() {
         // Initialize input manager
         this.inputManager = new InputManager(this.canvas);
-        
+
         // Initialize audio manager (optional - can work without)
         try {
             this.audioManager = new AudioManager();
@@ -152,34 +150,34 @@ class VampireGameBootstrap {
             inputManager: this.inputManager,
             audioManager: this.audioManager
         };
-        
+
         // Create game instance
         this.game = new VampireSurvivorsGame(this.canvas, config);
-        
+
         // Start the game
         this.game.start();
-        
+
         // Force a resize to ensure canvas fills viewport
         this.resizeCanvas();
-        
+
         this.isInitialized = true;
     }
 
     updateLoadingStatus(status, progress) {
         this.loadingProgress = progress;
-        
+
         // Create loading screen if it doesn't exist
         let loadingScreen = document.getElementById('loadingScreen');
         if (!loadingScreen) {
             loadingScreen = this.createLoadingScreen();
         }
-        
+
         // Update progress bar
         const progressBar = document.getElementById('loadingProgress');
         if (progressBar) {
             progressBar.style.width = progress + '%';
         }
-        
+
         // Update status text
         const statusText = document.getElementById('loadingStatus');
         if (statusText) {
@@ -204,7 +202,7 @@ class VampireGameBootstrap {
             color: white;
             font-family: Arial, sans-serif;
         `;
-        
+
         loadingScreen.innerHTML = `
             <div style="text-align: center;">
                 <h1 style="font-size: 3rem; margin-bottom: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
@@ -219,7 +217,7 @@ class VampireGameBootstrap {
                 </p>
             </div>
         `;
-        
+
         document.body.appendChild(loadingScreen);
         return loadingScreen;
     }
@@ -257,7 +255,7 @@ class VampireGameBootstrap {
                 font-family: Arial, sans-serif;
             `;
         }
-        
+
         errorScreen.innerHTML = `
             <div style="text-align: center; max-width: 500px; padding: 2rem;">
                 <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">❌ Error</h1>
@@ -280,7 +278,7 @@ class VampireGameBootstrap {
                 </button>
             </div>
         `;
-        
+
         document.body.appendChild(errorScreen);
     }
 }
@@ -288,11 +286,11 @@ class VampireGameBootstrap {
 // Initialize game when DOM is loaded or immediately if already loaded
 function initializeGame() {
     console.log('🎮 Initializing Vampire Survivors...');
-    
+
     const gameBootstrap = new VampireGameBootstrap();
     window.gameBootstrap = gameBootstrap; // Make it globally accessible for debugging
-    
-    gameBootstrap.init().catch(error => {
+
+    gameBootstrap.init().catch((error) => {
         console.error('❌ Failed to initialize game:', error);
         console.error('Stack trace:', error.stack);
     });
@@ -312,7 +310,7 @@ let lastErrorTime = 0;
 
 window.addEventListener('error', (event) => {
     const now = Date.now();
-    
+
     // Rate limit error handling to prevent spam
     if (now - lastErrorTime < 1000) {
         errorCount++;
@@ -323,11 +321,11 @@ window.addEventListener('error', (event) => {
     } else {
         errorCount = 1;
     }
-    
+
     lastErrorTime = now;
-    
+
     console.error('Uncaught error:', event.error);
-    
+
     // Try to keep the game running
     if (window.game && window.game.running) {
         console.log('Attempting to continue game despite error...');
@@ -364,19 +362,24 @@ window.debugCommands = {
     },
     cleanupArtifacts: () => {
         console.log('🧹 Running artifact cleanup...');
-        
+
         // Find all visible elements
         const visibleElements = [];
-        document.querySelectorAll('*').forEach(el => {
-            if (el.id === 'gameCanvas' || el.tagName === 'CANVAS' || 
-                el.tagName === 'HTML' || el.tagName === 'BODY' ||
-                el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
-            
+        document.querySelectorAll('*').forEach((el) => {
+            if (
+                el.id === 'gameCanvas' ||
+                el.tagName === 'CANVAS' ||
+                el.tagName === 'HTML' ||
+                el.tagName === 'BODY' ||
+                el.tagName === 'SCRIPT' ||
+                el.tagName === 'STYLE'
+            )
+                return;
+
             const rect = el.getBoundingClientRect();
             const style = window.getComputedStyle(el);
-            
-            if (rect.width > 0 && rect.height > 0 && 
-                style.display !== 'none' && style.visibility !== 'hidden') {
+
+            if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') {
                 visibleElements.push({
                     element: el,
                     id: el.id || 'none',
@@ -389,27 +392,29 @@ window.debugCommands = {
                 });
             }
         });
-        
+
         console.log(`Found ${visibleElements.length} visible elements:`);
-        console.table(visibleElements.map(e => ({
-            id: e.id,
-            class: e.class,
-            tag: e.tag,
-            position: e.position,
-            size: e.size,
-            bg: e.bg,
-            zIndex: e.zIndex
-        })));
-        
+        console.table(
+            visibleElements.map((e) => ({
+                id: e.id,
+                class: e.class,
+                tag: e.tag,
+                position: e.position,
+                size: e.size,
+                bg: e.bg,
+                zIndex: e.zIndex
+            }))
+        );
+
         // Remove problematic ones
         let removedCount = 0;
-        visibleElements.forEach(item => {
+        visibleElements.forEach((item) => {
             const el = item.element;
             const bg = item.bg;
-            
+
             // Check for white/light backgrounds or large right-side overlays
             let shouldRemove = false;
-            
+
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
                 const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
                 if (match) {
@@ -419,24 +424,24 @@ window.debugCommands = {
                     }
                 }
             }
-            
+
             // Check position (right side overlay)
             const rect = el.getBoundingClientRect();
             if (rect.width > 100 && rect.left > window.innerWidth * 0.7) {
                 shouldRemove = true;
             }
-            
+
             if (shouldRemove && el.id !== 'gameHUD' && el.id !== 'performanceMonitor') {
                 console.log(`Removing: ${item.id || item.tag} - ${item.bg} at ${item.position}`);
                 el.remove();
                 removedCount++;
             }
         });
-        
+
         console.log(`✅ Cleanup complete. Removed ${removedCount} elements.`);
-        
+
         // Force redraw - removed DOM manipulation call
-        
+
         return removedCount;
     }
 };

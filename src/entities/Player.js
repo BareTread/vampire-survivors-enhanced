@@ -81,20 +81,20 @@ export class Player {
 
         // ENHANCED DESPERATION MODE - Dramatic comeback mechanics
         this.nearDeath = {
-            threshold: 0.25, // Increased from 15% to 25% health for earlier activation
+            threshold: 0.2,
             bonusActive: false,
-            damageReduction: 0.3, // Take 70% damage (30% reduction)
-            expMultiplier: 3.0, // Triple XP when in desperation
+            damageReduction: 0.2,
+            expMultiplier: 1.25,
             effectIntensity: 0
         };
 
         this.desperationMode = {
             active: false,
-            speedMultiplier: 1.4, // 40% speed boost
-            damageMultiplier: 1.6, // 60% damage boost
-            magnetRangeMultiplier: 2.5, // 2.5x magnet range
+            speedMultiplier: 1.15,
+            damageMultiplier: 1.15,
+            magnetRangeMultiplier: 1.5,
             iFrameBonus: 0.15, // Additional 0.15s invincibility on movement
-            criticalChanceBonus: 0.3 // +30% critical hit chance
+            criticalChanceBonus: 0.1
         };
 
         // STREAK TRACKING - For various psychological rewards
@@ -643,7 +643,8 @@ export class Player {
 
         // Use centralized damage number pool
         const isCritical = color === '#FF0000' || color === '#FF69B4' || prefix === 'CRITICAL';
-        const displayText = prefix ? `${prefix} ${amount}` : amount;
+        const normalizedAmount = typeof amount === 'number' ? Math.round(amount) : amount;
+        const displayText = prefix ? `${prefix} ${normalizedAmount}` : normalizedAmount;
         return globalDamageNumberPool.get(
             this.x + (Math.random() - 0.5) * 20,
             this.y - 10,
@@ -915,7 +916,7 @@ export class Player {
         }
 
         // Continuous small rewards to maintain dopamine
-        if (this.combo.count % 5 === 0 && this.combo.count >= 5) {
+        if (this.combo.count % 10 === 0 && this.combo.count >= 10) {
             this.triggerComboFeedback();
         }
 
@@ -1032,14 +1033,14 @@ export class Player {
         this.combo.lastCelebration = threshold;
 
         // Escalating celebrations for higher thresholds
-        const intensity = Math.min(3.0, 1.0 + threshold / 100);
+        const intensity = Math.min(1.5, 0.5 + threshold / 200);
 
         // Screen effects
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
-            this.game.camera.flash('#FFD700', 0.8 * intensity);
+            this.game.camera.flash('#FFD700', 0.4 * intensity);
         }
         if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(8 * intensity, 0.6);
+            this.game.camera.shake(4 * intensity, 0.4);
         }
 
         // Particle celebration
@@ -1136,8 +1137,9 @@ export class Player {
         // Update weapon stats
         this.updateWeaponStats();
 
-        // Show power-up ending
-        this.addDamageNumber(`${type.toUpperCase()} ENDED`, '#888888', '');
+        if (type === 'invincible') {
+            this.addDamageNumber('INVINCIBLE ENDED', '#888888', '');
+        }
     }
 
     createPowerUpEffect(type, intensity) {
@@ -1253,7 +1255,7 @@ export class Player {
         this.addDamageNumber('RECOVERED!', '#00FF88', 'TRIUMPH');
 
         // Massive XP reward for surviving desperation mode
-        const bonusXP = 150;
+        const bonusXP = 25;
         this.gainExperience(bonusXP);
 
         // ENHANCED Celebration effects
@@ -1341,8 +1343,13 @@ export class Player {
 
         // Near-death damage reduction for dramatic survivability
         if (this.nearDeath.bonusActive) {
-            finalDamage *= this.nearDeath.damageReduction;
+            finalDamage *= 1 - this.nearDeath.damageReduction;
             this.addDamageNumber('REDUCED!', '#FFAA00', 'LAST STAND');
+        }
+
+        const holyBible = this.weapons.get('holy_bible');
+        if (holyBible && typeof holyBible.getPlayerDamageReduction === 'function') {
+            finalDamage *= 1 - holyBible.getPlayerDamageReduction();
         }
 
         // ARMOR passive item + permanent armor upgrades — flat damage reduction
@@ -1391,44 +1398,7 @@ export class Player {
             return true;
         }
 
-        // Last-second save mechanic (psychological relief)
-        if (this.health <= 1 && Math.random() < 0.15) {
-            // 15% chance
-            this.triggerLastSecondSave();
-        }
-
         return true;
-    }
-
-    triggerLastSecondSave() {
-        // Dramatic last-second health restore
-        const saveAmount = Math.floor(this.maxHealth * 0.1);
-        this.health = Math.min(this.maxHealth, this.health + saveAmount);
-
-        // Massive celebration - this creates powerful psychological relief
-        this.addDamageNumber('MIRACULOUS SAVE!', '#00FFFF', 'DIVINE');
-
-        if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
-            this.game.camera.flash('#00FFFF', 1.2);
-        }
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(12, 0.8);
-        }
-
-        if (this.game.systems.particle) {
-            this.game.systems.particle.createMiraculousSaveEffect(this.x, this.y);
-        }
-
-        // Temporary power boost as reward
-        this.activatePowerUp('invincible', 2.0, 1.0);
-        this.activatePowerUp('damageBoost', 10.0, 2.5);
-
-        if (this.game.audioManager && typeof this.game.audioManager.playMiraculousSave === 'function') {
-            this.game.audioManager.playMiraculousSave();
-        } else if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
-            // Fallback to generic triumphant sound
-            this.game.audioManager.playVampireSound('levelUp', 0.5, 1.5);
-        }
     }
 
     // Enhanced experience gain with combo multipliers
@@ -1437,28 +1407,34 @@ export class Player {
 
         let finalExp = amount;
 
-        // Apply combo multiplier for addictive growth
-        finalExp *= this.combo.multiplier;
-
-        // Near-death bonus
-        if (this.nearDeath.bonusActive) {
-            finalExp *= this.nearDeath.expMultiplier;
+        // Famine challenge: XP gems worth 50% less
+        if (this.game.systems?.challenge?.hasModifier('famine')) {
+            finalExp *= 0.5;
         }
 
-        // Luck multiplier
-        finalExp *= this.stats.luck;
+        let totalBonus = 0;
 
-        // Permanent XP gain upgrade
+        totalBonus += Math.min(0.5, Math.max(0, (this.combo.multiplier - 1) * 0.33));
+
+        if (this.nearDeath.bonusActive) {
+            totalBonus += this.nearDeath.expMultiplier - 1;
+        }
+
+        totalBonus += Math.max(0, (this.stats.luck - 1) * 0.5);
+
         const xpGainMultiplier = this.game.systems?.persistence?.getUpgradeModifiers?.().xpGain || 1;
-        finalExp *= xpGainMultiplier;
+        totalBonus += Math.max(0, xpGainMultiplier - 1);
+
+        const finalMultiplier = Math.min(2.5, 1 + totalBonus);
+        finalExp *= finalMultiplier;
 
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
 
         // Enhanced visual feedback based on multipliers
-        const color = this.combo.multiplier > 2.0 ? '#FFD700' : this.combo.multiplier > 1.5 ? '#FFAA00' : '#44AAFF';
+        const color = finalMultiplier > 2.0 ? '#FFD700' : finalMultiplier > 1.5 ? '#FFAA00' : '#44AAFF';
 
-        const prefix = this.combo.multiplier > 1.0 ? `x${this.combo.multiplier.toFixed(1)}` : 'EXP';
+        const prefix = finalMultiplier > 1.0 ? `x${finalMultiplier.toFixed(1)}` : 'EXP';
 
         this.addDamageNumber(expGain, color, prefix);
 
@@ -1482,8 +1458,10 @@ export class Player {
             // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
             this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
 
-            // Full heal on level up
-            this.health = this.maxHealth;
+            // Full heal on level up (blocked by no_heals challenge)
+            if (!this.game.systems?.challenge?.hasModifier('no_heals')) {
+                this.health = this.maxHealth;
+            }
         }
 
         // Process the first queued level-up (if any) and not already in level-up UI
@@ -1616,7 +1594,6 @@ export class Player {
         if (this.desperationMode.active) {
             stats.speed *= this.desperationMode.speedMultiplier; // 40% speed boost
             stats.damage *= this.desperationMode.damageMultiplier; // 60% damage boost
-            stats.luck += this.desperationMode.criticalChanceBonus; // +30% crit chance
         }
 
         return stats;

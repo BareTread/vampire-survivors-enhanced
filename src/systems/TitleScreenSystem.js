@@ -4,10 +4,11 @@ import { CHARACTERS } from '../data/characters.js';
  * TitleScreenSystem - Canvas-rendered title screen with menu navigation, upgrade shop,
  * and character selection.
  *
- * Handles three game states:
- *   - 'menu'       : Main title screen (PLAY, CHARACTERS, UPGRADES, SETTINGS)
+ * Handles game states:
+ *   - 'menu'       : Main title screen
  *   - 'characters' : Character selection overlay
  *   - 'upgrades'   : Upgrade shop overlay
+ *   - 'challenges' : Challenge modifier selection overlay
  */
 export class TitleScreenSystem {
     constructor(game) {
@@ -15,7 +16,7 @@ export class TitleScreenSystem {
 
         // Menu state
         this.selectedIndex = 0;
-        this.menuItems = ['PLAY', 'CHARACTERS', 'UPGRADES', 'STATISTICS', 'SETTINGS'];
+        this.menuItems = ['PLAY', 'CHARACTERS', 'UPGRADES', 'CHALLENGES', 'STATISTICS', 'SETTINGS'];
         this.hoveredIndex = -1;
 
         // Upgrade shop state
@@ -29,6 +30,12 @@ export class TitleScreenSystem {
         this._characterRects = [];
         this._characterBackRect = null;
 
+        // Challenge select state
+        this.challengeSelectedIndex = 0;
+        this.challengeHoveredIndex = -1;
+        this._challengeRects = [];
+        this._challengeBackRect = null;
+
         // Animation
         this.time = 0;
         this.titleGlow = 0;
@@ -40,21 +47,34 @@ export class TitleScreenSystem {
         this._upgradeRects = [];
         this._backButtonRect = null;
         this._statsBackRect = null;
+
+        this.theme = {
+            accentFill: 'rgba(154, 78, 36, 0.22)',
+            accentStroke: 'rgba(214, 138, 68, 0.72)',
+            accentMuted: '#CBB48A',
+            panelFill: 'rgba(18, 12, 24, 0.95)',
+            panelStroke: 'rgba(196, 118, 54, 0.58)',
+            backFill: 'rgba(68, 34, 24, 0.72)',
+            backStroke: 'rgba(214, 150, 90, 0.55)',
+            sectionLabel: '#D9A45C'
+        };
     }
 
     // ---- Particles ----
 
     initParticles() {
         this.particles = [];
-        for (let i = 0; i < 60; i++) {
+        // Embers particles
+        for (let i = 0; i < 80; i++) {
             this.particles.push({
                 x: Math.random(),
                 y: Math.random(),
-                vx: (Math.random() - 0.5) * 0.01,
-                vy: (Math.random() - 0.5) * 0.008,
-                size: 1 + Math.random() * 2.5,
-                alpha: 0.08 + Math.random() * 0.18,
-                phase: Math.random() * Math.PI * 2
+                vx: (Math.random() - 0.5) * 0.015,
+                vy: -(Math.random() * 0.02 + 0.005), // Float upwards like embers
+                size: 0.5 + Math.random() * 2.0,
+                alpha: 0.08 + Math.random() * 0.28,
+                phase: Math.random() * Math.PI * 2,
+                color: Math.random() > 0.82 ? [255, 205, 120] : [255, 120 + Math.random() * 30, 36]
             });
         }
     }
@@ -91,23 +111,34 @@ export class TitleScreenSystem {
         const w = this.game.canvas.width;
         const h = this.game.canvas.height;
 
-        // 1. Dark gradient background with slow hue shift
-        const hue = (this.time * 8) % 360;
+        // 1. Dark background with subtle animated gradient (closer to ash/void)
+        const pulse = Math.sin(this.time * 0.5) * 0.5 + 0.5;
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, `hsl(${240 + Math.sin(hue * Math.PI / 180) * 10}, 80%, 5%)`);
-        grad.addColorStop(1, `hsl(${270 + Math.sin(hue * Math.PI / 180) * 10}, 70%, 10%)`);
+        grad.addColorStop(0, `rgba(${10 + pulse * 5}, ${8 + pulse * 3}, ${15 + pulse * 5}, 1)`);
+        grad.addColorStop(1, `rgba(${5 + pulse * 2}, ${3 + pulse}, ${8 + pulse * 3}, 1)`);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, w, h);
 
-        // 2. Floating particle wisps
+        // 2. Ember particles
         for (const p of this.particles) {
             const px = p.x * w;
             const py = p.y * h;
-            const flicker = p.alpha + 0.06 * Math.sin(this.time * 2.5 + p.phase);
-            ctx.fillStyle = `rgba(180, 140, 255, ${Math.max(0, flicker)})`;
+            const flicker = p.alpha + 0.3 * Math.sin(this.time * 5.0 + p.phase);
+            const [r, g, b] = p.color;
+
+            // Ember glow
+            ctx.shadowBlur = p.size * 2.5;
+            ctx.shadowColor = `rgba(${r}, ${g * 0.75}, ${Math.max(20, b)}, 0.45)`;
+
+            // Core
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.max(0, flicker)})`;
+
             ctx.beginPath();
             ctx.arc(px, py, p.size, 0, Math.PI * 2);
             ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
         }
 
         // 3. Title
@@ -147,8 +178,8 @@ export class TitleScreenSystem {
 
             // Button background
             if (isSelected || isHovered) {
-                ctx.fillStyle = 'rgba(138, 43, 226, 0.25)';
-                ctx.strokeStyle = 'rgba(138, 43, 226, 0.7)';
+                ctx.fillStyle = this.theme.accentFill;
+                ctx.strokeStyle = this.theme.accentStroke;
                 ctx.lineWidth = 2;
                 this.roundRect(ctx, rectX, rectY, rectW, rectH, 10);
                 ctx.fill();
@@ -161,7 +192,7 @@ export class TitleScreenSystem {
                 ctx.shadowBlur = 15;
             }
 
-            ctx.fillStyle = isSelected || isHovered ? '#FFD700' : '#C0B0E0';
+            ctx.fillStyle = isSelected || isHovered ? '#FFD700' : this.theme.accentMuted;
             ctx.fillText(displayLabel, w / 2, y);
 
             ctx.shadowColor = 'transparent';
@@ -200,6 +231,11 @@ export class TitleScreenSystem {
         if (this.game.gameState === 'statistics') {
             this.renderStatistics(ctx);
         }
+
+        // 11. Challenges overlay
+        if (this.game.gameState === 'challenges') {
+            this.renderChallenges(ctx);
+        }
     }
 
     renderTitle(ctx, w, y) {
@@ -224,10 +260,10 @@ export class TitleScreenSystem {
         ctx.fillText('VAMPIRE SURVIVORS', w / 2, y);
 
         // Subtitle
-        ctx.shadowColor = `rgba(160, 80, 255, 0.5)`;
+        ctx.shadowColor = 'rgba(217, 164, 92, 0.45)';
         ctx.shadowBlur = 12;
         ctx.font = `bold ${Math.min(24, w * 0.025)}px 'Cinzel', 'Times New Roman', serif`;
-        ctx.fillStyle = '#B080FF';
+        ctx.fillStyle = this.theme.sectionLabel;
         ctx.fillText('ENHANCED', w / 2, y + 42);
 
         ctx.restore();
@@ -272,8 +308,8 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = 'rgba(15, 10, 30, 0.95)';
-        ctx.strokeStyle = 'rgba(138, 43, 226, 0.7)';
+        ctx.fillStyle = this.theme.panelFill;
+        ctx.strokeStyle = this.theme.panelStroke;
         ctx.lineWidth = 2;
         this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
         ctx.fill();
@@ -310,8 +346,8 @@ export class TitleScreenSystem {
 
             // Row background
             if (isSelected || isHovered) {
-                ctx.fillStyle = 'rgba(138, 43, 226, 0.2)';
-                ctx.strokeStyle = 'rgba(138, 43, 226, 0.6)';
+                ctx.fillStyle = this.theme.accentFill;
+                ctx.strokeStyle = this.theme.accentStroke;
                 ctx.lineWidth = 1;
                 this.roundRect(ctx, listX, iy, listW, itemH - 4, 6);
                 ctx.fill();
@@ -322,7 +358,7 @@ export class TitleScreenSystem {
             ctx.font = 'bold 18px Arial, sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#C0B0E0';
+            ctx.fillStyle = this.theme.accentMuted;
             ctx.fillText(u.icon, listX + 10, iy + (itemH - 4) / 2);
 
             // Name
@@ -364,8 +400,8 @@ export class TitleScreenSystem {
         const backY = panelY + panelH - 50;
         this._backButtonRect = { x: backX, y: backY, w: backW, h: backH };
 
-        ctx.fillStyle = 'rgba(80, 0, 130, 0.6)';
-        ctx.strokeStyle = 'rgba(180, 140, 255, 0.6)';
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
         ctx.lineWidth = 1;
         this.roundRect(ctx, backX, backY, backW, backH, 8);
         ctx.fill();
@@ -373,7 +409,7 @@ export class TitleScreenSystem {
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = '#C0B0E0';
+        ctx.fillStyle = this.theme.accentMuted;
         ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
     }
 
@@ -395,8 +431,8 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = 'rgba(15, 10, 30, 0.95)';
-        ctx.strokeStyle = 'rgba(138, 43, 226, 0.7)';
+        ctx.fillStyle = this.theme.panelFill;
+        ctx.strokeStyle = this.theme.panelStroke;
         ctx.lineWidth = 2;
         this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
         ctx.fill();
@@ -430,9 +466,11 @@ export class TitleScreenSystem {
             // Card background
             const cardAlpha = isUnlocked ? 0.95 : 0.6;
             ctx.fillStyle = `rgba(25, 18, 50, ${cardAlpha})`;
-            const borderColor = isCurrentChar ? '#FFD700'
-                : isSelected || isHovered ? 'rgba(138, 43, 226, 0.9)'
-                : 'rgba(80, 60, 120, 0.6)';
+            const borderColor = isCurrentChar
+                ? '#FFD700'
+                : isSelected || isHovered
+                  ? this.theme.accentStroke
+                  : 'rgba(110, 82, 56, 0.6)';
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = isCurrentChar ? 3 : 2;
             this.roundRect(ctx, cx, cardsY, cardW, cardH, 12);
@@ -470,7 +508,7 @@ export class TitleScreenSystem {
 
                 // Unlock condition
                 ctx.font = '11px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(180, 160, 220, 0.7)';
+                ctx.fillStyle = 'rgba(215, 164, 92, 0.78)';
                 this.wrapText(ctx, char.unlockDesc || '', cardCenterX, cardsY + 165, cardW - 20, 14);
             } else {
                 // Character circle with color
@@ -507,7 +545,7 @@ export class TitleScreenSystem {
                 // Starting weapon
                 ctx.font = '11px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(140, 200, 255, 0.7)';
-                const weaponName = char.startingWeapon.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const weaponName = char.startingWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
                 ctx.fillText(`Starts: ${weaponName}`, cardCenterX, cardsY + 200);
 
                 // Stat modifiers
@@ -515,10 +553,12 @@ export class TitleScreenSystem {
                 ctx.font = '11px Arial, sans-serif';
                 let modLine = 0;
                 for (const [stat, val] of Object.entries(char.statModifiers)) {
-                    const display = stat === 'projectiles'
-                        ? `+${val} Projectile${val > 1 ? 's' : ''}`
-                        : `${val > 1 ? '+' : ''}${Math.round((val - 1) * 100)}% ${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
-                    ctx.fillStyle = val >= 1 && stat !== 'projectiles' ? '#4ade80' : stat === 'projectiles' ? '#4ade80' : '#FF6B6B';
+                    const display =
+                        stat === 'projectiles'
+                            ? `+${val} Projectile${val > 1 ? 's' : ''}`
+                            : `${val > 1 ? '+' : ''}${Math.round((val - 1) * 100)}% ${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
+                    ctx.fillStyle =
+                        val >= 1 && stat !== 'projectiles' ? '#4ade80' : stat === 'projectiles' ? '#4ade80' : '#FF6B6B';
                     ctx.fillText(display, cardCenterX, modY + modLine * 15);
                     modLine++;
                 }
@@ -543,8 +583,8 @@ export class TitleScreenSystem {
         const backY = panelY + panelH - 50;
         this._characterBackRect = { x: backX, y: backY, w: backW, h: backH };
 
-        ctx.fillStyle = 'rgba(80, 0, 130, 0.6)';
-        ctx.strokeStyle = 'rgba(180, 140, 255, 0.6)';
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
         ctx.lineWidth = 1;
         this.roundRect(ctx, backX, backY, backW, backH, 8);
         ctx.fill();
@@ -552,7 +592,7 @@ export class TitleScreenSystem {
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = '#C0B0E0';
+        ctx.fillStyle = this.theme.accentMuted;
         ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
     }
 
@@ -583,6 +623,11 @@ export class TitleScreenSystem {
 
         if (this.game.gameState === 'upgrades') {
             this.handleUpgradeInput(k);
+            return;
+        }
+
+        if (this.game.gameState === 'challenges') {
+            this.handleChallengeInput(k);
             return;
         }
 
@@ -650,6 +695,11 @@ export class TitleScreenSystem {
     handleClick(x, y) {
         if (this.game.gameState === 'upgrades') {
             this.handleUpgradeClick(x, y);
+            return;
+        }
+
+        if (this.game.gameState === 'challenges') {
+            this.handleChallengeClick(x, y);
             return;
         }
 
@@ -721,6 +771,18 @@ export class TitleScreenSystem {
             return; // No hover state needed for statistics
         }
 
+        if (this.game.gameState === 'challenges') {
+            this.challengeHoveredIndex = -1;
+            for (let i = 0; i < this._challengeRects.length; i++) {
+                const r = this._challengeRects[i];
+                if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+                    this.challengeHoveredIndex = i;
+                    break;
+                }
+            }
+            return;
+        }
+
         if (this.game.gameState === 'characters') {
             this.characterHoveredIndex = -1;
             for (let i = 0; i < this._characterRects.length; i++) {
@@ -773,10 +835,13 @@ export class TitleScreenSystem {
                 break;
             case 'UPGRADES':
                 this.upgradeSelectedIndex = 0;
-                this.upgradeList = this.game.systems.persistence
-                    ? this.game.systems.persistence.getUpgradeInfo()
-                    : [];
+                this.upgradeList = this.game.systems.persistence ? this.game.systems.persistence.getUpgradeInfo() : [];
                 this.game.gameState = 'upgrades';
+                break;
+            case 'CHALLENGES':
+                this.challengeSelectedIndex = 0;
+                this.challengeHoveredIndex = -1;
+                this.game.gameState = 'challenges';
                 break;
             case 'STATISTICS':
                 this.game.gameState = 'statistics';
@@ -835,8 +900,8 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = 'rgba(15, 10, 30, 0.95)';
-        ctx.strokeStyle = 'rgba(138, 43, 226, 0.7)';
+        ctx.fillStyle = this.theme.panelFill;
+        ctx.strokeStyle = this.theme.panelStroke;
         ctx.lineWidth = 2;
         this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
         ctx.fill();
@@ -852,7 +917,7 @@ export class TitleScreenSystem {
         const persistence = this.game.systems.persistence;
         if (!persistence) {
             ctx.font = '16px Arial, sans-serif';
-            ctx.fillStyle = '#C0B0E0';
+            ctx.fillStyle = this.theme.accentMuted;
             ctx.fillText('No data available', w / 2, h / 2);
             return;
         }
@@ -866,7 +931,7 @@ export class TitleScreenSystem {
         // Left column header
         ctx.textAlign = 'left';
         ctx.font = 'bold 15px Arial, sans-serif';
-        ctx.fillStyle = '#B080FF';
+        ctx.fillStyle = this.theme.sectionLabel;
         ctx.fillText('RUN TOTALS', colLeft, startY);
 
         // Left column stats
@@ -891,7 +956,7 @@ export class TitleScreenSystem {
 
         // Right column header
         ctx.font = 'bold 15px Arial, sans-serif';
-        ctx.fillStyle = '#B080FF';
+        ctx.fillStyle = this.theme.sectionLabel;
         ctx.fillText('PERSONAL BESTS', colRight, startY);
 
         // Right column stats
@@ -917,7 +982,7 @@ export class TitleScreenSystem {
         // Favorite weapon section
         const weaponY = startY + 7 * lineH;
         ctx.font = 'bold 15px Arial, sans-serif';
-        ctx.fillStyle = '#B080FF';
+        ctx.fillStyle = this.theme.sectionLabel;
         ctx.textAlign = 'center';
         ctx.fillText('FAVORITE WEAPON', w / 2, weaponY);
 
@@ -933,9 +998,13 @@ export class TitleScreenSystem {
 
         ctx.font = '14px Arial, sans-serif';
         if (favWeapon) {
-            const weaponName = favWeapon.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const weaponName = favWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
             ctx.fillStyle = '#FFD700';
-            ctx.fillText(`${weaponName}  (picked ${favCount} time${favCount !== 1 ? 's' : ''})`, w / 2, weaponY + lineH);
+            ctx.fillText(
+                `${weaponName}  (picked ${favCount} time${favCount !== 1 ? 's' : ''})`,
+                w / 2,
+                weaponY + lineH
+            );
         } else {
             ctx.fillStyle = 'rgba(160, 160, 180, 0.6)';
             ctx.fillText('No weapons used yet', w / 2, weaponY + lineH);
@@ -948,8 +1017,8 @@ export class TitleScreenSystem {
         const backY = panelY + panelH - 50;
         this._statsBackRect = { x: backX, y: backY, w: backW, h: backH };
 
-        ctx.fillStyle = 'rgba(80, 0, 130, 0.6)';
-        ctx.strokeStyle = 'rgba(180, 140, 255, 0.6)';
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
         ctx.lineWidth = 1;
         this.roundRect(ctx, backX, backY, backW, backH, 8);
         ctx.fill();
@@ -957,8 +1026,227 @@ export class TitleScreenSystem {
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = '#C0B0E0';
+        ctx.fillStyle = this.theme.accentMuted;
         ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+    }
+
+    // ---- Render: Challenge Modifiers ----
+
+    renderChallenges(ctx) {
+        const w = this.game.canvas.width;
+        const h = this.game.canvas.height;
+        const challenge = this.game.systems.challenge;
+        if (!challenge) return;
+
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Panel
+        const panelW = Math.min(620, w - 60);
+        const panelH = Math.min(560, h - 60);
+        const panelX = (w - panelW) / 2;
+        const panelY = (h - panelH) / 2;
+
+        ctx.fillStyle = this.theme.panelFill;
+        ctx.strokeStyle = this.theme.panelStroke;
+        ctx.lineWidth = 2;
+        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
+        ctx.fill();
+        ctx.stroke();
+
+        // Header
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('CHALLENGE MODIFIERS', w / 2, panelY + 36);
+
+        // Unlock check
+        const unlocked = challenge.isUnlocked();
+        if (!unlocked) {
+            ctx.font = '16px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(200, 160, 120, 0.8)';
+            ctx.fillText('\u{1F512}  Survive 15 minutes to unlock challenges', w / 2, h / 2 - 10);
+            ctx.font = '13px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(160, 140, 120, 0.6)';
+            ctx.fillText('Challenges add difficulty modifiers in exchange for bonus gold', w / 2, h / 2 + 20);
+        } else {
+            // Subheader
+            ctx.font = '13px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
+            ctx.fillText('Select up to 3 modifiers for bonus gold  |  Click / Enter to toggle', w / 2, panelY + 62);
+
+            // Modifier list
+            this._challengeRects = [];
+            const listY = panelY + 85;
+            const itemH = 60;
+            const listX = panelX + 24;
+            const listW = panelW - 48;
+
+            for (let i = 0; i < challenge.modifiers.length; i++) {
+                const mod = challenge.modifiers[i];
+                const iy = listY + i * itemH;
+                const isSelected = i === this.challengeSelectedIndex;
+                const isHovered = i === this.challengeHoveredIndex;
+                const isActive = challenge.pendingModifiers.has(mod.id);
+
+                this._challengeRects.push({ x: listX, y: iy, w: listW, h: itemH - 4 });
+
+                // Row background
+                if (isActive) {
+                    ctx.fillStyle = `rgba(${this.hexToRgb(mod.color)}, 0.15)`;
+                    ctx.strokeStyle = mod.color;
+                    ctx.lineWidth = 2;
+                } else if (isSelected || isHovered) {
+                    ctx.fillStyle = this.theme.accentFill;
+                    ctx.strokeStyle = this.theme.accentStroke;
+                    ctx.lineWidth = 1;
+                } else {
+                    ctx.fillStyle = 'rgba(30, 22, 40, 0.6)';
+                    ctx.strokeStyle = 'rgba(80, 60, 50, 0.4)';
+                    ctx.lineWidth = 1;
+                }
+                this.roundRect(ctx, listX, iy, listW, itemH - 4, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                // Active checkmark
+                ctx.font = 'bold 20px Arial, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = isActive ? '#4ade80' : 'rgba(80, 80, 100, 0.5)';
+                ctx.fillText(isActive ? '✓' : '○', listX + 12, iy + (itemH - 4) / 2);
+
+                // Icon
+                ctx.font = '22px Arial, sans-serif';
+                ctx.fillText(mod.icon, listX + 40, iy + (itemH - 4) / 2);
+
+                // Name
+                ctx.font = 'bold 15px Arial, sans-serif';
+                ctx.fillStyle = isActive ? mod.color : (isSelected || isHovered ? '#FFD700' : '#E0E0F0');
+                ctx.fillText(mod.name, listX + 70, iy + 18);
+
+                // Description
+                ctx.font = '12px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(180, 180, 200, 0.7)';
+                ctx.fillText(mod.description, listX + 70, iy + 38);
+
+                // Gold bonus
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 14px Arial, sans-serif';
+                ctx.fillStyle = '#FFD700';
+                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% Gold`, listX + listW - 12, iy + (itemH - 4) / 2);
+                ctx.textAlign = 'left';
+            }
+
+            // Total gold multiplier
+            const totalY = listY + challenge.modifiers.length * itemH + 10;
+            const mult = challenge.getGoldMultiplier();
+            const pending = challenge.pendingModifiers;
+            // Recalculate based on pending (not active)
+            let pendingBonus = 0;
+            for (const id of pending) {
+                const mod = challenge.modifiers.find(m => m.id === id);
+                if (mod) pendingBonus += mod.goldBonus;
+            }
+            const pendingMult = 1 + pendingBonus;
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 18px "Cinzel", "Times New Roman", serif';
+            if (pending.size > 0) {
+                ctx.fillStyle = '#FFD700';
+                ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+                ctx.shadowBlur = 10;
+                ctx.fillText(`GOLD MULTIPLIER: ${pendingMult.toFixed(1)}×`, w / 2, totalY);
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
+            } else {
+                ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
+                ctx.fillText('No modifiers selected', w / 2, totalY);
+            }
+
+            // Active count
+            ctx.font = '12px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
+            ctx.fillText(`${pending.size} / ${challenge.maxActive} selected`, w / 2, totalY + 22);
+        }
+
+        // Back button
+        const backW = 120;
+        const backH = 36;
+        const backX = (w - backW) / 2;
+        const backY = panelY + panelH - 50;
+        this._challengeBackRect = { x: backX, y: backY, w: backW, h: backH };
+
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, backX, backY, backW, backH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 14px Arial, sans-serif';
+        ctx.fillStyle = this.theme.accentMuted;
+        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+    }
+
+    handleChallengeInput(k) {
+        const challenge = this.game.systems.challenge;
+        if (!challenge) return;
+
+        const len = challenge.modifiers.length;
+        if (k === 'arrowup') {
+            this.challengeSelectedIndex = (this.challengeSelectedIndex - 1 + len) % len;
+            this.playHoverSound();
+        } else if (k === 'arrowdown') {
+            this.challengeSelectedIndex = (this.challengeSelectedIndex + 1) % len;
+            this.playHoverSound();
+        } else if (k === 'enter' || k === ' ') {
+            if (challenge.isUnlocked()) {
+                const mod = challenge.modifiers[this.challengeSelectedIndex];
+                if (mod) {
+                    challenge.togglePending(mod.id);
+                    this.playSelectSound();
+                }
+            }
+        } else if (k === 'escape') {
+            this.game.gameState = 'menu';
+        }
+    }
+
+    handleChallengeClick(x, y) {
+        const challenge = this.game.systems.challenge;
+        if (!challenge) return;
+
+        // Back button
+        const b = this._challengeBackRect;
+        if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+            this.game.gameState = 'menu';
+            return;
+        }
+
+        // Modifier rows
+        if (challenge.isUnlocked()) {
+            for (let i = 0; i < this._challengeRects.length; i++) {
+                const r = this._challengeRects[i];
+                if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+                    this.challengeSelectedIndex = i;
+                    const mod = challenge.modifiers[i];
+                    if (mod) {
+                        challenge.togglePending(mod.id);
+                        this.playSelectSound();
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 255, 255';
     }
 
     formatPlaytime(seconds) {
@@ -1018,5 +1306,7 @@ export class TitleScreenSystem {
         this.upgradeList = [];
         this.characterSelectedIndex = 0;
         this.characterHoveredIndex = -1;
+        this.challengeSelectedIndex = 0;
+        this.challengeHoveredIndex = -1;
     }
 }

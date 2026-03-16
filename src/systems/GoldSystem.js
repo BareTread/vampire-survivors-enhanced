@@ -37,7 +37,8 @@ export class GoldSystem {
      * Called when an enemy dies. May spawn a gold coin.
      */
     onEnemyKilled(enemy) {
-        let chance = this.baseDropChance;
+        const waveNumber = this.game.systems?.enemy?.currentWave || 1;
+        let chance = 0.03 + Math.min(waveNumber * 0.01, 0.15);
         let goldValue = 1 + Math.floor(Math.random() * 3); // 1-3 base
 
         // Gold gain modifier from persistence upgrades
@@ -56,9 +57,8 @@ export class GoldSystem {
             goldValue = 20 + Math.floor(Math.random() * 30); // 20-50
         }
 
-        // Scale with game time (more gold later)
-        const timeScale = 1 + (this.game.gameTime || 0) / 600; // +1x per 10 min
-        goldValue = Math.floor(goldValue * timeScale * goldMultiplier);
+        const waveScale = 1 + Math.min((waveNumber - 1) * 0.03, 0.5);
+        goldValue = Math.floor(goldValue * waveScale * goldMultiplier);
 
         if (Math.random() < chance && this.coins.length < this.maxCoins) {
             this.spawnCoin(enemy.x, enemy.y, goldValue);
@@ -82,11 +82,11 @@ export class GoldSystem {
         const player = this.game.player;
         if (!player || !player.isAlive()) return;
 
-        // Read Attractorb range bonus
+        // Read Attractorb range bonus (additive: 0.25 per level → multiplier = 1 + bonus)
         let pickupBonus = 1;
         if (this.game.systems && this.game.systems.passiveItems) {
             const mods = this.game.systems.passiveItems.getStatModifiers();
-            if (mods.pickupRange) pickupBonus = mods.pickupRange;
+            pickupBonus = 1 + (mods.pickupRange || 0);
         }
         const effectiveCollect = this.collectRange * pickupBonus;
         const effectiveMagnet = this.magnetRange * pickupBonus;
@@ -137,11 +137,13 @@ export class GoldSystem {
     }
 
     collectCoin(coin) {
-        this.runGold += coin.value;
+        const challengeMult = this.game.systems?.challenge?.getGoldMultiplier() || 1;
+        const gainedGold = Math.floor(coin.value * challengeMult);
+        this.runGold += gainedGold;
 
         // Visual feedback
         if (globalDamageNumberPool) {
-            globalDamageNumberPool.spawn(coin.x, coin.y - 10, `+${coin.value}G`, '#FFD700', 'GOLD');
+            globalDamageNumberPool.spawn(coin.x, coin.y - 10, `+${gainedGold}G`, '#FFD700', 'GOLD');
         }
 
         // Audio

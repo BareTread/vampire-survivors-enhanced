@@ -178,6 +178,36 @@ export class SynergySystem {
                 remove: (weapon) => {
                     weapon._synergyReturnBonus = 1.0;
                 }
+            },
+            {
+                id: 'permafrost',
+                name: 'Permafrost',
+                icon: '❄️',
+                color: '#88DDFF',
+                weaponId: 'ice_shard',
+                passiveId: 'armor',
+                description: 'Frozen enemies take +35% damage from all sources',
+                apply: (weapon) => {
+                    weapon._synergyPermafrost = true;
+                },
+                remove: (weapon) => {
+                    weapon._synergyPermafrost = false;
+                }
+            },
+            {
+                id: 'death_mark',
+                name: 'Death Mark',
+                icon: '🩸',
+                color: '#8B5CF6',
+                weaponId: 'shadow_dagger',
+                passiveId: 'spinach',
+                description: 'Shadow Dagger deals +30% damage to bleeding enemies',
+                apply: (weapon) => {
+                    weapon._synergyDeathMark = true;
+                },
+                remove: (weapon) => {
+                    weapon._synergyDeathMark = false;
+                }
             }
         ];
 

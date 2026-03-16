@@ -208,8 +208,7 @@ export class PersistenceSystem {
         const maxLevel = this.getUpgradeMaxLevel(upgradeId);
         if (currentLevel >= maxLevel) return false;
 
-        // Cost scales with level
-        const totalCost = cost * (currentLevel + 1);
+        const totalCost = Math.floor(cost * Math.pow(1.8, currentLevel));
         if (this.data.gold < totalCost) return false;
 
         this.data.gold -= totalCost;
@@ -233,11 +232,11 @@ export class PersistenceSystem {
 
     getUpgradeMaxLevel(upgradeId) {
         const maxLevels = {
-            maxHealth: 10,
-            damage: 10,
-            moveSpeed: 10,
-            cooldown: 8,
-            xpGain: 10,
+            maxHealth: 8,
+            damage: 5,
+            moveSpeed: 8,
+            cooldown: 5,
+            xpGain: 5,
             armor: 5,
             revival: 1,
             goldGain: 8
@@ -263,7 +262,7 @@ export class PersistenceSystem {
         for (const [id, meta] of Object.entries(descriptions)) {
             const level = this.data.upgrades[id] || 0;
             const maxLevel = this.getUpgradeMaxLevel(id);
-            const cost = costs[id] * (level + 1);
+            const cost = Math.floor(costs[id] * Math.pow(1.8, level));
             info.push({
                 id,
                 ...meta,

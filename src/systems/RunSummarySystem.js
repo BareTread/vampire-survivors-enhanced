@@ -29,12 +29,30 @@ export class RunSummarySystem {
 
         // Stat definitions (order of reveal)
         this.statDefs = [
-            { key: 'survivalTime', label: 'TIME SURVIVED', format: 'time', recordKey: 'longestSurvival', icon: '\u23F1' },
+            {
+                key: 'survivalTime',
+                label: 'TIME SURVIVED',
+                format: 'time',
+                recordKey: 'longestSurvival',
+                icon: '\u23F1'
+            },
             { key: 'kills', label: 'ENEMIES SLAIN', format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
             { key: 'level', label: 'LEVEL REACHED', format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
             { key: 'combo', label: 'BEST COMBO', format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
-            { key: 'goldEarned', label: 'GOLD EARNED', format: 'number', recordKey: 'mostGoldSingleRun', icon: '\uD83D\uDCB0' },
-            { key: 'damageDealt', label: 'DAMAGE DEALT', format: 'number', recordKey: 'totalDamageDealt', icon: '\u2694' }
+            {
+                key: 'goldEarned',
+                label: 'GOLD EARNED',
+                format: 'number',
+                recordKey: 'mostGoldSingleRun',
+                icon: '\uD83D\uDCB0'
+            },
+            {
+                key: 'damageDealt',
+                label: 'DAMAGE DEALT',
+                format: 'number',
+                recordKey: 'totalDamageDealt',
+                icon: '\u2694'
+            }
         ];
     }
 
@@ -91,7 +109,7 @@ export class RunSummarySystem {
         // Animated gold counter
         const goldStart = 1.5;
         const goldDuration = 1.5;
-        const goldTarget = this.runData ? (this.runData.goldEarned || 0) : 0;
+        const goldTarget = this.runData ? this.runData.goldEarned || 0 : 0;
         if (this.revealTimer > goldStart) {
             const t = Math.min(1, (this.revealTimer - goldStart) / goldDuration);
             const eased = 1 - (1 - t) * (1 - t);
@@ -102,8 +120,14 @@ export class RunSummarySystem {
         for (const p of this._particles) {
             p.x += p.vx * dt;
             p.y += p.vy * dt;
-            if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
-            if (p.x < -0.05 || p.x > 1.05) { p.x = Math.random(); p.y = 1.05; }
+            if (p.y < -0.05) {
+                p.y = 1.05;
+                p.x = Math.random();
+            }
+            if (p.x < -0.05 || p.x > 1.05) {
+                p.x = Math.random();
+                p.y = 1.05;
+            }
         }
     }
 
@@ -153,7 +177,7 @@ export class RunSummarySystem {
         ctx.textBaseline = 'middle';
 
         // 2. Header — "FALLEN IN BATTLE" with glow
-        const headerY = h * 0.10;
+        const headerY = h * 0.1;
         const fontSize = Math.min(44, w * 0.048);
 
         // Text glow layers
@@ -172,10 +196,8 @@ export class RunSummarySystem {
         ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
 
         // Character name and title
-        const charId = this.game.systems.persistence
-            ? this.game.systems.persistence.getSelectedCharacter()
-            : 'antonio';
-        const character = CHARACTERS.find(c => c.id === charId);
+        const charId = this.game.systems.persistence ? this.game.systems.persistence.getSelectedCharacter() : 'antonio';
+        const character = CHARACTERS.find((c) => c.id === charId);
         if (character) {
             ctx.font = `bold 15px Arial, sans-serif`;
             ctx.fillStyle = character.color;
@@ -280,7 +302,7 @@ export class RunSummarySystem {
             ctx.fillText('ARSENAL', w / 2, weaponsY);
 
             // Weapon name pills
-            const names = this.runData.weaponsUsed.map(id => this.formatWeaponName(id));
+            const names = this.runData.weaponsUsed.map((id) => this.formatWeaponName(id));
             const totalLen = names.reduce((s, n) => s + n.length * 8 + 20, 0);
             let px = w / 2 - totalLen / 2;
 
@@ -350,7 +372,10 @@ export class RunSummarySystem {
             const brightness = active ? 1.3 : 1.0;
             const bgGrad = ctx.createLinearGradient(bx, y, bx, y + btnH);
             bgGrad.addColorStop(0, `rgba(${r * brightness}, ${g * brightness}, ${b * brightness}, 0.85)`);
-            bgGrad.addColorStop(1, `rgba(${r * brightness * 0.7}, ${g * brightness * 0.7}, ${b * brightness * 0.7}, 0.85)`);
+            bgGrad.addColorStop(
+                1,
+                `rgba(${r * brightness * 0.7}, ${g * brightness * 0.7}, ${b * brightness * 0.7}, 0.85)`
+            );
 
             ctx.fillStyle = bgGrad;
             this.roundRect(ctx, bx, y, btnW, btnH, 10);
@@ -449,7 +474,7 @@ export class RunSummarySystem {
     }
 
     formatWeaponName(id) {
-        return id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     roundRect(ctx, x, y, w, h, r) {

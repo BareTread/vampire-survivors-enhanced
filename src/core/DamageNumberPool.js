@@ -1,6 +1,6 @@
 /**
  * Damage Number Pooling System
- * 
+ *
  * Efficient pooling for damage numbers and UI elements to reduce GC pressure
  * during intense gameplay. Reuses damage number objects instead of creating new ones.
  */
@@ -32,6 +32,10 @@ export class DamageNumber {
         if (typeof value === 'number' && isFinite(value)) {
             this.value = value;
             this.text = Math.round(value).toString();
+        } else if (typeof value === 'string') {
+            const numericValue = Number(value);
+            this.value = isFinite(numericValue) ? numericValue : 0;
+            this.text = /^-?\d+(?:\.\d+)?$/.test(value.trim()) ? Math.round(numericValue).toString() : value;
         } else {
             this.value = 0;
             this.text = String(value ?? '');
@@ -40,7 +44,7 @@ export class DamageNumber {
         this.fontSize = isCritical ? 24 : 16;
         this.opacity = 1;
         this.velocityY = isCritical ? -3 : -2;
-        this.lifetime = isCritical ? 1.2 : 1.0;
+        this.lifetime = isCritical ? 0.9 : 0.7;
         this.elapsed = 0;
         this.active = true;
         this.isCritical = isCritical;
@@ -54,22 +58,22 @@ export class DamageNumber {
         if (!this.active) return;
 
         this.elapsed += deltaTime;
-        
+
         // Move upward
         this.y += this.velocityY * 60 * deltaTime;
-        
+
         // Slow down over time
         this.velocityY *= 0.98;
-        
+
         // Fade out
         const progress = this.elapsed / this.lifetime;
         this.opacity = Math.max(0, 1 - progress);
-        
+
         // Scale animation for critical hits
         if (this.isCritical) {
             this.scale = 1.5 + Math.sin(progress * Math.PI) * 0.3;
         }
-        
+
         // Deactivate when lifetime expires
         if (this.elapsed >= this.lifetime) {
             this.active = false;
@@ -83,28 +87,28 @@ export class DamageNumber {
         if (!this.active || this.opacity <= 0) return;
 
         ctx.save();
-        
+
         // Camera transform is already applied by caller (world-space render).
         // Use world coordinates directly to avoid double-applying camera offset.
         const screenX = this.x;
         const screenY = this.y;
-        
+
         // Set text properties
         ctx.globalAlpha = this.opacity;
         ctx.fillStyle = this.color;
         ctx.font = `bold ${this.fontSize * this.scale}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
+
         // Add shadow for better visibility
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
-        
+
         // Draw the damage number
         ctx.fillText(this.text, screenX, screenY);
-        
+
         ctx.restore();
     }
 
@@ -125,12 +129,12 @@ export class DamageNumberPool {
     constructor(initialSize = 100) {
         this.pool = [];
         this.activeNumbers = [];
-        
+
         // Pre-allocate damage numbers
         for (let i = 0; i < initialSize; i++) {
             this.pool.push(new DamageNumber());
         }
-        
+
         this.stats = {
             created: initialSize,
             inUse: 0,
@@ -144,7 +148,15 @@ export class DamageNumberPool {
      */
     get(x, y, value, color = '#ffffff', isCritical = false) {
         let damageNumber;
-        
+
+        if (this.activeNumbers.length >= 30) {
+            const oldest = this.activeNumbers.shift();
+            if (oldest) {
+                oldest.reset();
+                this.pool.push(oldest);
+            }
+        }
+
         if (this.pool.length > 0) {
             damageNumber = this.pool.pop();
         } else {
@@ -152,15 +164,15 @@ export class DamageNumberPool {
             damageNumber = new DamageNumber();
             this.stats.created++;
         }
-        
+
         damageNumber.init(x, y, value, color, isCritical);
         this.activeNumbers.push(damageNumber);
-        
+
         // Update statistics
         this.stats.inUse = this.activeNumbers.length;
         this.stats.available = this.pool.length;
         this.stats.peakUsage = Math.max(this.stats.peakUsage, this.stats.inUse);
-        
+
         return damageNumber;
     }
 
@@ -169,9 +181,7 @@ export class DamageNumberPool {
      * Supports both boolean critical flags and legacy label strings.
      */
     spawn(x, y, value, color = '#ffffff', criticalOrTag = false) {
-        const isCritical = typeof criticalOrTag === 'boolean'
-            ? criticalOrTag
-            : (criticalOrTag === 'CRITICAL');
+        const isCritical = typeof criticalOrTag === 'boolean' ? criticalOrTag : criticalOrTag === 'CRITICAL';
         return this.get(x, y, value, color, isCritical);
     }
 
@@ -217,7 +227,7 @@ export class DamageNumberPool {
             damageNumber.reset();
             this.pool.push(damageNumber);
         }
-        
+
         this.stats.inUse = 0;
         this.stats.available = this.pool.length;
     }
