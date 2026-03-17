@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />
+        <title>Redirecting...</title>
+        <script>
+            const target = new URL('./index.html', window.location.href);
+            target.search = window.location.search;
+            target.hash = window.location.hash;
+            window.location.replace(target.href);
+        </script>
+    </head>
+    <body>
+        Redirecting to <a href="index.html">index.html</a>...
+    </body>
+</html>
