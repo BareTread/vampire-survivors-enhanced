@@ -1857,9 +1857,6 @@ export class VampireSurvivorsGame {
             this.systems.killMilestone.render(this.ctx);
         }
 
-        // UI overlays (screen space)
-        this.renderUIOverlays();
-
         // Run timer HUD (screen space)
         this.systems.runTimer.render(this.ctx);
         this.systems.gold.renderHUD(this.ctx);
@@ -1867,7 +1864,6 @@ export class VampireSurvivorsGame {
         this.systems.boss.renderHUD(this.ctx);
         this.systems.dynamicEvents.render(this.ctx);
         this.systems.canvasHUD.render(this.ctx);
-        this.renderUIOverlays();
 
         // Build inventory overlay (renders on top of everything)
         if (this.systems.inventory) {

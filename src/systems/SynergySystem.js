@@ -353,11 +353,13 @@ export class SynergySystem {
             ctx.restore();
         }
 
+        // CanvasHUD already renders active synergies inside the bottom-left
+        // inventory panel, so suppress the old top-right cluster when it is on.
+        if (this.game.systems?.canvasHUD) {
+            return;
+        }
+
         // Render small synergy icons in the right HUD area.
-        // startY=200 keeps them below up-to-5 power-up pills (max ~175px tall).
-        // CanvasHUD also shows synergy badges inside the inventory panel at the
-        // bottom-left, so this top-right cluster is intentionally a secondary
-        // compact indicator rather than the primary display.
         if (this.activeSynergies.size > 0) {
             const startX = canvasW - 30;
             const startY = 200;

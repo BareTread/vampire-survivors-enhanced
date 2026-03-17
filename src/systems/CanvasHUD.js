@@ -619,7 +619,7 @@ export class CanvasHUD {
         panelH += PAD;
 
         const PX = 8;
-        const PY = H - panelH - 8;
+        const PY = H - panelH - 8 - this._getBottomHUDOffset();
 
         this._panel(ctx, PX, PY, panelW, panelH, 5, C.panelBg, C.panelBorder);
 
@@ -779,10 +779,10 @@ export class CanvasHUD {
     //  MINIMAP  (bottom-right)
     // ════════════════════════════════════════════════════════════════════
     _renderMinimap(ctx, W, H) {
-        const C     = CanvasHUD.C;
-        const SIZE  = 118;
-        const MX    = W - SIZE - 10;
-        const MY    = H - SIZE - 10;
+        const C = CanvasHUD.C;
+        const SIZE = Math.max(96, Math.min(118, Math.floor(Math.min(W, H) * 0.15)));
+        const MX = W - SIZE - 10;
+        const MY = H - SIZE - 10 - this._getBottomHUDOffset();
         const RANGE = 1800;
 
         const player = this.game.player;
@@ -1017,6 +1017,15 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     //  UTILITIES
     // ════════════════════════════════════════════════════════════════════
+
+    /** Reserve bottom space when other bottom-center HUD cards are active. */
+    _getBottomHUDOffset() {
+        const mc = this.game.systems?.microChallenge;
+        if (mc?.activeChallenge) {
+            return 92; // keeps inventory/minimap above the challenge card
+        }
+        return 0;
+    }
 
     /** Draw filled + stroked rounded rect with a soft glow on the border. */
     _panel(ctx, x, y, w, h, r, bgColor, borderColor) {
