@@ -1,106 +1,166 @@
 /**
- * CanvasHUD — Polished canvas-rendered HUD replacing the DOM-based prototype HUD.
+ * CanvasHUD — Gothic Dark Fantasy HUD
  *
- * Renders directly to canvas in screen-space (after camera restore):
- *   - XP bar: animated fill with glow pulse on gain, smooth interpolation
- *   - Health bar: smooth drain, red flash on hit, green pulse on heal
- *   - Level indicator with glow
- *   - Kill counter with milestone flash
- *   - Weapon cooldown radial pips
- *   - Weapon inventory row (colored icons + level)
- *   - Passive item row with level pips
- *   - Active synergy badges
+ * Full layout (screen-space, below XP bar):
  *
- * Wire: VampireSurvivorsGame.systems.canvasHUD
+ *   ┌─[XP BAR — full width, 12px amber gradient]────────────────┐
+ *   │ ┌─CHAR PANEL──────────┐   [RunTimer]  ┌─ECONOMY PANEL──┐  │
+ *   │ │ ♥ ████████ 93/93   │               │ ♦ 109   GOLD   │  │
+ *   │ │ Lv 14  ·  Wave 4   │               │ ☠ 38    KILLS  │  │
+ *   │ │ [challenge dots]    │               │ [Power-up pills]│  │
+ *   │ └─────────────────────┘               └────────────────┘  │
+ *   │                        [GAMEPLAY]                          │
+ *   │                                                            │
+ *   │ ┌─INVENTORY PANEL──────────────────┐  ┌─MINIMAP────────┐  │
+ *   │ │ WEAPONS  [W][W][W][W][W][W]      │  │   [mini-map]   │  │
+ *   │ │ ITEMS    [I][I][I]               │  └────────────────┘  │
+ *   │ │ [Synergy-A]  [Synergy-B]         │                      │
+ *   │ └──────────────────────────────────┘                      │
+ *   └────────────────────────────────────────────────────────────┘
+ *
+ * GoldSystem.renderHUD() is suppressed when this HUD is active.
  */
 export class CanvasHUD {
+
+    // ─── Design tokens ──────────────────────────────────────────────────
+    static C = {
+        // Panels
+        panelBg:       'rgba(8, 5, 18, 0.88)',
+        panelBorder:   'rgba(128, 92, 28, 0.52)',
+
+        // XP bar
+        xpTrack:       'rgba(35, 26, 8, 0.75)',
+        xpA:           '#4A3500',
+        xpB:           '#B87A00',
+        xpC:           '#FFD966',
+        xpEdge:        '#FFE890',
+
+        // HP
+        hpTrack:       'rgba(70, 0, 0, 0.65)',
+        hpHigh:        '#1D9954',
+        hpMid:         '#C47A00',
+        hpLow:         '#B81000',
+        hpTrail:       'rgba(195, 35, 35, 0.52)',
+
+        // Economy
+        gold:          '#FFD700',
+        goldDim:       '#7A5A10',
+        kills:         '#E07A00',
+        killsDim:      '#7A5000',
+        bank:          'rgba(155, 125, 55, 0.72)',
+
+        // Text
+        labelBright:   '#EDE1C0',
+        labelDim:      'rgba(165, 145, 105, 0.62)',
+
+        // Level / Wave
+        levelColor:    '#FFD700',
+        waveColor:     'rgba(185, 148, 230, 0.92)',
+
+        // Inventory
+        slotBg:        'rgba(14, 9, 28, 0.88)',
+        slotBorder:    'rgba(85, 60, 110, 0.52)',
+        evolvedBorder: '#C8A020',
+
+        // Minimap
+        minimapBg:     'rgba(5, 3, 14, 0.84)',
+        minimapBorder: 'rgba(115, 85, 28, 0.55)',
+        minimapGrid:   'rgba(255,255,255,0.04)',
+    };
+
     constructor(game) {
         this.game = game;
 
-        // ── Animated state ──────────────────────────────────────
-        // XP bar
-        this.displayXP = 0;           // Smoothly interpolated XP
-        this.xpFlash = 0;             // Glow intensity on XP gain (0→1 decays)
-        this.lastXP = 0;
+        // XP animation
+        this.displayXP = 0;
+        this.xpFlash   = 0;
+        this.lastXP    = 0;
 
-        // Health bar
-        this.displayHealth = 100;     // Smooth current HP
-        this.trailHealth = 100;       // Slow "catch-up" trail (damage drain)
-        this.healthFlash = 0;         // Red flash on damage (0→1)
-        this.healPulse = 0;           // Green pulse on heal (0→1)
-        this.lastHealth = 100;
+        // Health animation
+        this.displayHealth = 100;
+        this.trailHealth   = 100;
+        this.healthFlash   = 0;
+        this.healPulse     = 0;
+        this.lastHealth    = 100;
 
         // Kill counter
         this.displayKills = 0;
-        this.killFlash = 0;           // Flash on milestone numbers
+        this.killFlash    = 0;
 
-        // Level
-        this.levelUpFlash = 0;        // Glow on level up
-        this.lastLevel = 1;
+        // Gold counter
+        this.displayGold = 0;
+        this.goldFlash   = 0;
+        this.lastGold    = 0;
 
-        // Weapon fire flash (per weapon id)
+        // Level flash
+        this.levelUpFlash = 0;
+        this.lastLevel    = 1;
+
+        // Per-weapon fire flash
         this.weaponFireFlash = new Map();
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  UPDATE
+    // ════════════════════════════════════════════════════════════════════
     update(dt) {
         const player = this.game.player;
         if (!player) return;
 
-        const lerpSpeed = 8;  // Higher = snappier interpolation
+        const L = 8; // lerp speed
 
-        // ── XP interpolation ────────────────────────────────
+        // XP
         const targetXP = player.experience || 0;
-        if (targetXP > this.lastXP) {
-            this.xpFlash = 1.0;
-        }
+        if (targetXP > this.lastXP) this.xpFlash = 1.0;
         this.lastXP = targetXP;
-        this.displayXP += (targetXP - this.displayXP) * Math.min(1, lerpSpeed * dt);
+        this.displayXP += (targetXP - this.displayXP) * Math.min(1, L * dt);
         this.xpFlash = Math.max(0, this.xpFlash - dt * 2.5);
 
-        // ── Health interpolation ────────────────────────────
+        // Health
         const targetHP = player.health || 0;
-        if (targetHP < this.lastHealth) {
-            this.healthFlash = 1.0;   // Damage flash
-        } else if (targetHP > this.lastHealth) {
-            this.healPulse = 1.0;     // Heal pulse
-        }
+        if (targetHP < this.lastHealth)      this.healthFlash = 1.0;
+        else if (targetHP > this.lastHealth) this.healPulse   = 1.0;
         this.lastHealth = targetHP;
-        // Fast: current HP moves quickly
-        this.displayHealth += (targetHP - this.displayHealth) * Math.min(1, lerpSpeed * dt);
-        // Slow: trail catches up slowly (damage drain effect)
-        this.trailHealth += (targetHP - this.trailHealth) * Math.min(1, 2.0 * dt);
+        this.displayHealth += (targetHP - this.displayHealth) * Math.min(1, L * dt);
+        this.trailHealth   += (targetHP - this.trailHealth)   * Math.min(1, 1.8 * dt);
         if (this.trailHealth < this.displayHealth) this.trailHealth = this.displayHealth;
         this.healthFlash = Math.max(0, this.healthFlash - dt * 3.0);
-        this.healPulse = Math.max(0, this.healPulse - dt * 2.0);
+        this.healPulse   = Math.max(0, this.healPulse   - dt * 2.0);
 
-        // ── Kill counter ────────────────────────────────────
-        const kills = this.game.systems.killMilestone
-            ? this.game.systems.killMilestone.totalKills : 0;
-        if (kills !== this.displayKills && kills % 50 === 0 && kills > 0) {
-            this.killFlash = 1.0;
-        }
+        // Kills
+        const kills = this.game.systems.killMilestone?.totalKills || 0;
+        if (kills !== this.displayKills && kills % 50 === 0 && kills > 0) this.killFlash = 1.0;
         this.displayKills = kills;
         this.killFlash = Math.max(0, this.killFlash - dt * 2.0);
 
-        // ── Level flash ─────────────────────────────────────
+        // Gold
+        const targetGold = this.game.systems.gold?.runGold || 0;
+        if (targetGold > this.lastGold) this.goldFlash = 1.0;
+        this.lastGold = targetGold;
+        this.displayGold += (targetGold - this.displayGold) * Math.min(1, L * dt);
+        this.goldFlash = Math.max(0, this.goldFlash - dt * 3.0);
+
+        // Level
         const level = player.level || 1;
-        if (level > this.lastLevel) {
-            this.levelUpFlash = 1.0;
-        }
+        if (level > this.lastLevel) this.levelUpFlash = 1.0;
         this.lastLevel = level;
         this.levelUpFlash = Math.max(0, this.levelUpFlash - dt * 1.5);
 
-        // ── Weapon fire flash ───────────────────────────────
+        // Weapon fire flash
         for (const weapon of player.weapons.values()) {
-            const prevFlash = this.weaponFireFlash.get(weapon.id) || 0;
-            if (weapon.cooldownTimer > 0 && weapon.cooldownTimer > weapon.getEffectiveCooldown() - 0.1) {
+            const prev = this.weaponFireFlash.get(weapon.id) || 0;
+            if (weapon.cooldownTimer > 0 && weapon.getEffectiveCooldown &&
+                weapon.cooldownTimer > weapon.getEffectiveCooldown() - 0.1) {
                 this.weaponFireFlash.set(weapon.id, 1.0);
             } else {
-                this.weaponFireFlash.set(weapon.id, Math.max(0, prevFlash - dt * 4));
+                this.weaponFireFlash.set(weapon.id, Math.max(0, prev - dt * 4));
             }
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  RENDER (screen-space — called after camera.restore())
+    // ════════════════════════════════════════════════════════════════════
     render(ctx) {
         const player = this.game.player;
         if (!player) return;
@@ -110,585 +170,614 @@ export class CanvasHUD {
 
         ctx.save();
 
-        this.renderXPBar(ctx, player, W, H);
-        this.renderHealthBar(ctx, player, W, H);
-        this.renderLevelBadge(ctx, player, W, H);
-        this.renderKillCounter(ctx, W, H);
-        this.renderPowerUps(ctx, player, W, H);
-        this.renderWeaponInventory(ctx, player, W, H);
-        this.renderPassiveItems(ctx, W, H);
-        this.renderSynergyBadges(ctx, W, H);
-        this.renderMinimap(ctx, W, H);
+        this._renderXPBar(ctx, player, W, H);
+        this._renderCharPanel(ctx, player, W, H);
+        this._renderEconomyPanel(ctx, player, W, H);
+        this._renderInventoryPanel(ctx, player, W, H);
+        this._renderMinimap(ctx, W, H);
 
         ctx.restore();
     }
 
-    // ── XP Bar (top of screen, full width) ──────────────────
-
-    renderXPBar(ctx, player, W, H) {
-        const barH = 6;
-        const y = 0;
+    // ════════════════════════════════════════════════════════════════════
+    //  XP BAR  (full-width, 12 px, at y=0)
+    // ════════════════════════════════════════════════════════════════════
+    _renderXPBar(ctx, player, W, H) {
+        const C  = CanvasHUD.C;
+        const BH = 12;
         const xpNeeded = player.experienceToNext || 100;
-        const xpRatio = Math.min(1, this.displayXP / xpNeeded);
+        const ratio     = Math.min(1, this.displayXP / xpNeeded);
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, y, W, barH);
+        // Track
+        ctx.fillStyle = C.xpTrack;
+        ctx.fillRect(0, 0, W, BH);
 
-        // Trail (slightly ahead of fill for anticipation feel)
-        const trailRatio = Math.min(1, (this.displayXP + 5) / xpNeeded);
-        ctx.fillStyle = 'rgba(64, 224, 208, 0.2)';
-        ctx.fillRect(0, y, W * trailRatio, barH);
+        // Soft look-ahead shimmer
+        ctx.fillStyle = 'rgba(170, 125, 20, 0.14)';
+        ctx.fillRect(0, 0, W * Math.min(1, ratio + 0.025), BH);
+
+        // Filled portion
+        if (ratio > 0) {
+            const grad = ctx.createLinearGradient(0, 0, W * ratio, 0);
+            grad.addColorStop(0,   C.xpA);
+            grad.addColorStop(0.5, C.xpB);
+            grad.addColorStop(1,   C.xpC);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W * ratio, BH);
+
+            // Bright leading edge
+            ctx.fillStyle = C.xpEdge;
+            ctx.fillRect(W * ratio - 2, 0, 2, BH);
+        }
+
+        // Gain pulse
+        if (this.xpFlash > 0.01) {
+            ctx.save();
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur  = 16 * this.xpFlash;
+            ctx.fillStyle   = `rgba(255, 215, 80, ${0.32 * this.xpFlash})`;
+            ctx.fillRect(0, 0, W * ratio, BH);
+            ctx.restore();
+        }
+
+        // Bottom separator
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, BH, W, 1);
+
+        // Progress % (subtle, right-aligned, inside bar)
+        if (ratio > 0.06) {
+            ctx.font        = `9px "Courier New", monospace`;
+            ctx.fillStyle   = `rgba(255, 215, 90, ${0.45 + 0.25 * this.xpFlash})`;
+            ctx.textAlign   = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${Math.floor(ratio * 100)}%`, W - 6, BH / 2);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  CHARACTER PANEL  (top-left)
+    //  Contains: HP bar, level, wave, and optional challenge dots
+    // ════════════════════════════════════════════════════════════════════
+    _renderCharPanel(ctx, player, W, H) {
+        const C = CanvasHUD.C;
+
+        // Dimensions — grow slightly if challenge modifiers are active
+        const challenge = this.game.systems.challenge;
+        const hasChallenge = challenge && challenge.activeModifiers.size > 0;
+        const PX = 8, PY = 16;
+        const PW = 222, PH = hasChallenge ? 72 : 64;
+
+        this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
+
+        // ── HP bar ──────────────────────────────────────────
+        this._renderHPBar(ctx, player, PX + 18, PY + 6, PW - 24, 18);
+
+        // ── Level badge ─────────────────────────────────────
+        ctx.save();
+        if (this.levelUpFlash > 0.01) {
+            ctx.shadowColor = C.levelColor;
+            ctx.shadowBlur  = 20 * this.levelUpFlash;
+        }
+        ctx.font        = `bold 17px "Georgia", "Times New Roman", serif`;
+        ctx.fillStyle   = C.levelColor;
+        ctx.textAlign   = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`Lv ${player.level || 1}`, PX + 18, PY + 31);
+        ctx.restore();
+
+        // ── Wave indicator ──────────────────────────────────
+        const wave = this.game.systems.enemy?.getCurrentWave?.() || 1;
+        ctx.font        = `11px "Georgia", "Times New Roman", serif`;
+        ctx.fillStyle   = C.waveColor;
+        ctx.textAlign   = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`∙  Wave ${wave}`, PX + 72, PY + 35);
+
+        // ── Challenge modifier dots ──────────────────────────
+        if (hasChallenge) {
+            let dotX = PX + 18;
+            const dotY = PY + PH - 10;
+            ctx.font        = `8px "Georgia", serif`;
+            ctx.textBaseline = 'middle';
+            for (const id of challenge.activeModifiers) {
+                const mod = challenge.modifiers.find(m => m.id === id);
+                if (!mod) continue;
+                // Small colored pill badge
+                const label = `${mod.icon} ${mod.name}`;
+                ctx.font = `7px "Georgia", serif`;
+                const tw = ctx.measureText(label).width;
+                const bw = tw + 8, bh = 11;
+
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                this._roundRect(ctx, dotX, dotY - bh / 2, bw, bh, 3);
+                ctx.fill();
+
+                ctx.strokeStyle = mod.color;
+                ctx.lineWidth   = 0.8;
+                this._roundRect(ctx, dotX, dotY - bh / 2, bw, bh, 3);
+                ctx.stroke();
+
+                ctx.fillStyle   = mod.color;
+                ctx.textAlign   = 'left';
+                ctx.fillText(label, dotX + 4, dotY);
+
+                dotX += bw + 5;
+            }
+        }
+    }
+
+    // ─── HP bar sub-render ──────────────────────────────────────────────
+    _renderHPBar(ctx, player, bx, by, bw, bh) {
+        const C     = CanvasHUD.C;
+        const maxHP = player.maxHealth || 100;
+        const hpR   = Math.min(1, Math.max(0, this.displayHealth / maxHP));
+        const trailR = Math.min(1, Math.max(0, this.trailHealth  / maxHP));
+
+        // Track
+        this._roundRect(ctx, bx, by, bw, bh, 4);
+        ctx.fillStyle = C.hpTrack;
+        ctx.fill();
+
+        // Damage trail
+        if (trailR > hpR) {
+            this._roundRect(ctx, bx, by, bw * trailR, bh, 4);
+            ctx.fillStyle = C.hpTrail;
+            ctx.fill();
+        }
 
         // Fill
-        const gradient = ctx.createLinearGradient(0, y, W * xpRatio, y);
-        gradient.addColorStop(0, '#1a8a7a');
-        gradient.addColorStop(0.5, '#40E0D0');
-        gradient.addColorStop(1, '#7FFFD4');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, y, W * xpRatio, barH);
-
-        // Glow pulse on XP gain
-        if (this.xpFlash > 0.01) {
-            ctx.shadowColor = '#40E0D0';
-            ctx.shadowBlur = 12 * this.xpFlash;
-            ctx.fillStyle = `rgba(64, 224, 208, ${0.4 * this.xpFlash})`;
-            ctx.fillRect(0, y, W * xpRatio, barH);
-            ctx.shadowBlur = 0;
-        }
-
-        // Thin bright edge
-        ctx.fillStyle = `rgba(127, 255, 212, ${0.6 + 0.4 * this.xpFlash})`;
-        ctx.fillRect(W * xpRatio - 2, y, 2, barH);
-    }
-
-    // ── Health Bar (below XP bar, left side) ────────────────
-
-    renderHealthBar(ctx, player, W, H) {
-        const barW = 180;
-        const barH = 10;
-        const x = 16;
-        const y = 14;
-        const maxHP = player.maxHealth || 100;
-        const hpRatio = Math.min(1, this.displayHealth / maxHP);
-        const trailRatio = Math.min(1, this.trailHealth / maxHP);
-
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        this._roundRect(ctx, x, y, barW, barH, 3);
-        ctx.fill();
-
-        // Trail (slow drain — shows recent damage as fading red)
-        if (trailRatio > hpRatio) {
-            ctx.fillStyle = 'rgba(255, 80, 80, 0.5)';
-            this._roundRect(ctx, x, y, barW * trailRatio, barH, 3);
+        let barCol = hpR > 0.6 ? C.hpHigh : hpR > 0.3 ? C.hpMid : C.hpLow;
+        if (hpR > 0) {
+            const g = ctx.createLinearGradient(bx, by, bx, by + bh);
+            g.addColorStop(0, barCol);
+            g.addColorStop(1, this._darken(barCol, 0.38));
+            ctx.fillStyle = g;
+            this._roundRect(ctx, bx, by, bw * hpR, bh, 4);
             ctx.fill();
         }
 
-        // Fill — color shifts from green to yellow to red
-        let barColor;
-        if (hpRatio > 0.6) {
-            barColor = '#4ade80';
-        } else if (hpRatio > 0.3) {
-            const t = (hpRatio - 0.3) / 0.3;
-            barColor = `rgb(${Math.floor(255 - 181 * t)}, ${Math.floor(173 + 49 * t)}, ${Math.floor(80 * t)})`;
-        } else {
-            barColor = '#ef4444';
-        }
-
-        const fillGrad = ctx.createLinearGradient(x, y, x, y + barH);
-        fillGrad.addColorStop(0, barColor);
-        fillGrad.addColorStop(1, this._darken(barColor, 0.3));
-        ctx.fillStyle = fillGrad;
-        this._roundRect(ctx, x, y, barW * hpRatio, barH, 3);
-        ctx.fill();
-
-        // Damage flash (red pulse overlay)
+        // Damage flash overlay
         if (this.healthFlash > 0.01) {
-            ctx.fillStyle = `rgba(255, 50, 50, ${0.4 * this.healthFlash})`;
-            this._roundRect(ctx, x, y, barW, barH, 3);
+            this._roundRect(ctx, bx, by, bw, bh, 4);
+            ctx.fillStyle = `rgba(255, 40, 40, ${0.40 * this.healthFlash})`;
             ctx.fill();
         }
 
-        // Heal pulse (green glow)
+        // Heal glow
         if (this.healPulse > 0.01) {
-            ctx.shadowColor = '#4ade80';
-            ctx.shadowBlur = 10 * this.healPulse;
-            ctx.strokeStyle = `rgba(74, 222, 128, ${0.6 * this.healPulse})`;
-            ctx.lineWidth = 1.5;
-            this._roundRect(ctx, x, y, barW, barH, 3);
+            ctx.save();
+            ctx.shadowColor = '#44FF88';
+            ctx.shadowBlur  = 12 * this.healPulse;
+            ctx.strokeStyle = `rgba(68, 255, 136, ${0.55 * this.healPulse})`;
+            ctx.lineWidth   = 1.5;
+            this._roundRect(ctx, bx, by, bw, bh, 4);
             ctx.stroke();
-            ctx.shadowBlur = 0;
+            ctx.restore();
         }
 
-        // Border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 1;
-        this._roundRect(ctx, x, y, barW, barH, 3);
+        // Track border
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        ctx.lineWidth   = 1;
+        this._roundRect(ctx, bx, by, bw, bh, 4);
         ctx.stroke();
 
-        // HP text
-        ctx.font = 'bold 10px monospace';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
+        // HP text centred inside bar
+        ctx.font        = `bold 10px "Courier New", monospace`;
+        ctx.fillStyle   = hpR < 0.3 ? '#FF9999' : '#FFFFFF';
+        ctx.textAlign   = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(
-            `${Math.ceil(this.displayHealth)}/${maxHP}`,
-            x + barW / 2, y + barH / 2 + 1
-        );
+        ctx.fillText(`${Math.ceil(this.displayHealth)} / ${maxHP}`, bx + bw / 2, by + bh / 2 + 0.5);
+
+        // Heart icon to the left of bar
+        ctx.font        = `12px Arial, sans-serif`;
+        ctx.fillStyle   = hpR < 0.3 ? '#FF4444' : '#FF7777';
+        ctx.textAlign   = 'right';
+        ctx.fillText('♥', bx - 3, by + bh / 2 + 1);
     }
 
-    // ── Level Badge ─────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════
+    //  ECONOMY PANEL  (top-right)
+    //  Contains: gold, kills, power-up pills
+    // ════════════════════════════════════════════════════════════════════
+    _renderEconomyPanel(ctx, player, W, H) {
+        const C  = CanvasHUD.C;
+        const PW = 188, PH = 56;
+        const PX = W - PW - 8, PY = 16;
 
-    renderLevelBadge(ctx, player, W, H) {
-        const x = 16;
-        const y = 30;
-        const level = player.level || 1;
+        this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
+
+        // Horizontal divider
+        ctx.fillStyle = 'rgba(130, 92, 28, 0.3)';
+        ctx.fillRect(PX + 8, PY + PH / 2, PW - 16, 1);
+
+        const goldY  = PY + PH * 0.27;
+        const killsY = PY + PH * 0.73;
+
+        // ── Gold row ─────────────────────────────────────────
+        ctx.textBaseline = 'middle';
 
         ctx.save();
-
-        // Glow on level up
-        if (this.levelUpFlash > 0.01) {
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 20 * this.levelUpFlash;
+        if (this.goldFlash > 0.01) {
+            ctx.shadowColor = C.gold;
+            ctx.shadowBlur  = 12 * this.goldFlash;
         }
-
-        ctx.font = 'bold 18px monospace';
+        // Diamond icon
+        ctx.font      = `14px Arial, sans-serif`;
+        ctx.fillStyle = C.gold;
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText(`Lv ${level}`, x, y);
+        ctx.fillText('♦', PX + 10, goldY + 1);
 
-        ctx.restore();
-
-        // Wave number
-        const wave = this.game.systems.enemy ? this.game.systems.enemy.getCurrentWave() : 1;
-        ctx.font = '11px monospace';
-        ctx.fillStyle = 'rgba(221, 160, 221, 0.8)';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`Wave ${wave}`, x + 72, y + 4);
-    }
-
-    // ── Kill Counter (top-right) ────────────────────────────
-
-    renderKillCounter(ctx, W, H) {
-        const kills = this.displayKills;
-        const x = W - 16;
-        const y = 14;
-
-        ctx.save();
+        // Value
+        ctx.font      = `bold 16px "Courier New", monospace`;
+        ctx.fillStyle = C.gold;
         ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
+        ctx.fillText(`${Math.floor(this.displayGold)}`, PX + PW - 10, goldY);
+        ctx.restore();
 
-        // Flash on milestone
-        if (this.killFlash > 0.01) {
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 15 * this.killFlash;
-            const scale = 1 + 0.15 * this.killFlash;
-            ctx.translate(x, y + 8);
-            ctx.scale(scale, scale);
-            ctx.translate(-x, -(y + 8));
+        // "GOLD" label
+        ctx.font      = `7px "Georgia", "Times New Roman", serif`;
+        ctx.fillStyle = C.goldDim;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GOLD', PX + 26, goldY + 1);
+
+        // Bank sub-text (tiny, below gold value)
+        const bank = this.game.systems.persistence?.getGold?.() || 0;
+        if (bank > 0) {
+            ctx.font      = `7px "Courier New", monospace`;
+            ctx.fillStyle = C.bank;
+            ctx.textAlign = 'right';
+            ctx.fillText(`Bank ${bank}`, PX + PW - 10, goldY + 10);
         }
 
-        ctx.font = 'bold 14px monospace';
-        ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : 'rgba(255, 165, 0, 0.9)';
-        ctx.fillText(`${kills}`, x, y);
+        // ── Kills row ────────────────────────────────────────
+        ctx.save();
+        if (this.killFlash > 0.01) {
+            ctx.shadowColor = C.kills;
+            ctx.shadowBlur  = 12 * this.killFlash;
+        }
+        // Skull icon
+        ctx.font      = `13px Arial, sans-serif`;
+        ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('☠', PX + 10, killsY + 1);
 
-        ctx.font = '9px monospace';
-        ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
-        ctx.fillText('KILLS', x, y + 16);
-
+        // Value (scales on milestone)
+        const kScale = 1 + 0.14 * this.killFlash;
+        ctx.font = `bold 16px "Courier New", monospace`;
+        ctx.save();
+        ctx.translate(PX + PW - 10, killsY);
+        ctx.scale(kScale, kScale);
+        ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${this.displayKills}`, 0, 0);
         ctx.restore();
+        ctx.restore();
+
+        // "KILLS" label
+        ctx.font      = `7px "Georgia", "Times New Roman", serif`;
+        ctx.fillStyle = C.killsDim;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('KILLS', PX + 26, killsY + 1);
+
+        // ── Power-up pills (right-anchored, below economy panel) ──
+        this._renderPowerUpPills(ctx, player, W, PY + PH + 6);
     }
 
-    // ── Power-Up Timer Pills (top-right, below kill counter) ─
-
-    renderPowerUps(ctx, player, W, H) {
+    // ─── Power-up pills ─────────────────────────────────────────────────
+    _renderPowerUpPills(ctx, player, W, startY) {
         if (!player.powerUps) return;
 
-        const powerUpConfig = [
-            { key: 'invincible',  label: 'INVINCIBLE', color: '#FFD700' },
-            { key: 'speedBoost',  label: 'SPEED',      color: '#00FFFF' },
-            { key: 'damageBoost', label: 'DAMAGE',     color: '#FF6600' },
-            { key: 'fireRate',    label: 'FIRE RATE',  color: '#FF44FF' },
-            { key: 'magnetBoost', label: 'MAGNET',     color: '#44FF44' },
+        const configs = [
+            { key: 'invincible',  label: 'INVINCIBLE', icon: '◊', color: '#FFD700' },
+            { key: 'speedBoost',  label: 'SPEED',      icon: '»', color: '#00E5FF' },
+            { key: 'damageBoost', label: 'DAMAGE',     icon: '☄', color: '#FF6622' },
+            { key: 'fireRate',    label: 'FIRE RATE',  icon: '‹›', color: '#EE44FF' },
+            { key: 'magnetBoost', label: 'MAGNET',     icon: '◎', color: '#44FF99' },
         ];
 
-        // Collect active power-ups
         const active = [];
-        for (const config of powerUpConfig) {
-            const pu = player.powerUps[config.key];
-            if (!pu || !pu.active) continue;
-
+        for (const cfg of configs) {
+            const pu = player.powerUps[cfg.key];
+            if (!pu?.active) continue;
             let timer = pu.timer;
-            // For magnet, use whichever timer is larger (player vs system)
-            if (config.key === 'magnetBoost') {
-                const sysTimer = this.game.systems.experience?.globalMagnetTimer || 0;
-                timer = Math.max(timer, sysTimer);
+            if (cfg.key === 'magnetBoost') {
+                timer = Math.max(timer, this.game.systems.experience?.globalMagnetTimer || 0);
             }
             if (timer <= 0) continue;
-
-            active.push({ ...config, timer });
+            active.push({ ...cfg, timer });
         }
-
         if (active.length === 0) return;
 
-        // Position: top-right, below kill counter (kills label sits at y=30)
-        const startX = W - 16;
-        const startY = 46;
-        const pillH = 16;
-        const pillGap = 3;
-
         ctx.save();
-        ctx.textBaseline = 'middle';
+
+        const PH  = 19;   // pill height
+        const GAP = 4;    // gap between pills
 
         for (let i = 0; i < active.length; i++) {
             const pu = active[i];
-            const y = startY + i * (pillH + pillGap);
-            const timerText = pu.timer.toFixed(1) + 's';
-            const labelText = pu.label;
+            const y  = startY + i * (PH + GAP);
 
-            ctx.font = 'bold 9px monospace';
-            const labelWidth = ctx.measureText(labelText).width;
-            const timerWidth = ctx.measureText(timerText).width;
-            const totalWidth = labelWidth + timerWidth + 12; // 6px left pad + 6px between
+            // Alpha + expiry pulse
+            const expiring = pu.timer < 3;
+            const alpha = expiring
+                ? 0.38 + 0.62 * (pu.timer / 3) * (0.7 + 0.3 * Math.sin(performance.now() * 0.012))
+                : 1.0;
 
-            const pillX = startX - totalWidth;
+            const timerStr = `${pu.timer.toFixed(1)}s`;
 
-            // Fade out when expiring (< 2s)
-            const alpha = pu.timer < 2 ? 0.4 + 0.6 * (pu.timer / 2) : 1.0;
-            // Pulse when about to expire (< 3s)
-            const pulse = pu.timer < 3 ? 0.7 + 0.3 * Math.sin(performance.now() * 0.01) : 1.0;
+            ctx.font = `bold 8px "Georgia", serif`;
+            const labelW = ctx.measureText(pu.label).width;
+            ctx.font = `bold 9px "Courier New", monospace`;
+            const timerW = ctx.measureText(timerStr).width;
 
-            ctx.globalAlpha = alpha * pulse;
+            // Pill width: left-stripe(3) + pad(6) + icon(10) + pad(4) + label + pad(6) + timer + pad(6)
+            const pillW = 3 + 6 + 10 + 4 + labelW + 6 + timerW + 6;
+            const pillX = W - 8 - pillW;
 
-            // Pill background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            this._roundRect(ctx, pillX, y, totalWidth, pillH, 4);
+            ctx.globalAlpha = alpha;
+
+            // Background
+            ctx.fillStyle = 'rgba(6, 4, 16, 0.86)';
+            this._roundRect(ctx, pillX, y, pillW, PH, 4);
             ctx.fill();
 
-            // Left color accent bar
-            ctx.fillStyle = pu.color;
-            ctx.fillRect(pillX, y + 2, 2, pillH - 4);
+            // Right-side dim border
+            ctx.strokeStyle = `rgba(${this._hexToRgb(pu.color)}, 0.35)`;
+            ctx.lineWidth   = 1;
+            this._roundRect(ctx, pillX, y, pillW, PH, 4);
+            ctx.stroke();
 
-            // Label text
+            // Left color stripe
+            ctx.fillStyle = pu.color;
+            ctx.fillRect(pillX, y + 3, 3, PH - 6);
+
+            // Rounded left end of stripe (visual candy)
+            ctx.beginPath();
+            ctx.arc(pillX + 1.5, y + 3, 1.5, 0, Math.PI * 2);
+            ctx.arc(pillX + 1.5, y + PH - 3, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Icon
+            ctx.font      = `11px Arial, sans-serif`;
             ctx.fillStyle = pu.color;
             ctx.textAlign = 'left';
-            ctx.fillText(labelText, pillX + 6, y + pillH / 2);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pu.icon, pillX + 7, y + PH / 2 + 0.5);
 
-            // Timer text (right-aligned to pill edge)
-            ctx.fillStyle = '#FFFFFF';
+            // Label
+            ctx.font      = `bold 8px "Georgia", serif`;
+            ctx.fillStyle = 'rgba(228, 218, 190, 0.92)';
+            ctx.textAlign = 'left';
+            ctx.fillText(pu.label, pillX + 20, y + PH / 2);
+
+            // Timer
+            ctx.font      = `bold 9px "Courier New", monospace`;
+            ctx.fillStyle = expiring ? '#FF8888' : '#FFFFFF';
             ctx.textAlign = 'right';
-            ctx.fillText(timerText, startX - 4, y + pillH / 2);
+            ctx.fillText(timerStr, pillX + pillW - 5, y + PH / 2);
+
+            ctx.globalAlpha = 1;
         }
 
-        ctx.globalAlpha = 1;
         ctx.restore();
     }
 
-    // ── Weapon Inventory (bottom-left) ──────────────────────
+    // ════════════════════════════════════════════════════════════════════
+    //  INVENTORY PANEL  (bottom-left)
+    //  Contains: weapon slots, passive slots, synergy badges
+    // ════════════════════════════════════════════════════════════════════
+    _renderInventoryPanel(ctx, player, W, H) {
+        const C       = CanvasHUD.C;
+        const weapons  = Array.from(player.weapons.values());
+        const passives = this.game.systems.passiveItems?.getOwnedItems() || [];
+        const synergies = this.game.systems.synergy?.getActiveSynergies() || [];
 
-    renderWeaponInventory(ctx, player, W, H) {
-        const weapons = Array.from(player.weapons.values());
-        if (weapons.length === 0) return;
+        if (weapons.length === 0 && passives.length === 0) return;
 
-        const iconSize = 28;
-        const gap = 6;
-        const startX = 16;
-        const startY = H - 70;
+        // Sizes
+        const WS  = 38;   // weapon slot size
+        const WG  = 7;    // weapon slot gap
+        const PS  = 26;   // passive slot size
+        const PG  = 5;    // passive slot gap
+        const PAD = 10;   // panel inner padding
+        const LH  = 12;   // label row height
+        const RG  = 8;    // row gap
 
-        for (let i = 0; i < weapons.length; i++) {
-            const weapon = weapons[i];
-            const x = startX + i * (iconSize + gap);
-            const y = startY;
+        // Width of each row
+        const weaponRowW  = weapons.length  > 0 ? weapons.length  * (WS + WG) - WG : 0;
+        const passiveRowW = passives.length > 0 ? passives.length * (PS + PG) - PG : 0;
 
-            // Background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-            this._roundRect(ctx, x, y, iconSize, iconSize, 4);
-            ctx.fill();
-
-            // Border (evolved = gold, normal = weapon color)
-            ctx.strokeStyle = weapon.evolved
-                ? '#FFD700'
-                : (weapon.color || '#888');
-            ctx.lineWidth = weapon.evolved ? 2 : 1;
-            this._roundRect(ctx, x, y, iconSize, iconSize, 4);
-            ctx.stroke();
-
-            // Weapon icon shape (colored distinctive shape per weapon type)
-            this._renderWeaponIcon(ctx, weapon, x + iconSize / 2, y + iconSize / 2, iconSize * 0.32);
-
-            // Cooldown radial overlay
-            if (weapon.cooldownTimer > 0 && weapon.getEffectiveCooldown) {
-                const cdRatio = weapon.cooldownTimer / weapon.getEffectiveCooldown();
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.beginPath();
-                ctx.moveTo(x + iconSize / 2, y + iconSize / 2);
-                ctx.arc(
-                    x + iconSize / 2, y + iconSize / 2,
-                    iconSize / 2,
-                    -Math.PI / 2,
-                    -Math.PI / 2 + Math.PI * 2 * cdRatio,
-                    false
-                );
-                ctx.closePath();
-                ctx.fill();
+        // Synergy badge width estimate
+        let synW = 0;
+        if (synergies.length > 0) {
+            ctx.font = `8px "Georgia", serif`;
+            for (const s of synergies) {
+                const lbl = `${s.icon}${s.name}`;
+                synW += ctx.measureText(lbl).width + 10 + 6; // pill + gap
             }
-
-            // Fire flash
-            const flash = this.weaponFireFlash.get(weapon.id) || 0;
-            if (flash > 0.01) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${0.3 * flash})`;
-                this._roundRect(ctx, x, y, iconSize, iconSize, 4);
-                ctx.fill();
-            }
-
-            // Level number
-            ctx.font = 'bold 9px monospace';
-            ctx.fillStyle = weapon.evolved ? '#FFD700' : '#fff';
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(`${weapon.level}`, x + iconSize - 2, y + iconSize - 1);
+            synW -= 6;
         }
 
-        // Label
-        ctx.font = '8px monospace';
-        ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('WEAPONS', startX, startY - 3);
-    }
+        const contentW = Math.max(weaponRowW, passiveRowW, synW, 40);
+        const panelW   = contentW + PAD * 2;
 
-    // ── Passive Items (bottom-left, below weapons) ──────────
+        // Height
+        let panelH = PAD;
+        if (weapons.length  > 0) panelH += LH + WS;
+        if (passives.length > 0) panelH += RG + LH + PS;
+        if (synergies.length > 0) panelH += RG + 14;
+        panelH += PAD;
 
-    renderPassiveItems(ctx, W, H) {
-        const passiveSystem = this.game.systems.passiveItems;
-        if (!passiveSystem) return;
-        const items = passiveSystem.getOwnedItems();
-        if (items.length === 0) return;
+        const PX = 8;
+        const PY = H - panelH - 8;
 
-        const iconSize = 22;
-        const gap = 4;
-        const startX = 16;
-        const startY = H - 32;
+        this._panel(ctx, PX, PY, panelW, panelH, 5, C.panelBg, C.panelBorder);
 
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            const x = startX + i * (iconSize + gap);
-            const y = startY;
+        let rowY = PY + PAD;
 
-            // Background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this._roundRect(ctx, x, y, iconSize, iconSize, 3);
-            ctx.fill();
+        // ── Weapons ──────────────────────────────────────────
+        if (weapons.length > 0) {
+            ctx.font        = `bold 7px "Georgia", "Times New Roman", serif`;
+            ctx.fillStyle   = C.labelDim;
+            ctx.textAlign   = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('WEAPONS', PX + PAD, rowY);
+            rowY += LH;
 
-            // Border in item color
-            ctx.strokeStyle = item.color || '#888';
-            ctx.lineWidth = 1;
-            this._roundRect(ctx, x, y, iconSize, iconSize, 3);
-            ctx.stroke();
+            for (let i = 0; i < weapons.length; i++) {
+                this._renderWeaponSlot(ctx, weapons[i], PX + PAD + i * (WS + WG), rowY, WS);
+            }
+            rowY += WS;
+        }
 
-            // Item icon (colored circle with first letter)
-            ctx.fillStyle = item.color;
-            ctx.beginPath();
-            ctx.arc(x + iconSize / 2, y + iconSize / 2, iconSize * 0.3, 0, Math.PI * 2);
-            ctx.fill();
+        // ── Passives ──────────────────────────────────────────
+        if (passives.length > 0) {
+            rowY += RG;
+            ctx.font        = `bold 7px "Georgia", "Times New Roman", serif`;
+            ctx.fillStyle   = C.labelDim;
+            ctx.textAlign   = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('ITEMS', PX + PAD, rowY);
+            rowY += LH;
 
-            // Level pips along bottom
-            const pipW = (iconSize - 4) / item.maxLevel;
-            for (let lvl = 0; lvl < item.maxLevel; lvl++) {
-                ctx.fillStyle = lvl < item.currentLevel
-                    ? item.color
-                    : 'rgba(255,255,255,0.15)';
-                ctx.fillRect(x + 2 + lvl * pipW, y + iconSize - 3, pipW - 1, 2);
+            for (let i = 0; i < passives.length; i++) {
+                this._renderPassiveSlot(ctx, passives[i], PX + PAD + i * (PS + PG), rowY, PS);
+            }
+            rowY += PS;
+        }
+
+        // ── Synergy badges ────────────────────────────────────
+        if (synergies.length > 0) {
+            rowY += RG;
+            ctx.font        = `8px "Georgia", "Times New Roman", serif`;
+            ctx.textBaseline = 'top';
+            let bx = PX + PAD;
+            for (const syn of synergies) {
+                const label = `${syn.icon}${syn.name}`;
+                const tw    = ctx.measureText(label).width;
+                const bw    = tw + 10, bh = 13;
+
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                this._roundRect(ctx, bx, rowY, bw, bh, 3);
+                ctx.fill();
+
+                ctx.strokeStyle = syn.color;
+                ctx.lineWidth   = 0.9;
+                this._roundRect(ctx, bx, rowY, bw, bh, 3);
+                ctx.stroke();
+
+                ctx.fillStyle = syn.color;
+                ctx.textAlign = 'left';
+                ctx.fillText(label, bx + 5, rowY + 2);
+
+                bx += bw + 6;
             }
         }
-
-        // Label
-        ctx.font = '8px monospace';
-        ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('ITEMS', startX, startY - 3);
     }
 
-    // ── Synergy Badges (bottom-left, beside passive items) ──
+    // ─── Weapon slot ─────────────────────────────────────────────────────
+    _renderWeaponSlot(ctx, weapon, wx, wy, size) {
+        const C       = CanvasHUD.C;
+        const evolved = weapon.evolved;
 
-    renderSynergyBadges(ctx, W, H) {
-        const synergySystem = this.game.systems.synergy;
-        if (!synergySystem) return;
-        const synergies = synergySystem.getActiveSynergies();
-        if (synergies.length === 0) return;
+        // Slot base
+        ctx.fillStyle = C.slotBg;
+        this._roundRect(ctx, wx, wy, size, size, 5);
+        ctx.fill();
 
-        const startX = 16;
-        const startY = H - 8;
-
-        ctx.font = '9px monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-
-        let offsetX = 0;
-        for (const synergy of synergies) {
-            const text = `${synergy.icon}${synergy.name}`;
-            const tw = ctx.measureText(text).width;
-
-            // Pill background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this._roundRect(ctx, startX + offsetX, startY - 13, tw + 8, 14, 3);
-            ctx.fill();
-
-            // Pill border
-            ctx.strokeStyle = synergy.color;
-            ctx.lineWidth = 1;
-            this._roundRect(ctx, startX + offsetX, startY - 13, tw + 8, 14, 3);
+        // Border (evolved = gold glow, normal = dim purple)
+        if (evolved) {
+            ctx.save();
+            ctx.shadowColor = C.evolvedBorder;
+            ctx.shadowBlur  = 9;
+            ctx.strokeStyle = C.evolvedBorder;
+            ctx.lineWidth   = 1.8;
+            this._roundRect(ctx, wx, wy, size, size, 5);
             ctx.stroke();
-
-            // Text
-            ctx.fillStyle = synergy.color;
-            ctx.fillText(text, startX + offsetX + 4, startY - 2);
-
-            offsetX += tw + 14;
-        }
-    }
-
-    // ── Weapon Icon Shapes ──────────────────────────────────
-
-    _renderWeaponIcon(ctx, weapon, cx, cy, size) {
-        const color = weapon.evolved ? (weapon.evolvedColor || weapon.color) : weapon.color;
-        ctx.fillStyle = color;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
-
-        switch (weapon.id) {
-            case 'magic_missile':
-                // Diamond/orb
-                ctx.beginPath();
-                ctx.arc(cx, cy, size * 0.7, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.beginPath();
-                ctx.arc(cx - size * 0.2, cy - size * 0.2, size * 0.25, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'whip':
-                // Curved line
-                ctx.beginPath();
-                ctx.moveTo(cx - size, cy + size * 0.5);
-                ctx.quadraticCurveTo(cx, cy - size, cx + size, cy);
-                ctx.stroke();
-                // Tip
-                ctx.fillStyle = '#FFD700';
-                ctx.beginPath();
-                ctx.arc(cx + size, cy, 2, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'throwing_knife':
-                // Triangle blade
-                ctx.beginPath();
-                ctx.moveTo(cx, cy - size);
-                ctx.lineTo(cx + size * 0.4, cy + size * 0.6);
-                ctx.lineTo(cx - size * 0.4, cy + size * 0.6);
-                ctx.closePath();
-                ctx.fill();
-                // Handle
-                ctx.fillStyle = '#8B4513';
-                ctx.fillRect(cx - size * 0.15, cy + size * 0.5, size * 0.3, size * 0.5);
-                break;
-
-            case 'lightning_chain':
-                // Zigzag bolt
-                ctx.beginPath();
-                ctx.moveTo(cx - size * 0.3, cy - size);
-                ctx.lineTo(cx + size * 0.3, cy - size * 0.3);
-                ctx.lineTo(cx - size * 0.1, cy);
-                ctx.lineTo(cx + size * 0.5, cy + size);
-                ctx.stroke();
-                break;
-
-            case 'garlic_aura':
-                // Ring
-                ctx.beginPath();
-                ctx.arc(cx, cy, size * 0.7, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(cx, cy, size * 0.35, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'holy_bible':
-                // Cross
-                ctx.fillRect(cx - size * 0.15, cy - size * 0.7, size * 0.3, size * 1.4);
-                ctx.fillRect(cx - size * 0.6, cy - size * 0.15, size * 1.2, size * 0.3);
-                break;
-
-            case 'fire_wand':
-                // Flame shape
-                ctx.beginPath();
-                ctx.moveTo(cx, cy - size);
-                ctx.quadraticCurveTo(cx + size * 0.8, cy, cx, cy + size * 0.5);
-                ctx.quadraticCurveTo(cx - size * 0.8, cy, cx, cy - size);
-                ctx.closePath();
-                ctx.fill();
-                // Inner bright core
-                ctx.fillStyle = '#FFAA00';
-                ctx.beginPath();
-                ctx.arc(cx, cy - size * 0.2, size * 0.25, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'bone_boomerang':
-                // Boomerang V shape
-                ctx.beginPath();
-                ctx.moveTo(cx - size, cy - size * 0.3);
-                ctx.quadraticCurveTo(cx, cy + size * 0.5, cx + size, cy - size * 0.3);
-                ctx.stroke();
-                // Knobs
-                ctx.beginPath();
-                ctx.arc(cx - size, cy - size * 0.3, 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(cx + size, cy - size * 0.3, 2, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            default:
-                // Generic circle
-                ctx.beginPath();
-                ctx.arc(cx, cy, size * 0.6, 0, Math.PI * 2);
-                ctx.fill();
-        }
-    }
-
-    // ── Utilities ────────────────────────────────────────────
-
-    _roundRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        if (typeof ctx.roundRect === 'function') {
-            ctx.roundRect(x, y, w, h, r);
+            ctx.restore();
         } else {
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.arcTo(x + w, y, x + w, y + r, r);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-            ctx.lineTo(x + r, y + h);
-            ctx.arcTo(x, y + h, x, y + h - r, r);
-            ctx.lineTo(x, y + r);
-            ctx.arcTo(x, y, x + r, y, r);
+            ctx.strokeStyle = C.slotBorder;
+            ctx.lineWidth   = 1;
+            this._roundRect(ctx, wx, wy, size, size, 5);
+            ctx.stroke();
+        }
+
+        // Weapon icon
+        this._renderWeaponIcon(ctx, weapon, wx + size / 2, wy + size / 2, size * 0.34);
+
+        // Cooldown sector overlay
+        if (weapon.cooldownTimer > 0 && weapon.getEffectiveCooldown) {
+            const cdRatio = weapon.cooldownTimer / weapon.getEffectiveCooldown();
+            ctx.fillStyle = 'rgba(0,0,0,0.50)';
+            ctx.beginPath();
+            ctx.moveTo(wx + size / 2, wy + size / 2);
+            ctx.arc(wx + size / 2, wy + size / 2, size / 2,
+                    -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * cdRatio, false);
             ctx.closePath();
+            ctx.fill();
+        }
+
+        // Fire flash
+        const flash = this.weaponFireFlash.get(weapon.id) || 0;
+        if (flash > 0.01) {
+            ctx.fillStyle = `rgba(255,255,255,${0.25 * flash})`;
+            this._roundRect(ctx, wx, wy, size, size, 5);
+            ctx.fill();
+        }
+
+        // Level number (bottom-right corner)
+        ctx.font        = `bold 9px "Courier New", monospace`;
+        ctx.fillStyle   = evolved ? C.evolvedBorder : 'rgba(205, 190, 165, 0.9)';
+        ctx.textAlign   = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${weapon.level}`, wx + size - 3, wy + size - 2);
+    }
+
+    // ─── Passive slot ────────────────────────────────────────────────────
+    _renderPassiveSlot(ctx, item, ix, iy, size) {
+        const col = item.color || '#888';
+
+        // Background
+        ctx.fillStyle = 'rgba(10, 7, 24, 0.85)';
+        this._roundRect(ctx, ix, iy, size, size, 4);
+        ctx.fill();
+
+        // Border (item color)
+        ctx.strokeStyle = col;
+        ctx.lineWidth   = 1;
+        this._roundRect(ctx, ix, iy, size, size, 4);
+        ctx.stroke();
+
+        // Inner circle
+        ctx.fillStyle   = col;
+        ctx.globalAlpha = 0.82;
+        ctx.beginPath();
+        ctx.arc(ix + size / 2, iy + size / 2, size * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Level pips (bottom edge)
+        const maxLvl = item.maxLevel || 5;
+        const pipW   = (size - 6) / maxLvl;
+        for (let lvl = 0; lvl < maxLvl; lvl++) {
+            ctx.fillStyle = lvl < item.currentLevel ? col : 'rgba(255,255,255,0.10)';
+            ctx.fillRect(ix + 3 + lvl * pipW, iy + size - 5, pipW - 1, 3);
         }
     }
 
-    // ── Minimap (top-left corner) ────────────────────────────
-    renderMinimap(ctx, W, H) {
-        const MAP_SIZE   = 110; // px square
-        const MARGIN     = 10;
-        const mx         = MARGIN;
-        const my         = MARGIN + 18; // below XP bar
-        const worldRange = 1800; // half-extent of world shown on minimap (px)
+    // ════════════════════════════════════════════════════════════════════
+    //  MINIMAP  (bottom-right)
+    // ════════════════════════════════════════════════════════════════════
+    _renderMinimap(ctx, W, H) {
+        const C     = CanvasHUD.C;
+        const SIZE  = 118;
+        const MX    = W - SIZE - 10;
+        const MY    = H - SIZE - 10;
+        const RANGE = 1800;
 
         const player = this.game.player;
         if (!player) return;
@@ -696,85 +785,266 @@ export class CanvasHUD {
         ctx.save();
 
         // Background panel
-        ctx.globalAlpha = 0.65;
-        ctx.fillStyle   = '#0A0A14';
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth   = 1;
-        ctx.beginPath();
-        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
+        ctx.globalAlpha = 0.80;
+        ctx.fillStyle   = C.minimapBg;
+        this._roundRect(ctx, MX, MY, SIZE, SIZE, 4);
         ctx.fill();
-        ctx.stroke();
-
         ctx.globalAlpha = 1;
 
-        // Clip to minimap bounds
+        // Outer border
+        ctx.strokeStyle = C.minimapBorder;
+        ctx.lineWidth   = 1;
+        this._roundRect(ctx, MX, MY, SIZE, SIZE, 4);
+        ctx.stroke();
+
+        // Clip all content to minimap
         ctx.save();
         ctx.beginPath();
-        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
+        this._roundRect(ctx, MX + 1, MY + 1, SIZE - 2, SIZE - 2, 3);
         ctx.clip();
 
-        // Translate: world → minimap coords
+        // Subtle grid lines
+        ctx.strokeStyle = C.minimapGrid;
+        ctx.lineWidth   = 0.5;
+        for (let i = 1; i < 4; i++) {
+            const gx = MX + (SIZE / 4) * i;
+            const gy = MY + (SIZE / 4) * i;
+            ctx.beginPath(); ctx.moveTo(gx, MY);     ctx.lineTo(gx, MY + SIZE); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(MX, gy);     ctx.lineTo(MX + SIZE, gy); ctx.stroke();
+        }
+
+        // Coordinate helper
         const toMap = (wx, wy) => ({
-            x: mx + MAP_SIZE / 2 + ((wx - player.x) / worldRange) * (MAP_SIZE / 2),
-            y: my + MAP_SIZE / 2 + ((wy - player.y) / worldRange) * (MAP_SIZE / 2)
+            x: MX + SIZE / 2 + ((wx - player.x) / RANGE) * (SIZE / 2),
+            y: MY + SIZE / 2 + ((wy - player.y) / RANGE) * (SIZE / 2),
         });
 
-        // Enemy dots (red)
+        // Enemies
         const enemies = this.game.systems.enemy?.activeEnemies || [];
         for (const e of enemies) {
             if (!e.active) continue;
             const { x, y } = toMap(e.x, e.y);
-            if (x < mx || x > mx + MAP_SIZE || y < my || y > my + MAP_SIZE) continue;
-            const isBoss  = e.isBoss;
-            const isElite = e.type === 'elite';
-            ctx.fillStyle = isBoss ? '#FF8800' : isElite ? '#FF4400' : '#FF2222';
+            if (x < MX || x > MX + SIZE || y < MY || y > MY + SIZE) continue;
+            ctx.fillStyle   = e.isBoss ? '#FF8800' : e.type === 'elite' ? '#FF4400' : '#FF2222';
+            ctx.globalAlpha = 0.78;
             ctx.beginPath();
-            ctx.arc(x, y, isBoss ? 4 : isElite ? 2.5 : 1.5, 0, Math.PI * 2);
+            ctx.arc(x, y, e.isBoss ? 4 : e.type === 'elite' ? 2.5 : 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
+        ctx.globalAlpha = 1;
 
-        // Floor items (green / gold dots)
+        // Floor items
         const floorItems = this.game.systems.floorItems?.items || [];
         for (const item of floorItems) {
             const { x, y } = toMap(item.x, item.y);
-            if (x < mx || x > mx + MAP_SIZE || y < my || y > my + MAP_SIZE) continue;
-            ctx.fillStyle = item.type === 'treasure_chest' ? '#FFD700' : '#44FF88';
+            if (x < MX || x > MX + SIZE || y < MY || y > MY + SIZE) continue;
+            ctx.fillStyle   = item.type === 'treasure_chest' ? '#FFD700' : '#44FF88';
+            ctx.globalAlpha = 0.85;
             ctx.beginPath();
-            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.arc(x, y, 2.5, 0, Math.PI * 2);
             ctx.fill();
         }
+        ctx.globalAlpha = 1;
 
-        // Player dot (white, center)
+        // Player dot (bright, with small glow)
         const { x: px, y: py } = toMap(player.x, player.y);
         ctx.fillStyle   = '#FFFFFF';
         ctx.shadowColor = '#FFFFFF';
-        ctx.shadowBlur  = 6;
+        ctx.shadowBlur  = 5;
         ctx.beginPath();
-        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        ctx.restore(); // remove clip
+        ctx.restore(); // pop clip
 
-        // Border (above clip so it's crisp)
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth   = 1;
-        ctx.beginPath();
-        ctx.rect(mx, my, MAP_SIZE, MAP_SIZE);
-        ctx.stroke();
-
-        // Label
-        ctx.fillStyle   = 'rgba(255,255,255,0.35)';
-        ctx.font        = '9px monospace';
+        // "MAP" label
+        ctx.font        = `bold 7px "Georgia", serif`;
+        ctx.fillStyle   = 'rgba(170, 140, 70, 0.65)';
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText('MAP', mx + 3, my + 2);
+        ctx.fillText('MAP', MX + 4, MY + 3);
 
         ctx.restore();
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  WEAPON ICON SHAPES
+    // ════════════════════════════════════════════════════════════════════
+    _renderWeaponIcon(ctx, weapon, cx, cy, size) {
+        const color = weapon.evolved
+            ? (weapon.evolvedColor || weapon.color || '#FFD700')
+            : (weapon.color || '#AAAAAA');
+        ctx.fillStyle   = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = 1.5;
+
+        switch (weapon.id) {
+            case 'magic_missile': // Glowing orb with specular
+                ctx.beginPath();
+                ctx.arc(cx, cy, size * 0.72, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.beginPath();
+                ctx.arc(cx - size * 0.22, cy - size * 0.22, size * 0.28, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'whip': // Curved lash
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx - size, cy + size * 0.5);
+                ctx.quadraticCurveTo(cx, cy - size, cx + size, cy);
+                ctx.stroke();
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(cx + size, cy, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'throwing_knife': // Blade + handle
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - size);
+                ctx.lineTo(cx + size * 0.42, cy + size * 0.62);
+                ctx.lineTo(cx - size * 0.42, cy + size * 0.62);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(cx - size * 0.16, cy + size * 0.5, size * 0.32, size * 0.55);
+                break;
+
+            case 'lightning_chain': // Zigzag bolt
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx - size * 0.3,  cy - size);
+                ctx.lineTo(cx + size * 0.28, cy - size * 0.28);
+                ctx.lineTo(cx - size * 0.10, cy + size * 0.05);
+                ctx.lineTo(cx + size * 0.5,  cy + size);
+                ctx.stroke();
+                break;
+
+            case 'garlic_aura': // Concentric rings
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(cx, cy, size * 0.72, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, size * 0.38, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'holy_bible': // Cross
+                ctx.fillRect(cx - size * 0.16, cy - size * 0.75, size * 0.32, size * 1.5);
+                ctx.fillRect(cx - size * 0.65, cy - size * 0.18, size * 1.3, size * 0.36);
+                break;
+
+            case 'fire_wand': // Flame + bright core
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - size);
+                ctx.quadraticCurveTo(cx + size * 0.82, cy, cx, cy + size * 0.52);
+                ctx.quadraticCurveTo(cx - size * 0.82, cy, cx, cy - size);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#FFAA00';
+                ctx.beginPath();
+                ctx.arc(cx, cy - size * 0.22, size * 0.28, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'bone_boomerang': // V-arc with knobs
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx - size, cy - size * 0.3);
+                ctx.quadraticCurveTo(cx, cy + size * 0.55, cx + size, cy - size * 0.3);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx - size, cy - size * 0.3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(cx + size, cy - size * 0.3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'ice_shard': // Star-crystal
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                    const r = i % 2 === 0 ? size * 0.78 : size * 0.45;
+                    const x = cx + Math.cos(a) * r;
+                    const y = cy + Math.sin(a) * r;
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.52)';
+                ctx.beginPath();
+                ctx.arc(cx - size * 0.2, cy - size * 0.2, size * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'shadow_dagger': // Angled dagger with purple gleam
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(-Math.PI / 4);
+                ctx.beginPath();
+                ctx.moveTo(0, -size * 0.92);
+                ctx.lineTo(size * 0.28,  size * 0.42);
+                ctx.lineTo(0,            size * 0.22);
+                ctx.lineTo(-size * 0.28, size * 0.42);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = 'rgba(180, 90, 255, 0.65)';
+                ctx.beginPath();
+                ctx.arc(0, -size * 0.6, size * 0.20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                break;
+
+            default:
+                ctx.beginPath();
+                ctx.arc(cx, cy, size * 0.62, 0, Math.PI * 2);
+                ctx.fill();
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Draw filled + stroked rounded rectangle via re-usable beginPath. */
+    _panel(ctx, x, y, w, h, r, bgColor, borderColor) {
+        this._roundRect(ctx, x, y, w, h, r);
+        ctx.fillStyle = bgColor;
+        ctx.fill();
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth   = 1;
+        this._roundRect(ctx, x, y, w, h, r);
+        ctx.stroke();
+    }
+
+    /** Portable roundRect (uses native if available, else bezier fallback). */
+    _roundRect(ctx, x, y, w, h, r) {
+        const rr = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(x, y, w, h, rr);
+        } else {
+            ctx.moveTo(x + rr, y);
+            ctx.lineTo(x + w - rr, y);
+            ctx.arcTo(x + w, y,     x + w, y + rr, rr);
+            ctx.lineTo(x + w, y + h - rr);
+            ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+            ctx.lineTo(x + rr, y + h);
+            ctx.arcTo(x, y + h,     x, y + h - rr, rr);
+            ctx.lineTo(x, y + rr);
+            ctx.arcTo(x, y,         x + rr, y, rr);
+            ctx.closePath();
+        }
+    }
+
+    /** Darken a #RRGGBB color by `amount` (0–1). */
     _darken(color, amount) {
-        // Simple darken for hex or named colors
         if (color.startsWith('#') && color.length === 7) {
             const r = Math.max(0, parseInt(color.slice(1, 3), 16) * (1 - amount));
             const g = Math.max(0, parseInt(color.slice(3, 5), 16) * (1 - amount));
@@ -784,19 +1054,38 @@ export class CanvasHUD {
         return color;
     }
 
+    /** Convert #RRGGBB hex to "R, G, B" string for use in rgba(). */
+    _hexToRgb(hex) {
+        if (!hex || !hex.startsWith('#') || hex.length < 7) return '255,255,255';
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `${r}, ${g}, ${b}`;
+    }
+
+    /** Called at the start of each run to reset animated state. */
     reset() {
         this.displayXP = 0;
-        this.xpFlash = 0;
-        this.lastXP = 0;
-        this.displayHealth = this.game.player ? this.game.player.maxHealth : 100;
-        this.trailHealth = this.displayHealth;
-        this.healthFlash = 0;
-        this.healPulse = 0;
-        this.lastHealth = this.displayHealth;
+        this.xpFlash   = 0;
+        this.lastXP    = 0;
+
+        const maxHP = this.game.player?.maxHealth || 100;
+        this.displayHealth = maxHP;
+        this.trailHealth   = maxHP;
+        this.healthFlash   = 0;
+        this.healPulse     = 0;
+        this.lastHealth    = maxHP;
+
         this.displayKills = 0;
-        this.killFlash = 0;
+        this.killFlash    = 0;
+
+        this.displayGold = 0;
+        this.goldFlash   = 0;
+        this.lastGold    = 0;
+
         this.levelUpFlash = 0;
-        this.lastLevel = 1;
+        this.lastLevel    = 1;
+
         this.weaponFireFlash.clear();
     }
 }

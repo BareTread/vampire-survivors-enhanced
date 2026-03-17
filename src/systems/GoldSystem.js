@@ -183,8 +183,12 @@ export class GoldSystem {
 
     /**
      * Render HUD gold counter (screen-space).
+     * Suppressed when CanvasHUD is active — it renders gold in the Economy Panel.
      */
     renderHUD(ctx) {
+        // CanvasHUD handles gold display when present
+        if (this.game.systems?.canvasHUD) return;
+
         const canvas = this.game.canvas;
 
         ctx.save();
