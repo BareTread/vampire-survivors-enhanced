@@ -71,6 +71,12 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
+        this.version = '20260317-hudfix2';
+
+        if (typeof window !== 'undefined') {
+            window.__HUD_VERSION = this.version;
+            console.log(`[CanvasHUD] loaded ${this.version}`);
+        }
 
         // XP animation
         this.displayXP = 0;
@@ -170,8 +176,13 @@ export class CanvasHUD {
         const H = this.game.canvas.height;
 
         ctx.save();
-        // Ensure we are always in screen-space regardless of any prior dirty state
+        // Ensure we are always in clean screen-space regardless of prior dirty state
         ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        ctx.filter = 'none';
 
         this._renderXPBar(ctx, player, W, H);
         this._renderCharPanel(ctx, player, W, H);

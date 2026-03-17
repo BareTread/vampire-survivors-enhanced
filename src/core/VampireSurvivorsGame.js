@@ -25,7 +25,7 @@ import { DynamicEventSystem } from '../systems/DynamicEventSystem.js';
 import { AmbientParticleSystem } from '../systems/AmbientParticleSystem.js';
 import { TitleScreenSystem } from '../systems/TitleScreenSystem.js';
 import { RunSummarySystem } from '../systems/RunSummarySystem.js';
-import { CanvasHUD } from '../systems/CanvasHUD.js';
+import { CanvasHUD } from '../systems/CanvasHUD.js?v=20260317-hudfix2';
 import { CHARACTERS } from '../data/characters.js';
 import { globalDamageNumberPool } from './DamageNumberPool.js';
 import { Camera } from './Camera.js';

@@ -1,6 +1,6 @@
 // Vampire Survivors Game - Main Entry Point
 
-import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js';
+import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js?v=20260317-hudfix2';
 import { InputManager } from './core/InputManager.js';
 import { AudioManager } from './core/AudioManager.js';
 
