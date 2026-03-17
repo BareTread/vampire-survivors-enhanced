@@ -24,48 +24,49 @@ export class CanvasHUD {
 
     // ─── Design tokens ──────────────────────────────────────────────────
     static C = {
-        // Panels
-        panelBg:       'rgba(8, 5, 18, 0.88)',
-        panelBorder:   'rgba(128, 92, 28, 0.52)',
+        // Panels  — noticeably darker/more purple than the game bg (#0f0f23)
+        panelBg:         'rgba(16, 9, 30, 0.96)',
+        panelBorder:     'rgba(210, 155, 45, 0.90)',
+        panelGlow:       'rgba(200, 145, 40, 0.28)',   // shadow colour for border glow
 
         // XP bar
-        xpTrack:       'rgba(35, 26, 8, 0.75)',
-        xpA:           '#4A3500',
-        xpB:           '#B87A00',
-        xpC:           '#FFD966',
-        xpEdge:        '#FFE890',
+        xpTrack:         'rgba(35, 26, 8, 0.75)',
+        xpA:             '#4A3500',
+        xpB:             '#B87A00',
+        xpC:             '#FFD966',
+        xpEdge:          '#FFE890',
 
         // HP
-        hpTrack:       'rgba(70, 0, 0, 0.65)',
-        hpHigh:        '#1D9954',
-        hpMid:         '#C47A00',
-        hpLow:         '#B81000',
-        hpTrail:       'rgba(195, 35, 35, 0.52)',
+        hpTrack:         'rgba(70, 0, 0, 0.65)',
+        hpHigh:          '#1D9954',
+        hpMid:           '#C47A00',
+        hpLow:           '#B81000',
+        hpTrail:         'rgba(195, 35, 35, 0.52)',
 
         // Economy
-        gold:          '#FFD700',
-        goldDim:       '#7A5A10',
-        kills:         '#E07A00',
-        killsDim:      '#7A5000',
-        bank:          'rgba(155, 125, 55, 0.72)',
+        gold:            '#FFD700',
+        goldDim:         'rgba(200, 160, 60, 0.80)',   // visible label
+        kills:           '#E07A00',
+        killsDim:        'rgba(190, 120, 40, 0.80)',   // visible label
+        bank:            'rgba(155, 125, 55, 0.72)',
 
         // Text
-        labelBright:   '#EDE1C0',
-        labelDim:      'rgba(165, 145, 105, 0.62)',
+        labelBright:     '#EDE1C0',
+        labelDim:        'rgba(165, 145, 105, 0.62)',
 
         // Level / Wave
-        levelColor:    '#FFD700',
-        waveColor:     'rgba(185, 148, 230, 0.92)',
+        levelColor:      '#FFD700',
+        waveColor:       'rgba(185, 148, 230, 0.92)',
 
         // Inventory
-        slotBg:        'rgba(14, 9, 28, 0.88)',
-        slotBorder:    'rgba(85, 60, 110, 0.52)',
-        evolvedBorder: '#C8A020',
+        slotBg:          'rgba(14, 9, 28, 0.92)',
+        slotBorder:      'rgba(95, 68, 128, 0.65)',
+        evolvedBorder:   '#C8A020',
 
         // Minimap
-        minimapBg:     'rgba(5, 3, 14, 0.84)',
-        minimapBorder: 'rgba(115, 85, 28, 0.55)',
-        minimapGrid:   'rgba(255,255,255,0.04)',
+        minimapBg:       'rgba(10, 6, 22, 0.92)',
+        minimapBorder:   'rgba(200, 148, 42, 0.88)',
+        minimapGrid:     'rgba(255,255,255,0.06)',
     };
 
     constructor(game) {
@@ -169,6 +170,8 @@ export class CanvasHUD {
         const H = this.game.canvas.height;
 
         ctx.save();
+        // Ensure we are always in screen-space regardless of any prior dirty state
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         this._renderXPBar(ctx, player, W, H);
         this._renderCharPanel(ctx, player, W, H);
@@ -394,74 +397,66 @@ export class CanvasHUD {
         const killsY = PY + PH * 0.73;
 
         // ── Gold row ─────────────────────────────────────────
-        ctx.textBaseline = 'middle';
-
         ctx.save();
+        ctx.textBaseline = 'middle';
         if (this.goldFlash > 0.01) {
             ctx.shadowColor = C.gold;
-            ctx.shadowBlur  = 12 * this.goldFlash;
+            ctx.shadowBlur  = 10 * this.goldFlash;
         }
-        // Diamond icon
-        ctx.font      = `14px Arial, sans-serif`;
+        // Diamond icon — always shown even at 0
+        ctx.font      = `15px Arial, sans-serif`;
         ctx.fillStyle = C.gold;
         ctx.textAlign = 'left';
-        ctx.fillText('♦', PX + 10, goldY + 1);
-
-        // Value
-        ctx.font      = `bold 16px "Courier New", monospace`;
+        ctx.fillText('♦', PX + 10, goldY);
+        // "GOLD" label inline
+        ctx.font      = `bold 8px "Courier New", monospace`;
+        ctx.fillStyle = C.goldDim;
+        ctx.fillText('GOLD', PX + 27, goldY);
+        // Value right-aligned
+        ctx.font      = `bold 17px "Courier New", monospace`;
         ctx.fillStyle = C.gold;
         ctx.textAlign = 'right';
-        ctx.fillText(`${Math.floor(this.displayGold)}`, PX + PW - 10, goldY);
+        ctx.fillText(`${Math.floor(this.displayGold)}`, PX + PW - 8, goldY);
         ctx.restore();
 
-        // "GOLD" label
-        ctx.font      = `7px "Georgia", "Times New Roman", serif`;
-        ctx.fillStyle = C.goldDim;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('GOLD', PX + 26, goldY + 1);
-
-        // Bank sub-text (tiny, below gold value)
+        // Bank sub-text (tiny)
         const bank = this.game.systems.persistence?.getGold?.() || 0;
         if (bank > 0) {
-            ctx.font      = `7px "Courier New", monospace`;
-            ctx.fillStyle = C.bank;
-            ctx.textAlign = 'right';
-            ctx.fillText(`Bank ${bank}`, PX + PW - 10, goldY + 10);
+            ctx.font        = `7px "Courier New", monospace`;
+            ctx.fillStyle   = C.bank;
+            ctx.textAlign   = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 9);
         }
 
         // ── Kills row ────────────────────────────────────────
         ctx.save();
+        ctx.textBaseline = 'middle';
         if (this.killFlash > 0.01) {
             ctx.shadowColor = C.kills;
             ctx.shadowBlur  = 12 * this.killFlash;
         }
         // Skull icon
-        ctx.font      = `13px Arial, sans-serif`;
+        ctx.font      = `14px Arial, sans-serif`;
         ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('☠', PX + 10, killsY + 1);
-
+        ctx.fillText('☠', PX + 10, killsY);
+        // "KILLS" label inline
+        ctx.font      = `bold 8px "Courier New", monospace`;
+        ctx.fillStyle = C.killsDim;
+        ctx.fillText('KILLS', PX + 27, killsY);
         // Value (scales on milestone)
         const kScale = 1 + 0.14 * this.killFlash;
-        ctx.font = `bold 16px "Courier New", monospace`;
         ctx.save();
-        ctx.translate(PX + PW - 10, killsY);
+        ctx.translate(PX + PW - 8, killsY);
         ctx.scale(kScale, kScale);
-        ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
-        ctx.textAlign = 'right';
+        ctx.fillStyle   = this.killFlash > 0.01 ? '#FFD700' : C.kills;
+        ctx.textAlign   = 'right';
         ctx.textBaseline = 'middle';
+        ctx.font = `bold 17px "Courier New", monospace`;
         ctx.fillText(`${this.displayKills}`, 0, 0);
         ctx.restore();
         ctx.restore();
-
-        // "KILLS" label
-        ctx.font      = `7px "Georgia", "Times New Roman", serif`;
-        ctx.fillStyle = C.killsDim;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('KILLS', PX + 26, killsY + 1);
 
         // ── Power-up pills (right-anchored, below economy panel) ──
         this._renderPowerUpPills(ctx, player, W, PY + PH + 6);
@@ -1012,15 +1007,31 @@ export class CanvasHUD {
     //  UTILITIES
     // ════════════════════════════════════════════════════════════════════
 
-    /** Draw filled + stroked rounded rectangle via re-usable beginPath. */
+    /** Draw filled + stroked rounded rect with a soft glow on the border. */
     _panel(ctx, x, y, w, h, r, bgColor, borderColor) {
+        const C = CanvasHUD.C;
+        // Background fill
         this._roundRect(ctx, x, y, w, h, r);
         ctx.fillStyle = bgColor;
         ctx.fill();
+
+        // Top-edge highlight (subtle inner light, gives depth)
+        const hlGrad = ctx.createLinearGradient(x, y, x, y + 10);
+        hlGrad.addColorStop(0,   'rgba(255, 255, 255, 0.07)');
+        hlGrad.addColorStop(1,   'rgba(255, 255, 255, 0)');
+        this._roundRect(ctx, x, y, w, Math.min(10, h), r);
+        ctx.fillStyle = hlGrad;
+        ctx.fill();
+
+        // Glowing border
+        ctx.save();
+        ctx.shadowColor = C.panelGlow;
+        ctx.shadowBlur  = 10;
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth   = 1;
+        ctx.lineWidth   = 1.5;
         this._roundRect(ctx, x, y, w, h, r);
         ctx.stroke();
+        ctx.restore();
     }
 
     /** Portable roundRect (uses native if available, else bezier fallback). */
