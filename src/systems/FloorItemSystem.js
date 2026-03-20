@@ -111,7 +111,7 @@ export class FloorItemSystem {
             // Random stat upgrade
             const stats = ['damage', 'speed', 'health', 'luck', 'area', 'cooldown'];
             const stat  = stats[Math.floor(Math.random() * stats.length)];
-            this.game.applyStatUpgrade(stat, 1.0);
+            this.game.applyStatUpgrade(stat);
             player.addDamageNumber('STAT BOOST!', '#AA88FF', '');
         } else {
             // Free weapon level (random non-evolved weapon that isn't max level)

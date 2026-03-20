@@ -65,8 +65,19 @@ export class Camera {
             type: 'wave' // wave, spiral, zoom
         };
         
+        // Hit-stop freeze-frame state
+        this.hitStopFrames = 0;
+        this.hitStopIntensity = 0;
+        this._hitStopSavedTimeScale = null;
+        
+        // Zoom punch state
+        this._zoomPunchActive = false;
+        this._zoomPunchIntensity = 0;
+        this._zoomPunchDecay = 0.85;
+        
         // Performance management
         this.effectsEnabled = true;
+        this.screenShakeEnabled = true; // Wired to Settings > Screen Shake toggle
         this.performanceMode = 'high'; // high, medium, low
     }
 
@@ -87,6 +98,33 @@ export class Camera {
         this.targetX = x + this.leadX;
         this.targetY = y + this.leadY;
 
+        // Hit-stop: decrement frame counter (uses real frames, not dt, since time is frozen)
+        if (this.hitStopFrames > 0) {
+            this.hitStopFrames--;
+            if (this.hitStopFrames <= 0) {
+                // Restore timeScale and trigger zoom punch on exit
+                if (this._game && this._hitStopSavedTimeScale !== null) {
+                    this._game.timeScale = this._hitStopSavedTimeScale;
+                    this._hitStopSavedTimeScale = null;
+                }
+                this.hitStopIntensity = 0;
+                // Brief zoom punch on hit-stop exit
+                this._zoomPunchActive = true;
+                this._zoomPunchIntensity = 0.02;
+            }
+            // Skip the rest of follow during hit-stop (world is frozen)
+            return;
+        }
+
+        // Zoom punch decay
+        if (this._zoomPunchActive) {
+            this._zoomPunchIntensity *= this._zoomPunchDecay;
+            if (this._zoomPunchIntensity < 0.001) {
+                this._zoomPunchActive = false;
+                this._zoomPunchIntensity = 0;
+            }
+        }
+
         // Camera Juice: dynamic zoom-out when many enemies nearby
         if (this.dynamicZoomEnabled && this._game) {
             const enemies = this._game.systems && this._game.systems.enemies;
@@ -106,7 +144,9 @@ export class Camera {
         // Smooth camera movement
         this.x += (this.targetX - this.x) * this.smoothing;
         this.y += (this.targetY - this.y) * this.smoothing;
-        this.zoom += (this.targetZoom - this.zoom) * this.smoothing;
+        // Apply zoom punch offset on top of target zoom
+        const zoomPunchOffset = this._zoomPunchActive ? this._zoomPunchIntensity : 0;
+        this.zoom += (this.targetZoom + zoomPunchOffset - this.zoom) * this.smoothing;
         
         // Apply bounds if set
         if (this.bounds) {
@@ -211,7 +251,7 @@ export class Camera {
     }
     
     shake(intensity, duration, profile = 'normal') {
-        if (!this.effectsEnabled) return;
+        if (!this.effectsEnabled || !this.screenShakeEnabled) return;
         
         // Use predefined shake profiles for consistent feel
         const shakeProfile = this.shakeProfiles[profile] || this.shakeProfiles.normal;
@@ -227,11 +267,28 @@ export class Camera {
                 break;
         }
         
-        // Update shake parameters with profile settings
-        this.shakeEffect.intensity = Math.max(this.shakeEffect.intensity, adjustedIntensity);
-        this.shakeEffect.duration = Math.max(this.shakeEffect.duration, duration);
-        this.shakeEffect.frequency = shakeProfile.frequency;
-        this.shakeEffect.decay = shakeProfile.decay;
+        // FIX: Only replace current shake if incoming is stronger.
+        // Cap duration to prevent infinite stacking from rapid calls.
+        if (adjustedIntensity > this.shakeEffect.intensity) {
+            this.shakeEffect.intensity = adjustedIntensity;
+            this.shakeEffect.frequency = shakeProfile.frequency;
+            this.shakeEffect.decay = shakeProfile.decay;
+        }
+        this.shakeEffect.duration = Math.min(
+            Math.max(this.shakeEffect.duration, duration),
+            1.5 // Hard cap: no shake lasts longer than 1.5 seconds
+        );
+    }
+    
+    setScreenShakeEnabled(enabled) {
+        this.screenShakeEnabled = enabled;
+        if (!enabled) {
+            // Immediately stop any active shake
+            this.shakeEffect.intensity = 0;
+            this.shakeEffect.offsetX = 0;
+            this.shakeEffect.offsetY = 0;
+            this.shakeEffect.duration = 0;
+        }
     }
     
     // Enhanced shake methods for different game events
@@ -658,6 +715,44 @@ export class Camera {
         this.flash('#FF4444', 0.4);
     }
     
+    /**
+     * Freeze the game for a number of frames to sell impact.
+     * @param {number} frames — Duration in real frames (e.g. 4 = ~67ms at 60fps)
+     * @param {number} intensity — 0-1 visual darkening intensity (unused currently, reserved)
+     */
+    hitStop(frames, intensity = 0.5) {
+        if (!this.effectsEnabled) return;
+        if (!this._game) return;
+        
+        // Performance mode: halve freeze frames on low
+        let adjustedFrames = Math.round(frames);
+        if (this.performanceMode === 'low') {
+            adjustedFrames = Math.max(1, Math.round(adjustedFrames / 2));
+        }
+        
+        // Don't override a longer hit-stop already in progress
+        if (this.hitStopFrames >= adjustedFrames) return;
+        
+        // Save current timeScale only if we're not already in hit-stop
+        if (this._hitStopSavedTimeScale === null) {
+            this._hitStopSavedTimeScale = this._game.timeScale;
+        }
+        
+        this.hitStopFrames = adjustedFrames;
+        this.hitStopIntensity = intensity;
+        this._game.timeScale = 0;
+    }
+    
+    /**
+     * Brief zoom punch for multi-kill feedback.
+     * @param {number} intensity — 0-1 scale controlling zoom magnitude
+     */
+    zoomPunch(intensity = 0.5) {
+        if (!this.effectsEnabled) return;
+        this._zoomPunchActive = true;
+        this._zoomPunchIntensity = Math.max(this._zoomPunchIntensity, intensity * 0.03);
+    }
+    
     // Reset all effects (useful for pausing/unpausing)
     resetEffects() {
         this.effects.chromaticAberration = 0;
@@ -668,5 +763,10 @@ export class Camera {
         this.distortionEffect.active = false;
         this.clearFlash();
         this.shakeEffect.intensity = 0;
+        this.hitStopFrames = 0;
+        this.hitStopIntensity = 0;
+        this._hitStopSavedTimeScale = null;
+        this._zoomPunchActive = false;
+        this._zoomPunchIntensity = 0;
     }
 }

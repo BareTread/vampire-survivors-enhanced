@@ -188,7 +188,8 @@ export class BossSystem {
         const player = this.game.player;
         // Scale boss health with game progression and current player power.
         const timeScale = 1 + (this.game.gameTime / 600) * 0.5; // +50% per 10 min
-        const playerScale = 1 + Math.max(0, (player.level || 1) - 1) * 0.03;
+        const playerScale = 1 + Math.max(0, (player.level || 1) - 1) * 0.06; // +6%/level (was +3%)
+        const weaponScale = 1 + Math.max(0, (player.weapons?.size || 1) - 1) * 0.12; // +12% per extra weapon
         const angle = Math.random() * Math.PI * 2;
         const spawnDist = 400;
         const spawnX = player.x + Math.cos(angle) * spawnDist;
@@ -200,7 +201,7 @@ export class BossSystem {
         // Override with boss-specific stats
         boss.isBoss = true;
         boss.bossType = this.pendingBossType;
-        boss.maxHealth = Math.floor(def.maxHealth * timeScale * playerScale);
+        boss.maxHealth = Math.floor(def.maxHealth * timeScale * playerScale * weaponScale);
         boss.health = boss.maxHealth;
         boss.damage = Math.floor(def.damage * timeScale);
         boss.speed = def.speed;
@@ -233,6 +234,9 @@ export class BossSystem {
         }
 
         this.nextSpawnIndex++;
+
+        // Record in Codex
+        this.game.systems.codex?.discoverEnemy('boss_' + this.pendingBossType);
 
         // Dramatic spawn effects
         if (this.game.camera) {
@@ -630,7 +634,7 @@ export class BossSystem {
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
                 if (dist < 80) {
-                    player.takeDamage(tel.damage);
+                    player.takeDamage(tel.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
 
                     // Knockback
                     if (dist > 0.001) {
@@ -760,7 +764,7 @@ export class BossSystem {
                         }
                         if (dist < 15 && !eff.hit) {
                             eff.hit = true;
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                             eff.life = 0;
                         }
                     }
@@ -776,7 +780,7 @@ export class BossSystem {
                         const dy = player.y - eff.y;
                         if (dx * dx + dy * dy < (eff.size + 12) ** 2) {
                             eff.hit = true;
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                             eff.life = 0;
                         }
                     }
@@ -793,7 +797,7 @@ export class BossSystem {
 
                         if (Math.abs(dist - eff.radius) < 30) {
                             eff.hit = true;
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                         }
                     }
                     break;
@@ -806,7 +810,7 @@ export class BossSystem {
                         const dx = player.x - eff.x;
                         const dy = player.y - eff.y;
                         if (dx * dx + dy * dy < eff.radius * eff.radius) {
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                         }
                     }
                     break;
@@ -824,7 +828,7 @@ export class BossSystem {
                         const dx = player.x - eff.x;
                         const dy = player.y - eff.y;
                         if (dx * dx + dy * dy < eff.radius * eff.radius) {
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
 
                             if (eff.healBoss && boss && boss.active) {
                                 boss.health = Math.min(boss.maxHealth, boss.health + eff.damage * 2);
@@ -846,7 +850,7 @@ export class BossSystem {
                         );
                         if (dist < eff.width / 2 + 10) {
                             eff.hit = true;
-                            player.takeDamage(eff.damage);
+                            player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                         }
                     }
                     break;
@@ -867,7 +871,7 @@ export class BossSystem {
                             const dx = player.x - eff.targetX;
                             const dy = player.y - eff.targetY;
                             if (dx * dx + dy * dy < eff.radius * eff.radius) {
-                                player.takeDamage(eff.damage);
+                                player.takeDamage(eff.damage, { type: 'boss', name: this.activeBoss?.def?.name || 'Boss' });
                             }
                         }
 
@@ -914,6 +918,7 @@ export class BossSystem {
         if (this.game.camera) {
             this.game.camera.flash('#FFFFFF', 0.8);
             this.game.camera.shake(15, 1.0, 'massive');
+            this.game.camera.hitStop(6, 1.0);
         }
 
         if (this.game.systems.screenEffects) {

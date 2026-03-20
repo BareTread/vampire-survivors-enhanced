@@ -508,7 +508,7 @@ export class Projectile {
 
     hitPlayer(player) {
         // Apply damage to player
-        player.takeDamage(this.damage);
+        player.takeDamage(this.damage, { type: 'projectile', name: 'Enemy Projectile' });
 
         // Create hit effect
         this.game.systems.particle.createHitEffect(this.x, this.y, '#FF4444');

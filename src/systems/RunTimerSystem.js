@@ -29,6 +29,10 @@ export class RunTimerSystem {
         // Death entity
         this.deathSpawned = false;
         this.death = null;
+
+        // Endless mode — skip Death spawn, escalate difficulty indefinitely
+        this.endlessMode = false;
+        this._endlessScaleTick = 0;
     }
 
     update(dt) {
@@ -48,9 +52,23 @@ export class RunTimerSystem {
         }
 
         // ── 30-Minute Death Spawn ──────────────────────────
-        if (this.runTime >= this.deathTime && !this.deathSpawned) {
+        if (this.runTime >= this.deathTime && !this.deathSpawned && !this.endlessMode) {
             this.deathSpawned = true;
             this.spawnDeath();
+        }
+
+        // ── Endless Mode: post-30min difficulty escalation ──
+        if (this.endlessMode && this.runTime >= this.deathTime) {
+            this._endlessScaleTick += dt;
+            // Every 5 minutes past 30 min, further boost difficulty
+            if (this._endlessScaleTick >= 300) {
+                this._endlessScaleTick = 0;
+                const es = this.game.systems.enemy;
+                if (es) {
+                    es.maxActiveEnemies = Math.min(500, es.maxActiveEnemies + 40);
+                    es.spawnRate = Math.min(10, es.spawnRate * 1.25);
+                }
+            }
         }
 
         // ── Death Chase Logic ──────────────────────────────
@@ -155,6 +173,9 @@ export class RunTimerSystem {
         // Kill check: instant kill on contact
         const killRange = death.size + player.size;
         if (dist < killRange) {
+            // Set damage source before killing
+            player.lastDamageSource = { type: 'death', name: 'Death', damage: 9999, time: this.runTime };
+
             // Instant kill
             player.health = 0;
             if (player.die) {
@@ -183,31 +204,49 @@ export class RunTimerSystem {
 
         // Timer display (top center)
         const canvas = this.game.canvas;
+        const cx = canvas.width / 2;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
+        ctx.textBaseline = 'middle';
 
         // Timer color shifts as we approach death
-        let timerColor = '#FFFFFF';
+        let timerColor = 'rgba(220, 220, 235, 0.9)';
+        let pillBg = 'rgba(10, 8, 18, 0.55)';
+        let pillBorder = 'rgba(80, 60, 120, 0.3)';
         if (this.runTime >= this.deathTime) {
             timerColor = '#FF0000';
+            pillBg = 'rgba(40, 0, 0, 0.65)';
+            pillBorder = 'rgba(255, 0, 0, 0.4)';
         } else if (this.runTime >= this.warningTime) {
             const pulse = 0.5 + 0.5 * Math.sin(this.warningPulsePhase * 2);
             timerColor = `rgb(255, ${Math.floor(100 * (1 - pulse))}, ${Math.floor(50 * (1 - pulse))})`;
+            pillBg = 'rgba(30, 0, 0, 0.6)';
+            pillBorder = 'rgba(255, 60, 60, 0.35)';
         }
 
-        ctx.font = 'bold 24px monospace';
+        // Background pill — positioned below XP bar (12px bar + 1px separator)
+        const pillW = 110, pillH = 30;
+        const pillX = cx - pillW / 2, pillY = 18;
+        ctx.fillStyle = pillBg;
+        ctx.strokeStyle = pillBorder;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = 'bold 18px "Courier New", monospace';
         ctx.fillStyle = timerColor;
         ctx.shadowColor = timerColor;
         ctx.shadowBlur = this.runTime >= this.warningTime ? 8 : 0;
-        ctx.fillText(timeStr, canvas.width / 2, 10);
+        ctx.fillText(timeStr, cx, pillY + pillH / 2);
 
         // Warning text
         if (this.warningActive && !this.deathSpawned) {
             ctx.globalAlpha = this.warningTextAlpha;
-            ctx.font = 'bold 16px monospace';
+            ctx.font = 'bold 14px "Courier New", monospace';
             ctx.fillStyle = '#FF3333';
             ctx.shadowBlur = 12;
-            ctx.fillText('DEATH APPROACHES...', canvas.width / 2, 40);
+            ctx.fillText('DEATH APPROACHES...', cx, pillY + pillH + 16);
         }
 
         ctx.restore();
@@ -286,5 +325,7 @@ export class RunTimerSystem {
         this.warningPulsePhase = 0;
         this.deathSpawned = false;
         this.death = null;
+        this.endlessMode = false;
+        this._endlessScaleTick = 0;
     }
 }

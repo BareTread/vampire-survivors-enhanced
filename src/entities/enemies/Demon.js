@@ -257,8 +257,9 @@ export class Demon extends Enemy {
                 const normalizedX = dx / distance;
                 const normalizedY = dy / distance;
 
-                this.velocity.x = normalizedX * this.speed;
-                this.velocity.y = normalizedY * this.speed;
+                const speedMult = this.game.systems.enemy?.enemySpeedMultiplier ?? 1;
+                this.velocity.x = normalizedX * this.speed * speedMult;
+                this.velocity.y = normalizedY * this.speed * speedMult;
 
                 // Apply separation from other enemies
                 const separation = this.getSeparationForce();
@@ -348,7 +349,7 @@ export class Demon extends Enemy {
                     const capPercent = 0.50 + Math.min(gameTimeMin / 5, 1.0) * 0.20; // 0.50→0.70
                     areaDmg = Math.min(areaDmg, Math.floor(player.maxHealth * capPercent));
                 }
-                player.takeDamage(Math.max(10, areaDmg));
+                player.takeDamage(Math.max(10, areaDmg), { type: 'demon', name: 'Demon AoE' });
             }
         }
 
@@ -411,7 +412,7 @@ export class Demon extends Enemy {
         if (!player || !player.isAlive()) return;
 
         // Claw attack with knockback
-        player.takeDamage(this.damage);
+        player.takeDamage(this.damage, { type: 'demon', name: 'Demon' });
 
         // Apply knockback
         const dx = player.x - this.x;

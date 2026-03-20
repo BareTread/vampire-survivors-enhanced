@@ -245,8 +245,9 @@ export class Wraith extends Enemy {
                     const driftX = Math.sin(this.ghostlyFloat * 0.7) * 20;
                     const driftY = Math.cos(this.ghostlyFloat * 0.5) * 15;
 
-                    this.velocity.x = normalizedX * this.speed + driftX;
-                    this.velocity.y = normalizedY * this.speed + driftY;
+                    const speedMult = this.game.systems.enemy?.enemySpeedMultiplier ?? 1;
+                    this.velocity.x = normalizedX * this.speed * speedMult + driftX;
+                    this.velocity.y = normalizedY * this.speed * speedMult + driftY;
 
                     // Apply separation from other enemies
                     const separation = this.getSeparationForce();
@@ -284,7 +285,7 @@ export class Wraith extends Enemy {
         // Only attack if player is within actual attack range
         if (distance <= this.attackRange) {
             // Spectral touch attack - phases through defenses
-            player.takeDamage(this.damage);
+            player.takeDamage(this.damage, { type: 'wraith', name: 'Wraith' });
 
             // Create spectral attack effect
             this.createSpectralAttackEffect();

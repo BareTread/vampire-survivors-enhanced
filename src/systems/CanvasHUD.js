@@ -198,7 +198,7 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     _renderXPBar(ctx, player, W, H) {
         const C  = CanvasHUD.C;
-        const BH = 12;
+        const BH = 14;
         const xpNeeded = player.experienceToNext || 100;
         const ratio     = Math.min(1, this.displayXP / xpNeeded);
 
@@ -240,7 +240,7 @@ export class CanvasHUD {
 
         // Progress % (subtle, right-aligned, inside bar)
         if (ratio > 0.06) {
-            ctx.font        = `9px "Courier New", monospace`;
+            ctx.font        = `10px "Courier New", monospace`;
             ctx.fillStyle   = `rgba(255, 215, 90, ${0.45 + 0.25 * this.xpFlash})`;
             ctx.textAlign   = 'right';
             ctx.textBaseline = 'middle';
@@ -259,12 +259,12 @@ export class CanvasHUD {
         const challenge = this.game.systems.challenge;
         const hasChallenge = challenge && challenge.activeModifiers.size > 0;
         const PX = 8, PY = 16;
-        const PW = 222, PH = hasChallenge ? 72 : 64;
+        const PW = 240, PH = hasChallenge ? 80 : 72;
 
         this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
 
         // ── HP bar ──────────────────────────────────────────
-        this._renderHPBar(ctx, player, PX + 18, PY + 6, PW - 24, 18);
+        this._renderHPBar(ctx, player, PX + 18, PY + 6, PW - 24, 20);
 
         // ── Level badge ─────────────────────────────────────
         ctx.save();
@@ -272,20 +272,47 @@ export class CanvasHUD {
             ctx.shadowColor = C.levelColor;
             ctx.shadowBlur  = 20 * this.levelUpFlash;
         }
-        ctx.font        = `bold 17px "Georgia", "Times New Roman", serif`;
+        ctx.font        = `bold 19px "Georgia", "Times New Roman", serif`;
         ctx.fillStyle   = C.levelColor;
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(`Lv ${player.level || 1}`, PX + 18, PY + 31);
+        ctx.fillText(`Lv ${player.level || 1}`, PX + 18, PY + 33);
         ctx.restore();
 
-        // ── Wave indicator ──────────────────────────────────
-        const wave = this.game.systems.enemy?.getCurrentWave?.() || 1;
-        ctx.font        = `11px "Georgia", "Times New Roman", serif`;
+        // ── Wave indicator with pacing badge ──────────────────
+        const enemySys = this.game.systems.enemy;
+        const wave = enemySys?.getCurrentWave?.() || 1;
+        const waveType = enemySys?.waveType || 'normal';
+        ctx.font        = `13px "Georgia", "Times New Roman", serif`;
         ctx.fillStyle   = C.waveColor;
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(`∙  Wave ${wave}`, PX + 72, PY + 35);
+        ctx.fillText(`∙  Wave ${wave}`, PX + 78, PY + 37);
+
+        // Wave pacing badge (rest / rush)
+        if (waveType !== 'normal') {
+            const badgeLabel = waveType === 'rest' ? 'REST' : 'RUSH';
+            const badgeColor = waveType === 'rest' ? '#44CC88' : '#FF6644';
+            ctx.font = `bold 7px "Courier New", monospace`;
+            const tw = ctx.measureText(badgeLabel).width;
+            const bw = tw + 8, bh = 11;
+            const bx = PX + 72 + ctx.measureText(`∙  Wave ${wave}`).width + 6;
+            const by = PY + 35;
+
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            this._roundRect(ctx, bx, by, bw, bh, 3);
+            ctx.fill();
+
+            ctx.strokeStyle = badgeColor;
+            ctx.lineWidth   = 0.8;
+            this._roundRect(ctx, bx, by, bw, bh, 3);
+            ctx.stroke();
+
+            ctx.fillStyle   = badgeColor;
+            ctx.textAlign   = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(badgeLabel, bx + 4, by + 2);
+        }
 
         // ── Challenge modifier dots ──────────────────────────
         if (hasChallenge) {
@@ -376,14 +403,14 @@ export class CanvasHUD {
         ctx.stroke();
 
         // HP text centred inside bar
-        ctx.font        = `bold 10px "Courier New", monospace`;
+        ctx.font        = `bold 12px "Courier New", monospace`;
         ctx.fillStyle   = hpR < 0.3 ? '#FF9999' : '#FFFFFF';
         ctx.textAlign   = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.ceil(this.displayHealth)} / ${maxHP}`, bx + bw / 2, by + bh / 2 + 0.5);
 
         // Heart icon to the left of bar
-        ctx.font        = `12px Arial, sans-serif`;
+        ctx.font        = `14px Arial, sans-serif`;
         ctx.fillStyle   = hpR < 0.3 ? '#FF4444' : '#FF7777';
         ctx.textAlign   = 'right';
         ctx.fillText('♥', bx - 3, by + bh / 2 + 1);
@@ -395,7 +422,7 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     _renderEconomyPanel(ctx, player, W, H) {
         const C  = CanvasHUD.C;
-        const PW = 188, PH = 56;
+        const PW = 210, PH = 64;
         const PX = W - PW - 8, PY = 16;
 
         this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
@@ -415,16 +442,16 @@ export class CanvasHUD {
             ctx.shadowBlur  = 10 * this.goldFlash;
         }
         // Diamond icon — always shown even at 0
-        ctx.font      = `15px Arial, sans-serif`;
+        ctx.font      = `17px Arial, sans-serif`;
         ctx.fillStyle = C.gold;
         ctx.textAlign = 'left';
         ctx.fillText('♦', PX + 10, goldY);
         // "GOLD" label inline
-        ctx.font      = `bold 8px "Courier New", monospace`;
+        ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.goldDim;
-        ctx.fillText('GOLD', PX + 27, goldY);
+        ctx.fillText('GOLD', PX + 30, goldY);
         // Value right-aligned
-        ctx.font      = `bold 17px "Courier New", monospace`;
+        ctx.font      = `bold 19px "Courier New", monospace`;
         ctx.fillStyle = C.gold;
         ctx.textAlign = 'right';
         ctx.fillText(`${Math.floor(this.displayGold)}`, PX + PW - 8, goldY);
@@ -433,11 +460,11 @@ export class CanvasHUD {
         // Bank sub-text (tiny)
         const bank = this.game.systems.persistence?.getGold?.() || 0;
         if (bank > 0) {
-            ctx.font        = `7px "Courier New", monospace`;
+            ctx.font        = `9px "Courier New", monospace`;
             ctx.fillStyle   = C.bank;
             ctx.textAlign   = 'right';
             ctx.textBaseline = 'top';
-            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 9);
+            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 10);
         }
 
         // ── Kills row ────────────────────────────────────────
@@ -448,14 +475,14 @@ export class CanvasHUD {
             ctx.shadowBlur  = 12 * this.killFlash;
         }
         // Skull icon
-        ctx.font      = `14px Arial, sans-serif`;
+        ctx.font      = `16px Arial, sans-serif`;
         ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
         ctx.textAlign = 'left';
         ctx.fillText('☠', PX + 10, killsY);
         // "KILLS" label inline
-        ctx.font      = `bold 8px "Courier New", monospace`;
+        ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.killsDim;
-        ctx.fillText('KILLS', PX + 27, killsY);
+        ctx.fillText('KILLS', PX + 30, killsY);
         // Value (scales on milestone)
         const kScale = 1 + 0.14 * this.killFlash;
         ctx.save();
@@ -464,7 +491,7 @@ export class CanvasHUD {
         ctx.fillStyle   = this.killFlash > 0.01 ? '#FFD700' : C.kills;
         ctx.textAlign   = 'right';
         ctx.textBaseline = 'middle';
-        ctx.font = `bold 17px "Courier New", monospace`;
+        ctx.font = `bold 19px "Courier New", monospace`;
         ctx.fillText(`${this.displayKills}`, 0, 0);
         ctx.restore();
         ctx.restore();
@@ -585,12 +612,12 @@ export class CanvasHUD {
         if (weapons.length === 0 && passives.length === 0) return;
 
         // Sizes
-        const WS  = 38;   // weapon slot size
-        const WG  = 7;    // weapon slot gap
-        const PS  = 26;   // passive slot size
-        const PG  = 5;    // passive slot gap
-        const PAD = 10;   // panel inner padding
-        const LH  = 12;   // label row height
+        const WS  = 46;   // weapon slot size
+        const WG  = 8;    // weapon slot gap
+        const PS  = 32;   // passive slot size
+        const PG  = 6;    // passive slot gap
+        const PAD = 12;   // panel inner padding
+        const LH  = 14;   // label row height
         const RG  = 8;    // row gap
 
         // Width of each row
@@ -600,7 +627,7 @@ export class CanvasHUD {
         // Synergy badge width estimate
         let synW = 0;
         if (synergies.length > 0) {
-            ctx.font = `8px "Georgia", serif`;
+            ctx.font = `10px "Georgia", serif`;
             for (const s of synergies) {
                 const lbl = `${s.icon}${s.name}`;
                 synW += ctx.measureText(lbl).width + 10 + 6; // pill + gap
@@ -627,7 +654,7 @@ export class CanvasHUD {
 
         // ── Weapons ──────────────────────────────────────────
         if (weapons.length > 0) {
-            ctx.font        = `bold 7px "Georgia", "Times New Roman", serif`;
+            ctx.font        = `bold 9px "Georgia", "Times New Roman", serif`;
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
@@ -643,7 +670,7 @@ export class CanvasHUD {
         // ── Passives ──────────────────────────────────────────
         if (passives.length > 0) {
             rowY += RG;
-            ctx.font        = `bold 7px "Georgia", "Times New Roman", serif`;
+            ctx.font        = `bold 9px "Georgia", "Times New Roman", serif`;
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
@@ -659,13 +686,13 @@ export class CanvasHUD {
         // ── Synergy badges ────────────────────────────────────
         if (synergies.length > 0) {
             rowY += RG;
-            ctx.font        = `8px "Georgia", "Times New Roman", serif`;
+            ctx.font        = `10px "Georgia", "Times New Roman", serif`;
             ctx.textBaseline = 'top';
             let bx = PX + PAD;
             for (const syn of synergies) {
                 const label = `${syn.icon}${syn.name}`;
                 const tw    = ctx.measureText(label).width;
-                const bw    = tw + 10, bh = 13;
+                const bw    = tw + 10, bh = 15;
 
                 ctx.fillStyle = 'rgba(0,0,0,0.5)';
                 this._roundRect(ctx, bx, rowY, bw, bh, 3);
@@ -736,7 +763,7 @@ export class CanvasHUD {
         }
 
         // Level number (bottom-right corner)
-        ctx.font        = `bold 9px "Courier New", monospace`;
+        ctx.font        = `bold 11px "Courier New", monospace`;
         ctx.fillStyle   = evolved ? C.evolvedBorder : 'rgba(205, 190, 165, 0.9)';
         ctx.textAlign   = 'right';
         ctx.textBaseline = 'bottom';
@@ -780,7 +807,7 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     _renderMinimap(ctx, W, H) {
         const C = CanvasHUD.C;
-        const SIZE = Math.max(96, Math.min(118, Math.floor(Math.min(W, H) * 0.15)));
+        const SIZE = Math.max(108, Math.min(130, Math.floor(Math.min(W, H) * 0.17)));
         const MX = W - SIZE - 10;
         const MY = H - SIZE - 10 - this._getBottomHUDOffset();
         const RANGE = 1800;
@@ -834,7 +861,7 @@ export class CanvasHUD {
             ctx.fillStyle   = e.isBoss ? '#FF8800' : e.type === 'elite' ? '#FF4400' : '#FF2222';
             ctx.globalAlpha = 0.78;
             ctx.beginPath();
-            ctx.arc(x, y, e.isBoss ? 4 : e.type === 'elite' ? 2.5 : 1.5, 0, Math.PI * 2);
+            ctx.arc(x, y, e.isBoss ? 4.5 : e.type === 'elite' ? 3 : 2, 0, Math.PI * 2);
             ctx.fill();
         }
         ctx.globalAlpha = 1;
@@ -858,14 +885,14 @@ export class CanvasHUD {
         ctx.shadowColor = '#FFFFFF';
         ctx.shadowBlur  = 5;
         ctx.beginPath();
-        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         ctx.restore(); // pop clip
 
         // "MAP" label
-        ctx.font        = `bold 7px "Georgia", serif`;
+        ctx.font        = `bold 9px "Georgia", serif`;
         ctx.fillStyle   = 'rgba(170, 140, 70, 0.65)';
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';

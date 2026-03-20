@@ -376,6 +376,10 @@ export class SettingsMenu {
         if (this.game.qualitySettings) {
             this.game.qualitySettings.particleEffects = this.settings.particleEffects;
             this.game.qualitySettings.screenShake = this.settings.screenShake;
+            // Wire to Camera so shake() actually respects this setting
+            if (this.game.camera && typeof this.game.camera.setScreenShakeEnabled === 'function') {
+                this.game.camera.setScreenShakeEnabled(this.settings.screenShake);
+            }
             this.game.qualitySettings.damageNumbers = this.settings.damageNumbers;
             this.game.qualitySettings.lowFXMode = this.settings.lowFXMode;
             this.game.qualitySettings.autoQuality = this.settings.autoQuality;

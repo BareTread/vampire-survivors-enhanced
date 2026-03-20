@@ -13,6 +13,14 @@ export class TerrainRenderer {
         this.qualityLevel = 'high';
         this.lastPerformanceCheck = 0;
 
+        // Zone/biome system — concentric rings from origin
+        this.zones = [
+            { name: 'Crypt',      radius: 600,  bgInner: '#2a1a3e', bgMid: '#1e1030', bgOuter: '#140a22', gridColor: 'rgba(100, 60, 140, 0.16)', majorColor: 'rgba(140, 80, 180, 0.14)' },
+            { name: 'Catacombs',  radius: 1200, bgInner: '#1e2a3e', bgMid: '#141e2d', bgOuter: '#0e1422', gridColor: 'rgba(60, 80, 120, 0.16)',  majorColor: 'rgba(80, 110, 160, 0.14)' },
+            { name: 'Graveyard',  radius: 1800, bgInner: '#1e2e26', bgMid: '#141e1a', bgOuter: '#0e1612', gridColor: 'rgba(50, 90, 60, 0.16)',   majorColor: 'rgba(70, 120, 80, 0.14)' },
+            { name: 'Wasteland',  radius: Infinity, bgInner: '#3e2020', bgMid: '#2d1818', bgOuter: '#221010', gridColor: 'rgba(120, 60, 50, 0.16)', majorColor: 'rgba(160, 80, 60, 0.14)' }
+        ];
+
         console.log('🏰 Simple TerrainRenderer initialized');
     }
 
@@ -40,17 +48,24 @@ export class TerrainRenderer {
         const ctx = this.ctx;
         ctx.save();
 
-        // Dark stone background
+        // Get zone at camera position for zone-aware gradient
+        const zone = this.getZoneAt(camera.x, camera.y);
+
         const gradient = ctx.createRadialGradient(camera.x, camera.y, 0, camera.x, camera.y, 800);
-        gradient.addColorStop(0, '#2c2c3e');
-        gradient.addColorStop(0.6, '#1e1e2d');
-        gradient.addColorStop(1, '#141422');
+        gradient.addColorStop(0, zone.bgInner);
+        gradient.addColorStop(0.6, zone.bgMid);
+        gradient.addColorStop(1, zone.bgOuter);
 
         ctx.fillStyle = gradient;
         ctx.fillRect(camera.x - camera.width, camera.y - camera.height, camera.width * 2, camera.height * 2);
 
         if (this.qualityLevel !== 'low') {
             this.renderFloorDetail(camera);
+        }
+
+        // Zone transition rings (visible boundaries between biomes)
+        if (this.qualityLevel === 'high') {
+            this.renderZoneTransitions(camera);
         }
 
         ctx.restore();
@@ -84,7 +99,10 @@ export class TerrainRenderer {
             }
         }
 
-        ctx.strokeStyle = 'rgba(150, 118, 82, 0.18)';
+        // Use zone-specific grid colors for major grid
+        const zone = this.getZoneAt(camera.x, camera.y);
+
+        ctx.strokeStyle = zone.majorColor;
         ctx.lineWidth = 1.5;
 
         const majorStartX = Math.floor(startX / majorTile) * majorTile;
@@ -234,5 +252,44 @@ export class TerrainRenderer {
             top: -this.worldHeight / 2,
             bottom: this.worldHeight / 2
         };
+    }
+
+    /**
+     * Returns the zone definition at the given world coordinates.
+     * Zones are concentric rings centered at origin.
+     */
+    getZoneAt(x, y) {
+        const dist = Math.sqrt(x * x + y * y);
+        for (const zone of this.zones) {
+            if (dist <= zone.radius) return zone;
+        }
+        return this.zones[this.zones.length - 1];
+    }
+
+    /**
+     * Render subtle dashed circle outlines at zone boundaries.
+     */
+    renderZoneTransitions(camera) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.setLineDash([12, 8]);
+        ctx.lineWidth = 1;
+
+        for (const zone of this.zones) {
+            if (!isFinite(zone.radius)) continue;
+
+            // Only render if the circle is within camera view
+            const viewRange = Math.max(camera.width, camera.height);
+            const distToCamera = Math.sqrt(camera.x * camera.x + camera.y * camera.y);
+            if (Math.abs(distToCamera - zone.radius) > viewRange) continue;
+
+            ctx.strokeStyle = zone.majorColor;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.arc(0, 0, zone.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
     }
 }

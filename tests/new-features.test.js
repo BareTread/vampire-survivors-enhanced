@@ -8,6 +8,14 @@
  *
  * Agent #25 additions:
  *   - ChallengeSystem: no_heals, famine, iron_will hooks + gold multiplier
+ *
+ * Agent #28 additions (Sprint #27 regression coverage):
+ *   - Death cause tracking (lastDamageSource, killedBy)
+ *   - Evolution abilities (recipes, specialAbility fields, evolveWeapon flow)
+ *   - Wave pacing (getWaveType, speed/duration per type)
+ *   - Zone system (getZoneAt concentric rings)
+ *   - Endless mode (skip Death, escalation)
+ *   - Codex system (discovery increments, completion stats)
  */
 import { describe, test, expect, jest } from '@jest/globals';
 import { FloorItemSystem } from '../src/systems/FloorItemSystem.js';
@@ -15,6 +23,11 @@ import { IceShard } from '../src/entities/weapons/IceShard.js';
 import { ShadowDagger } from '../src/entities/weapons/ShadowDagger.js';
 import { ChallengeSystem } from '../src/systems/ChallengeSystem.js';
 import { CHARACTERS } from '../src/data/characters.js';
+import { WeaponEvolutionSystem } from '../src/systems/WeaponEvolutionSystem.js';
+import { EnemySystem } from '../src/systems/EnemySystem.js';
+import { RunTimerSystem } from '../src/systems/RunTimerSystem.js';
+import { TerrainRenderer } from '../src/core/TerrainRenderer.js';
+import { CodexSystem } from '../src/systems/CodexSystem.js';
 
 // ── Shared mock factories ────────────────────────────────────────────────────
 
@@ -476,5 +489,232 @@ describe('ChallengeSystem', () => {
 
         expect(game.player.maxHealth).toBe(100);
         expect(game.player.health).toBe(100);
+    });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sprint #27 Regression Tests (Agent #28)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── CodexSystem tests ───────────────────────────────────────────────────────
+
+describe('CodexSystem', () => {
+    function makeCodexGame() {
+        return { systems: { persistence: null } };
+    }
+
+    test('discoverEnemy increments count on repeat discovery', () => {
+        const codex = new CodexSystem(makeCodexGame());
+        codex.discoverEnemy('basic');
+        codex.discoverEnemy('basic');
+        codex.discoverEnemy('basic');
+        const entries = codex.getDiscoveries('enemies');
+        expect(entries).toHaveLength(1);
+        expect(entries[0].count).toBe(3);
+    });
+
+    test('discoverWeapon and discoverSynergy populate different categories', () => {
+        const codex = new CodexSystem(makeCodexGame());
+        codex.discoverWeapon('whip');
+        codex.discoverSynergy('fire_spinach');
+        expect(codex.isDiscovered('weapons', 'whip')).toBe(true);
+        expect(codex.isDiscovered('synergies', 'fire_spinach')).toBe(true);
+        expect(codex.isDiscovered('weapons', 'fire_spinach')).toBe(false);
+    });
+
+    test('getCompletionStats reports correct totals and synergies=10', () => {
+        const codex = new CodexSystem(makeCodexGame());
+        codex.discoverEnemy('basic');
+        codex.discoverEnemy('fast');
+        const stats = codex.getCompletionStats();
+        expect(stats.enemies.discovered).toBe(2);
+        expect(stats.enemies.total).toBe(10);
+        expect(stats.enemies.percent).toBe(20);
+        expect(stats.synergies.total).toBe(10);
+    });
+
+    test('getTotalDiscoveries sums across all categories', () => {
+        const codex = new CodexSystem(makeCodexGame());
+        codex.discoverEnemy('tank');
+        codex.discoverWeapon('whip');
+        codex.discoverEvolution('Soul Missile');
+        codex.discoverSynergy('holy_armor');
+        expect(codex.getTotalDiscoveries()).toBe(4);
+    });
+
+    test('reset clears all discoveries', () => {
+        const codex = new CodexSystem(makeCodexGame());
+        codex.discoverEnemy('basic');
+        codex.discoverWeapon('whip');
+        codex.reset();
+        expect(codex.getTotalDiscoveries()).toBe(0);
+    });
+});
+
+// ── WeaponEvolutionSystem tests ─────────────────────────────────────────────
+
+describe('WeaponEvolutionSystem', () => {
+    function makeEvoGame() {
+        return {
+            player: { x: 0, y: 0, weapons: new Map() },
+            systems: {
+                passiveItems: { items: new Map() },
+                codex: { discoverEvolution: jest.fn() },
+                screenEffects: null,
+                particle: null
+            },
+            audioManager: null,
+            camera: null
+        };
+    }
+
+    test('recipes map has all 10 weapon evolution recipes', () => {
+        const evo = new WeaponEvolutionSystem(makeEvoGame());
+        expect(evo.recipes.size).toBe(10);
+    });
+
+    test('each recipe has a specialAbility field', () => {
+        const evo = new WeaponEvolutionSystem(makeEvoGame());
+        for (const [weaponId, recipe] of evo.recipes) {
+            expect(recipe.specialAbility).toBeDefined();
+            expect(typeof recipe.specialAbility).toBe('string');
+        }
+    });
+
+    test('ice_shard evolves into Blizzard with blizzard_storm ability', () => {
+        const evo = new WeaponEvolutionSystem(makeEvoGame());
+        const recipe = evo.recipes.get('ice_shard');
+        expect(recipe.evolvedName).toBe('Blizzard');
+        expect(recipe.specialAbility).toBe('blizzard_storm');
+        expect(recipe.requiredPassive).toBe('empty_tome');
+    });
+
+    test('shadow_dagger evolves into Phantom Assassin with phantom_chain ability', () => {
+        const evo = new WeaponEvolutionSystem(makeEvoGame());
+        const recipe = evo.recipes.get('shadow_dagger');
+        expect(recipe.evolvedName).toBe('Phantom Assassin');
+        expect(recipe.specialAbility).toBe('phantom_chain');
+        expect(recipe.specialStats.chainCount).toBe(4);
+    });
+
+    test('getRecipeInfo returns null for unknown weapon', () => {
+        const evo = new WeaponEvolutionSystem(makeEvoGame());
+        expect(evo.getRecipeInfo('nonexistent_weapon')).toBeNull();
+    });
+});
+
+// ── Wave Pacing tests ───────────────────────────────────────────────────────
+
+describe('Wave pacing (EnemySystem.getWaveType)', () => {
+    const getWaveType = EnemySystem.prototype.getWaveType;
+
+    test('wave 1 is always normal', () => {
+        expect(getWaveType(1)).toBe('normal');
+    });
+
+    test('rest waves occur at mod 3 (waves 3, 8, 13)', () => {
+        expect(getWaveType(3)).toBe('rest');
+        expect(getWaveType(8)).toBe('rest');
+        expect(getWaveType(13)).toBe('rest');
+    });
+
+    test('rush waves occur at mod 4 (waves 4, 9, 14)', () => {
+        expect(getWaveType(4)).toBe('rush');
+        expect(getWaveType(9)).toBe('rush');
+        expect(getWaveType(14)).toBe('rush');
+    });
+
+    test('other waves are normal (waves 2, 5, 6, 7)', () => {
+        expect(getWaveType(2)).toBe('normal');
+        expect(getWaveType(5)).toBe('normal');
+        expect(getWaveType(6)).toBe('normal');
+        expect(getWaveType(7)).toBe('normal');
+    });
+});
+
+// ── Zone System tests ───────────────────────────────────────────────────────
+
+describe('TerrainRenderer zone system', () => {
+    function makeTerrain() {
+        const mockRenderer = { ctx: HTMLCanvasElement.prototype.getContext('2d') };
+        const mockCamera = { x: 0, y: 0 };
+        return new TerrainRenderer(mockRenderer, mockCamera);
+    }
+
+    test('zones are defined in increasing radius order', () => {
+        const tr = makeTerrain();
+        for (let i = 1; i < tr.zones.length; i++) {
+            expect(tr.zones[i].radius).toBeGreaterThan(tr.zones[i - 1].radius);
+        }
+    });
+
+    test('getZoneAt returns Crypt for origin (0,0)', () => {
+        const tr = makeTerrain();
+        const zone = tr.getZoneAt(0, 0);
+        expect(zone.name).toBe('Crypt');
+    });
+
+    test('getZoneAt returns Catacombs at distance ~900', () => {
+        const tr = makeTerrain();
+        const zone = tr.getZoneAt(900, 0);
+        expect(zone.name).toBe('Catacombs');
+    });
+
+    test('getZoneAt returns Wasteland far from origin', () => {
+        const tr = makeTerrain();
+        const zone = tr.getZoneAt(5000, 5000);
+        expect(zone.name).toBe('Wasteland');
+    });
+});
+
+// ── Endless Mode tests ──────────────────────────────────────────────────────
+
+describe('RunTimerSystem endless mode', () => {
+    function makeTimerGame() {
+        return {
+            player: { x: 0, y: 0, isAlive: () => true },
+            camera: { flash: jest.fn(), shake: jest.fn() },
+            audioManager: null,
+            systems: {
+                enemy: { maxActiveEnemies: 140, spawnRate: 2.0 }
+            }
+        };
+    }
+
+    test('endless mode defaults to false', () => {
+        const rts = new RunTimerSystem(makeTimerGame());
+        expect(rts.endlessMode).toBe(false);
+    });
+
+    test('endless mode skips Death spawn after 30 minutes', () => {
+        const rts = new RunTimerSystem(makeTimerGame());
+        rts.endlessMode = true;
+        rts.runTime = rts.deathTime + 1;
+        // Simulate one update tick — should NOT spawn death
+        rts.update(0.016);
+        expect(rts.deathSpawned).toBe(false);
+    });
+
+    test('endless mode escalates difficulty every 300s past deathTime', () => {
+        const game = makeTimerGame();
+        const rts = new RunTimerSystem(game);
+        rts.endlessMode = true;
+        rts.runTime = rts.deathTime + 1;
+
+        // Simulate 300+ seconds of accumulated ticks
+        rts._endlessScaleTick = 299;
+        rts.update(2); // pushes past 300
+        expect(game.systems.enemy.maxActiveEnemies).toBeGreaterThan(140);
+    });
+
+    test('reset restores default state', () => {
+        const rts = new RunTimerSystem(makeTimerGame());
+        rts.endlessMode = true;
+        rts.runTime = 999;
+        rts._endlessScaleTick = 100;
+        rts.reset();
+        expect(rts.endlessMode).toBe(false);
+        expect(rts.runTime).toBe(0);
+        expect(rts._endlessScaleTick).toBe(0);
     });
 });

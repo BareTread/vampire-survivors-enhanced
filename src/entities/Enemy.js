@@ -42,6 +42,11 @@ export class Enemy {
         this.id = Math.random().toString(36).substr(2, 9);
         this.active = true;
 
+        // Death animation state
+        this.dying = false;
+        this.deathScaleTimer = 0;
+        this.deathScaleDuration = 0.08; // ~5 frames @ 60fps
+
         // Elite-specific properties
         this.isBerserk = false;
         this.summonTimer = 0;
@@ -294,7 +299,7 @@ export class Enemy {
     }
 
     getDifficultyMultiplier() {
-        // REBALANCED: Exponential enemy scaling for challenging long-term gameplay
+        // REBALANCED: Softer exponential enemy scaling with player-power tracking
         if (!this.game || typeof this.game.gameTime !== 'number') {
             return 1.0; // Default multiplier during initialization
         }
@@ -302,30 +307,33 @@ export class Enemy {
         const gameTime = this.game.gameTime;
         const baseMultiplier = 1.0;
 
-        // REBALANCED: Softer exponential scaling to prevent one-shot kills in early minutes.
-        // Old formula: 1.6^(t/120) → 1.6x at 2min, 2.56x at 4min — too punishing early.
-        // New formula: splits into two regimes with a hard damage cap for the first 5 minutes.
+        // REBALANCED: Two-regime time scaling
         const timeMinutes = gameTime / 120; // intervals of 2 minutes
-        // 25% increase per 2-min interval for first 5 min, then 45% per 2-min interval after
+        // 25% increase per 2-min interval for first 5 min, then 30% per interval after
         const earlyScaling = Math.pow(1.25, Math.min(timeMinutes, 2.5)); // caps at 5 min: ~1.95x
-        const lateBonus = timeMinutes > 2.5 ? Math.pow(1.45, timeMinutes - 2.5) : 1.0;
+        const lateBonus = timeMinutes > 2.5 ? Math.pow(1.30, timeMinutes - 2.5) : 1.0;
         const exponentialScaling = earlyScaling * lateBonus;
 
-        // Additional wave-based scaling for continuous challenge
+        // Wave-based scaling, capped at wave 30 to prevent extreme late-game
         const currentWave = this.game.systems?.enemy?.currentWave || 1;
-        const waveScaling = Math.pow(1.06, currentWave - 1); // 6% per wave (was 8%)
+        const effectiveWave = Math.min(currentWave, 30);
+        const waveScaling = Math.pow(1.06, effectiveWave - 1); // 6% per wave
 
-        const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling;
+        // Player-power factor: enemies scale proportionally with player strength
+        // so the difficulty curve matches the power curve
+        const playerLevel = this.game.player?.level || 1;
+        const weaponCount = this.game.player?.weapons?.size || 1;
+        const playerPowerFactor = 1 + (playerLevel - 1) * 0.04 + (weaponCount - 1) * 0.08;
 
-        // Cap multiplier at 50x overall, but also cap DAMAGE multiplier for first 5 minutes
-        // to prevent one-shot kills before the player has had a chance to get armor/upgrades.
+        const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling * playerPowerFactor;
+
+        // Cap multiplier at 50x overall
         const cappedMultiplier = Math.min(finalMultiplier, 50.0);
 
         // Debug logging for balance verification
         if (this.game.showDebug && gameTime > 240 && Math.random() < 0.01) {
-            // Log occasionally after 4 minutes
             console.log(
-                `ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`
+                `ENEMY SCALING: ${timeMinutes.toFixed(1)} intervals, Wave ${currentWave}, Player L${playerLevel}, Health multiplier: ${cappedMultiplier.toFixed(2)}x`
             );
         }
 
@@ -334,6 +342,15 @@ export class Enemy {
 
     update(dt) {
         if (!this.active) return;
+
+        // Death animation: shrink to nothing then deactivate
+        if (this.dying) {
+            this.deathScaleTimer -= dt;
+            if (this.deathScaleTimer <= 0) {
+                this.active = false;
+            }
+            return;
+        }
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
@@ -544,7 +561,7 @@ export class Enemy {
         const bloodMoon  = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
         const auraBoost  = this.auraBuffed ? 1.30 : 1.0;
         const dmgMult    = bloodMoon * auraBoost;
-        player.takeDamage(Math.round(this.damage * dmgMult));
+        player.takeDamage(Math.round(this.damage * dmgMult), { type: this.type, name: this.variant ? `${this.variant} ${this.type}` : this.type });
 
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
@@ -702,6 +719,9 @@ export class Enemy {
         if (!this.active || this._deathProcessed) return;
 
         this._deathProcessed = true;
+
+        // Track in codex/bestiary
+        this.game.systems.codex?.discoverEnemy(this.type);
 
         // CRITICAL FIX: Create all visual effects BEFORE marking inactive
         // This ensures particles have proper context and timing
@@ -881,6 +901,19 @@ export class Enemy {
             this.game.camera.shake(shakeIntensity, 0.1 + comboLevel * 0.05);
         }
 
+        // Hit-stop on elite kills for dramatic weight
+        if (this.type === 'elite' && this.game.camera && typeof this.game.camera.hitStop === 'function') {
+            this.game.camera.hitStop(3, 0.5);
+        }
+
+        // Zoom punch on multi-kill (every 10 combo kills)
+        if (this.game.player && this.game.player.combo.count % 10 === 0 && this.game.player.combo.count >= 10) {
+            if (this.game.camera && typeof this.game.camera.zoomPunch === 'function') {
+                const zoomIntensity = Math.min(0.8, this.game.player.combo.count / 50);
+                this.game.camera.zoomPunch(zoomIntensity);
+            }
+        }
+
         // Drop experience gem with combo bonus
         this.game.systems.experience.createGem(
             this.x + (Math.random() - 0.5) * 20,
@@ -904,7 +937,7 @@ export class Enemy {
                         const capPercent = 0.35 + Math.min(gameTimeMin / 5, 1.0) * 0.15; // 0.35→0.50
                         explosionDmg = Math.min(explosionDmg, Math.floor(player.maxHealth * capPercent));
                     }
-                    player.takeDamage(Math.max(10, explosionDmg));
+                    player.takeDamage(Math.max(10, explosionDmg), { type: 'elite', name: 'Elite Explosion' });
                 }
             }
             // Red/orange explosion particles
@@ -928,8 +961,9 @@ export class Enemy {
             }
         }
 
-        // NOW mark as inactive after all effects are created
-        this.active = false;
+        // Death scale pop animation: brief scale-up then shrink to nothing
+        this.dying = true;
+        this.deathScaleTimer = this.deathScaleDuration;
 
         // Update player's combo count and kill streak
         if (this.game.player) {
@@ -1050,6 +1084,24 @@ export class Enemy {
         const ctx = renderer.ctx;
         const simplifyBody = detailLevel !== 'high' && !['elite', 'summoner', 'juggernaut'].includes(this.type);
         ctx.save();
+
+        // Death scale pop animation: scale up to 1.3x then shrink to 0
+        if (this.dying) {
+            const t = this.deathScaleTimer / this.deathScaleDuration; // 1→0
+            // First half: scale up to 1.3x, second half: shrink to 0
+            const scale = t > 0.5 ? 1.0 + (1 - t) * 0.6 : t * 2.6;
+            ctx.translate(this.x, this.y);
+            ctx.scale(scale, scale);
+            ctx.translate(-this.x, -this.y);
+            ctx.globalAlpha = Math.max(0, t);
+        }
+
+        // Hit freeze-frame: enlarge slightly with white flash
+        if (this.freezeTimer > 0 && !this.dying) {
+            ctx.translate(this.x, this.y);
+            ctx.scale(1.1, 1.1);
+            ctx.translate(-this.x, -this.y);
+        }
 
         // Spawn animation
         if (this.currentSpawnTime > 0) {
@@ -1588,6 +1640,8 @@ export class Enemy {
         this.attackCooldown = 0;
         this.flashTime = 0;
         this.freezeTimer = 0;
+        this.dying = false;
+        this.deathScaleTimer = 0;
         this.currentSpawnTime = this.spawnTime;
         // Note: Damage numbers now managed by globalDamageNumberPool
         this.active = true;
@@ -1799,7 +1853,7 @@ export class Enemy {
         // Damage player if in range
         if (distance <= 80) {
             const damage = this.damage * 0.8; // 80% of normal damage
-            player.takeDamage(damage);
+            player.takeDamage(damage, { type: this.type, name: this.variant ? `${this.variant} ${this.type}` : this.type });
 
             // Knockback effect
             const knockbackForce = 200;

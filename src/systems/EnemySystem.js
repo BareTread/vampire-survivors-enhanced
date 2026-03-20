@@ -83,6 +83,10 @@ export class EnemySystem {
         this.tempEnemyArray = new Array(320);
         this.nearbyResults = new Array(100); // Increased for dense swarms
 
+        // Wave pacing — rest/rush rhythm
+        this.waveType = this.getWaveType(this.currentWave); // 'rest', 'rush', or 'normal'
+        this.enemySpeedMultiplier = 1.0;
+
         this.initializePools();
     }
 
@@ -207,6 +211,10 @@ export class EnemySystem {
         }
 
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
+            // Apply wave-type spawn multiplier
+            const waveTypeMultiplier = this.waveType === 'rest' ? 0.5
+                : this.waveType === 'rush' ? 1.6 : 1.0;
+            rawSpawnRate *= waveTypeMultiplier;
             this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 8.5 : 6.0);
         } else {
             this.spawnRate = baseSpawnRate;
@@ -725,6 +733,19 @@ export class EnemySystem {
         this.waveProgress = 0;
         this.auraEliteThisWave = false; // allow one new aura elite in the new wave
 
+        // Wave pacing — set type and duration for this wave
+        this.waveType = this.getWaveType(this.currentWave);
+        if (this.waveType === 'rest') {
+            this.waveDuration = 30; // shorter breather
+            this.enemySpeedMultiplier = 0.8; // enemies slower during rest
+        } else if (this.waveType === 'rush') {
+            this.waveDuration = 35; // slightly shorter, intense
+            this.enemySpeedMultiplier = 1.15; // enemies faster during rush
+        } else {
+            this.waveDuration = 45; // standard
+            this.enemySpeedMultiplier = 1.0;
+        }
+
         // Check for formation wave
         if (this.currentWave % this.formationWaveInterval === 0) {
             this.triggerFormation();
@@ -785,6 +806,18 @@ export class EnemySystem {
         if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
             this.game.camera.shake(5, 1.0);
         }
+    }
+
+    /**
+     * Returns wave type for pacing rhythm: rest → rush → normal → normal → rest ...
+     * Rest waves (every 3rd wave) reduce pressure; rush waves (right after rest) spike it.
+     */
+    getWaveType(waveNumber) {
+        if (waveNumber <= 1) return 'normal'; // Wave 1 is always normal
+        const mod = waveNumber % 5;
+        if (mod === 3) return 'rest';   // Waves 3, 8, 13, 18...
+        if (mod === 4) return 'rush';   // Waves 4, 9, 14, 19...
+        return 'normal';
     }
 
     // Query methods for other systems
@@ -1100,6 +1133,9 @@ export class EnemySystem {
         this.formationTimer = 0;
         this.formationCooldown = 0;
         this.auraEliteThisWave = false;
+        this.waveType = 'normal';
+        this.enemySpeedMultiplier = 1.0;
+        this.waveDuration = 45;
     }
 
     /**

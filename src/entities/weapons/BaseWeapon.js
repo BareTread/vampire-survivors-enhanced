@@ -419,6 +419,16 @@ export class BaseWeapon {
             damage *= aimingBonus;
         }
 
+        // DPS soft cap: if raw DPS exceeds 300, apply diminishing returns.
+        // This prevents extreme outlier weapons without affecting normal gameplay.
+        const effectiveCooldown = this.getEffectiveCooldown();
+        const rawDPS = damage / effectiveCooldown;
+        if (rawDPS > 300) {
+            const excess = rawDPS - 300;
+            const cappedDPS = 300 + Math.sqrt(excess) * 10;
+            damage = cappedDPS * effectiveCooldown;
+        }
+
         return damage;
     }
 

@@ -206,9 +206,19 @@ export class RunSummarySystem {
             ctx.globalAlpha = 1;
         }
 
+        // "Killed by" display
+        if (this.runData.killedBy && this.runData.killedBy.name) {
+            ctx.font = `bold 14px Arial, sans-serif`;
+            ctx.fillStyle = '#FF6666';
+            ctx.globalAlpha = 0.95;
+            const killerName = this.runData.killedBy.name.charAt(0).toUpperCase() + this.runData.killedBy.name.slice(1);
+            ctx.fillText(`\u2620 Killed by: ${killerName}`, w / 2, headerY + (character ? 50 : 30));
+            ctx.globalAlpha = 1;
+        }
+
         // Decorative line below header
         ctx.fillStyle = lineGrad;
-        ctx.fillRect(w * 0.2, headerY + 46, w * 0.6, 1);
+        ctx.fillRect(w * 0.2, headerY + 62, w * 0.6, 1);
 
         // 3. Stats panel — card-style with background
         const panelX = w * 0.18;
@@ -291,8 +301,26 @@ export class RunSummarySystem {
 
         ctx.globalAlpha = 1;
 
+        // Milestone distance hint
+        const kills = this.runData.kills || 0;
+        const milestones = [100, 500, 1000, 2500, 5000, 10000];
+        let nextMilestone = null;
+        for (const m of milestones) {
+            if (kills < m) { nextMilestone = m; break; }
+        }
+        if (nextMilestone && this.revealTimer > 1.5) {
+            const hintFade = Math.min(1, (this.revealTimer - 1.5) / 0.4);
+            ctx.globalAlpha = hintFade * 0.7;
+            ctx.font = 'italic 12px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#AAAACC';
+            const remaining = nextMilestone - kills;
+            ctx.fillText(`${remaining} kills away from ${this.formatNumber(nextMilestone)} milestone`, w / 2, statsStartY + panelH + 6);
+            ctx.globalAlpha = 1;
+        }
+
         // 4. Weapons used row (visual icons)
-        const weaponsY = statsStartY + panelH + 18;
+        const weaponsY = statsStartY + panelH + 24;
         if (this.revealTimer > 1.8 && this.runData.weaponsUsed && this.runData.weaponsUsed.length > 0) {
             const weapFade = Math.min(1, (this.revealTimer - 1.8) / 0.4);
             ctx.globalAlpha = weapFade;

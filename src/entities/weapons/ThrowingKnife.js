@@ -45,8 +45,8 @@ export class ThrowingKnife extends BaseWeapon {
             4: { damage: 23, cooldown: 0.45, piercing: 3, projectiles: 2 },
             5: { damage: 27, cooldown: 0.4, piercing: 4, projectiles: 2 },
             6: { damage: 33, cooldown: 0.35, piercing: 4, projectiles: 2 },
-            7: { damage: 39, cooldown: 0.3, piercing: 5, projectiles: 3 },
-            8: { damage: 49, cooldown: 0.25, piercing: 6, projectiles: 3 }
+            7: { damage: 35, cooldown: 0.35, piercing: 4, projectiles: 3 },
+            8: { damage: 38, cooldown: 0.35, piercing: 4, projectiles: 3 }
         };
     }
     

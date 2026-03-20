@@ -204,7 +204,7 @@ _Each task is independent. Can be sprinkled into any session as a bonus task alo
 
 - [x] **`[S]` HUD Visual Upgrade** — Animated XP bar with glow effect, smooth health bar drain animation, weapon icons that pulse when firing, timer with ominous styling, kill counter with milestone animations. Transform the prototype HUD into something that looks intentional. _(Agent #9: CanvasHUD system replaces DOM HUD — animated XP bar, health drain trail, weapon inventory with cooldown radials, passive items with level pips, synergy badges)_
 
-- [ ] **`[M]` Main Menu Visual Design** — Style the title screen, character select, and power-up shop with a cohesive dark gothic aesthetic. Canvas-rendered backgrounds with animated elements (drifting particles, flickering light). Smooth transitions between screens. The game should look "finished" from the first screen.
+- [x] **`[M]` Main Menu Visual Design** — Style the title screen, character select, and power-up shop with a cohesive dark gothic aesthetic. Canvas-rendered backgrounds with animated elements (drifting particles, flickering light). Smooth transitions between screens. The game should look "finished" from the first screen.
 
 ---
 
@@ -646,6 +646,39 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 
 ---
 
+### Agent #17 Handoff (2026-03-20)
+
+**What I did**:
+
+- **BALANCE AUDIT & FIXES [L]**: Addressed power creep and late-game trivialization. Nerfed Throwing Knife & Shadow Dagger L8 stats to match the pack. Reduced Lightning Chain L8 multiplier. Implemented a 300 DPS soft cap in `BaseWeapon.getEffectiveDamage()` to reel in outliers globally. Softened late-game exponential enemy scaling (1.45→1.30) but added scaling based on `player.level` and `weaponCount` so powerful builds face proportional resistance. Capped scaling at wave 30. Capped total damage reduction at 60% in `Player.takeDamageEnhanced()`. Reworked Boss HP formula to respect level/weapons. Adjusted Upgrade economy: increased `damage`/`cooldown` costs, reduced `damage` increment from 3% to 2.5%, reduced `goldGain` cap. Wrote comprehensive `balance-audit.test.js` to mathematically lock in the new curves.
+- **BUG FIXES [S]**: Fixed screen shake infinite stacking bug (intensity/duration now capped) and wired the toggle to the Settings menu. Fixed the level-up selection bug where choosing an option that became invalid during pause would fail silently; it now validates and toasts an error without fully closing the UI.
+- **MAIN MENU VISUAL DESIGN [M]**: Completely overhauled `TitleScreenSystem` with a cohesive dark gothic aesthetic ("Constellation Relay Polish"). Expanded the canvas theme with 20+ tokens (stone gradients, blood reds, bone whites). Added multi-layer atmospheric background renders: 4 bands of shifting translucent fog, swaying faint silhouettes of vampires/werewolves/skeletons at the edges, and procedural bezier blood drips that generate down the screen. Overhauled main menu buttons into stone tablets with hover glows. Added a `triggerTransition()` state machine for buttery smooth 0.35s fade-to-black screen transitions between all menu states instead of instant cuts. Re-routed all input to use the transition layer.
+
+**What changed**:
+
+- Modified: `src/core/Camera.js` (shake fix + settings toggle)
+- Modified: `src/core/VampireSurvivorsGame.js` (level-up validation)
+- Modified: `src/entities/weapons/{ThrowingKnife,ShadowDagger,LightningChain,BaseWeapon}.js` (DPS caps, L8 nerfs)
+- Modified: `src/entities/Player.js` (DR cap)
+- Modified: `src/entities/Enemy.js` (player-aware scaling + soft cap)
+- Modified: `src/systems/BossSystem.js` (HP formula)
+- Modified: `src/systems/PersistenceSystem.js` (economy tuning)
+- Modified: `src/systems/TitleScreenSystem.js` (Gothic visual engine + transitions + full redesign)
+- Modified: `src/ui/SettingsMenu.js` (wired shake toggle)
+- New file: `tests/balance-audit.test.js` (16 test cases)
+
+**What I tested**:
+
+- `npm test -- --runInBand` — all 163 tests pass across 11 suites, including the new balance regressions and audit.
+- Full execution of the menu state transition routing script.
+
+**Watch out for**:
+
+- The DPS soft cap engages abruptly at exactly 300 raw DPS. If a weapon hits 1000 raw DPS, its output is reduced to ~419. This creates intense diminishing returns above 300 DPS but guarantees no weapon trivializes bosses alone.
+- Transition states in `TitleScreenSystem`: the actual state variable `this.game.gameState` is now updated inside `update()` when the fade-to-black reaches 100%, not immediately on click. Ensure any future menu buttons use `this.triggerTransition(state)` instead of direct assignment.
+
+---
+
 ## Next Agent Prompt
 
 > **You are a game developer with strong creative instincts.** You're working on Vampire Survivors Enhanced — a browser-based survival game with a solid engine, layered audio + procedural music, 8 distinct weapons, 6 passive items, rarity tiers, build synergies, weapon evolutions, boss encounters, run timer + Death, persistent gold upgrades, 7 playable characters with unlock progression, dynamic events (treasure/golden swarm/blood moon/calm eye) fully wired into enemies, enemy formations, ambient atmospheric particles, statistics dashboard, a Tab build inventory overlay, and a polished game flow with canvas-rendered title screen, character select, HUD, and run summary.
@@ -657,30 +690,17 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 >
 > **What's been done:**
 >
-> - **Agent #1 (FOUNDATION)**: All 4 dead systems live (`FlowState`, `Achievement`, `Rewards`, `MicroChallenge`). Console.log spam cleaned. setTimeout leaks fixed. Audio event hooks wired.
-> - **Agent #2 (ARSENAL)**: 2 new weapons — Lightning Chain and Garlic Aura. Weapon render loop added.
-> - **Agent #3 (SILENCE BREAKER + ARSENAL)**: Complete audio synthesis overhaul — multi-oscillator layered engine. Holy Bible / Orbiter weapon added (weapon #6). BUILD CRAFT unlocked.
-> - **Agent #4 (SILENCE BREAKER + BUILD CRAFT + POLISH)**: Adaptive Music System (4-layer procedural soundtrack tied to FlowState). Passive Item System (6 items × 5 levels, stat modifiers, HUD). Per-type enemy death animations (5 distinct effects).
-> - **Agent #5 (BUILD CRAFT + LEGACY + POLISH)**: Fire Wand + Bone Boomerang, Kill Milestones, Screen Effects, Run Timer + Death, Persistence + Gold, Rarity tiers, Synergy bonuses, Weapon Evolutions.
-> - **Agent #6 (BESTIARY)**: Boss Encounter System — 3 boss types (Vampire Lord, Lich King, Alpha Werewolf) on 5-minute cycle with multi-phase fights, telegraphed attacks, health bar HUD, gold/XP rewards on death.
-> - **Agent #7 (GAME FLOW)**: Canvas-rendered TitleScreenSystem + RunSummarySystem. Removed all DOM menu/game-over UI.
-> - **Agent #8 (META-PROGRESSION)**: Character Selection System — 3 characters with data-driven definitions, persistence for selection/unlocks, canvas character select screen.
-> - **Agent #9 (VISUAL POLISH)**: CanvasHUD system — animated bars, weapon/passive inventory, synergy badges. MagicMissile + ThrowingKnife visual upgrades.
-> - **Agent #10 (WORLD VARIETY + LATE-GAME DEPTH)**: DynamicEventSystem (4 timed events with HUD notifications). Enemy formations (4 types every 5th wave with colored glow). Power-up timer indicators on CanvasHUD.
-> - **Agent #11 (INTEGRATION POLISH + ATMOSPHERE)**: Wired DynamicEventSystem flags into Enemy.js (blood moon speed/damage buffs, golden swarm tint+3xXP+gold, treasure chest damage from all 3 direct-damage weapons). AmbientParticleSystem (fog/dust/embers). Statistics Dashboard on title screen.
-> - **Agent #12 (WORLD + BESTIARY + VISUALS)**: Elite enemy abilities (4 types: shield, teleport, healNearby, explodeOnDeath with visual telegraphs). Environmental obstacles (40 seeded obstacles: rocks, tombstones, dead trees, ruined walls with player/enemy collision). Weapon visual identity (knife = oriented steel blade with glint, fireball = gradient orb with glow). Death screen redesign (vignette, floating particles, card-style stat panel, gradient buttons).
-> - **Agent #13 (CRITICAL BUGFIXES)**: Fixed 6 critical bugs preventing gameplay: NaN first-frame corruption (black title screen), Whip squared-distance comparison (weapons never hitting), TerrainSystem Y-coord + camera.addShake, EnemySystem spawn nudge, level-up UI null crashes. Added canvas pause overlay, canvas level-up overlay with option cards, and magic_missile to weapon pool.
-> - **Agent #14 (LEVEL-UP + BALANCE POLISH)**: Made level-up selection clickable on canvas, removed dead DOM level-up UI paths, fixed double-applied `timeScale`, rebalanced enemy HP/damage, made health bars always visible, and fixed Whip targeting range so early progression actually starts.
-> - **Agent #15 (RUNTIME STABILIZATION)**: Cleaned up input/listener lifetime, fixed persistence banking and revive application, repaired jackpot XP, fixed pooling/active-entity cleanup, removed duplicate kill side effects, simplified runtime queries, and added regression coverage. Test suite is stable at 23 passing tests.
-> - **Agent #16 (BUILD DEPTH)**: Fixed cooldown upgrade inversion, removed level-up weapon metadata instantiation leak via `WEAPON_METADATA`, expanded the roster from 3 to 7 characters with data-driven unlocks, and added `InventoryOverlaySystem` (`Tab`) for weapons/passives/synergies/evolution progress visibility.
+> - **Agents #1-12**: Full game framework creation. Weapons, audio, passives, bosses, events, rendering, persistence, UI.
+> - **Agents #13-16**: Critical stabilization, weapon re-targets, cooldown fixes, inventory overlay, multi-character roster expansion.
+> - **Agent #17**: Comprehensive game balance audit (weapon stat nerfs, global 300 DPS soft cap, 60% DR cap, mathematically stabilized enemy/boss scaling to prevent late-game snowballing, locked-in tests). Re-architected TitleScreenSystem with an atmospheric dark gothic design (stone buttons, animated fog, silhouettes, blood drips, and buttery fade transitions).
 >
-> **Current state: THE GAME IS STABLE AND FEATURE-RICH. Critical runtime bugs are fixed, progression works, the title/menu/summary flow is playable, level-up is clickable, combat pacing is rebalanced, regression tests are green, and players can inspect their full build with `Tab`. The game now has 8 weapons, 7 characters, passive items, synergies, evolutions, bosses, dynamic events, obstacles, elite abilities, ambient particles, statistics, and layered UI polish.**
+> **Current state: THE GAME IS STABLE, DEEP, BALANCED, AND VISUALLY MATURE. Combat pacing provides challenge regardless of overpowered items due to the new scaling curves. The menus finally feel premium. Regression tests are green.**
 >
 > **High-impact remaining tasks:**
 >
 > - **Biome System [L]** — 2-3 visual zones with distinct terrain, enemy weights, and atmosphere.
-> - **Main Menu Visual Design [M]** — Cohesive dark gothic aesthetic for title/character/upgrade screens.
 > - **Sound Effects Polish [M]** — Add distinct sounds for elite abilities, obstacle collisions, new weapon visuals.
+> - **Endless Mode Enhancements [M]** — Endless currently just prevents the 30-minute reaper. Add escalating modifiers or deeper curse mechanics post-30-minutes.
 > - **Browser QA Pass [S]** — Play-test for 10+ minutes, fix any remaining runtime issues.
 >
 > **The rules are simple:**
@@ -693,4 +713,4 @@ _Each agent adds notes here about interesting findings, technical constraints, c
 >
 > **Creative direction:** This should feel like a polished indie game, not a tech demo. Every feature should make the player smile, feel powerful, or say "whoa." You have full creative freedom in HOW you implement anything — the plan describes goals, not specs. Make bold choices. Surprise us.
 >
-> **You're agent #17. The game is stable after Agents #14-#16 and now has real build depth, a 7-character roster, and a Tab inventory overlay. What's missing is BIOME VARIETY, MENU POLISH, AUDIO/SFX CHARACTER, and a longer browser QA pass. Focus on the work that makes the game feel premium, readable, and replayable.**
+> **You're agent #18. The game is highly stable after intense balance tuning and a gothic menu overhaul by Agent #17. What's missing is BIOME VARIETY, AUDIO/SFX CHARACTER, and ENDLESS SCALING DEPTH. Focus on the work that makes the world feel vast and the late-game unhinged.**

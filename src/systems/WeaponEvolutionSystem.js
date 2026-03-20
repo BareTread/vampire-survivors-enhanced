@@ -308,6 +308,7 @@ export class WeaponEvolutionSystem {
 
         // Track evolution
         this.evolvedWeapons.add(weaponId);
+        this.game.systems.codex?.discoverEvolution(recipe.evolvedName);
 
         // ── Dramatic Reveal Sequence ─────────────────────────
 
@@ -514,6 +515,246 @@ export class WeaponEvolutionSystem {
             }
 
             // Other abilities are stat-based (applied during evolveWeapon) and don't need per-frame updates
+
+            case 'homing_pierce': {
+                // Soul Missile: steer active projectiles toward nearest enemy
+                if (!weapon._homingTimer) weapon._homingTimer = 0;
+                weapon._homingTimer += dt;
+                if (weapon._homingTimer >= 0.5) {
+                    weapon._homingTimer = 0;
+                    const projectiles = this.game.systems.projectile?.activeProjectiles;
+                    if (projectiles) {
+                        for (const proj of projectiles) {
+                            if (!proj.active || proj.weaponId !== weapon.id) continue;
+                            // Find nearest enemy
+                            const enemies = this.game.systems.enemy.getEnemiesInRange(proj.x, proj.y, 250);
+                            if (enemies.length > 0) {
+                                const target = enemies[0];
+                                const dx = target.x - proj.x;
+                                const dy = target.y - proj.y;
+                                const dist = Math.sqrt(dx * dx + dy * dy);
+                                if (dist > 5) {
+                                    const speed = Math.sqrt(proj.velocity.x ** 2 + proj.velocity.y ** 2) || 200;
+                                    proj.velocity.x = (dx / dist) * speed;
+                                    proj.velocity.y = (dy / dist) * speed;
+                                }
+                            }
+                            proj.piercing = Math.max(proj.piercing || 0, 3);
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'blade_storm': {
+                // Thousand Edge: every 3rd attack fires a 5-knife fan burst
+                if (weapon._bladeAttackCount === undefined) weapon._bladeAttackCount = 0;
+                if (!weapon._bladeStormTimer) weapon._bladeStormTimer = 0;
+                weapon._bladeStormTimer += dt;
+                if (weapon._bladeStormTimer >= 1.5) {
+                    weapon._bladeStormTimer = 0;
+                    weapon._bladeAttackCount++;
+                    if (weapon._bladeAttackCount % 3 === 0) {
+                        // Fire 5 knives in fan pattern
+                        const baseAngle = player.direction || 0;
+                        const fanSpread = Math.PI * 0.6;
+                        for (let i = 0; i < 5; i++) {
+                            const angle = baseAngle - fanSpread / 2 + (i / 4) * fanSpread;
+                            this.game.systems.projectile?.createProjectile({
+                                x: player.x,
+                                y: player.y,
+                                direction: angle,
+                                speed: 350,
+                                damage: weapon.currentStats.damage * 0.6,
+                                piercing: 2,
+                                lifetime: 1.0,
+                                type: 'knife',
+                                source: 'player',
+                                weaponId: weapon.id,
+                                color: weapon.evolvedColor || '#00FFFF',
+                                size: 4
+                            });
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'permanent_burn': {
+                // Hellfire: create fire patches at death positions of recently killed enemies
+                if (!weapon._burnPatchTimer) weapon._burnPatchTimer = 0;
+                weapon._burnPatchTimer += dt;
+                // Every 2 seconds, create fire patches around player in the area
+                if (weapon._burnPatchTimer >= 2.0) {
+                    weapon._burnPatchTimer = 0;
+                    const enemies = this.game.systems.enemy.getEnemiesInRange(
+                        player.x, player.y, 150
+                    );
+                    for (const enemy of enemies.slice(0, 3)) {
+                        if (!enemy.active) continue;
+                        // Apply burn status effect
+                        if (this.game.systems.statusEffect?.applyStatusEffect) {
+                            this.game.systems.statusEffect.applyStatusEffect(enemy, 'burn', {
+                                duration: 3.0,
+                                damagePerSecond: weapon.currentStats.damage * 0.3,
+                                source: weapon
+                            });
+                        }
+                    }
+                    // Fire patch visual
+                    if (this.game.systems.particle) {
+                        for (let i = 0; i < 6; i++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const dist = 30 + Math.random() * 100;
+                            this.game.systems.particle.create(
+                                player.x + Math.cos(angle) * dist,
+                                player.y + Math.sin(angle) * dist,
+                                {
+                                    vx: (Math.random() - 0.5) * 20,
+                                    vy: -30 - Math.random() * 20,
+                                    color: '#FF4500',
+                                    size: 3 + Math.random() * 3,
+                                    lifetime: 1.5,
+                                    fadeOut: true,
+                                    glow: true
+                                }
+                            );
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'death_spin': {
+                // Death Spiral: constant spinning damage aura around player
+                if (!weapon._spinTimer) weapon._spinTimer = 0;
+                weapon._spinTimer += dt;
+                if (weapon._spinTimer >= 0.4) {
+                    weapon._spinTimer = 0;
+                    const spinRadius = 100;
+                    const enemies = this.game.systems.enemy.getEnemiesInRange(
+                        player.x, player.y, spinRadius
+                    );
+                    for (const enemy of enemies) {
+                        if (!enemy.active) continue;
+                        const spinDmg = Math.floor(weapon.currentStats.damage * 0.25);
+                        if (typeof enemy.takeDamage === 'function') {
+                            enemy.takeDamage(spinDmg, player, false);
+                        }
+                    }
+                    // Visual spin particles
+                    if (this.game.systems.particle) {
+                        const time = this.game.gameTime || 0;
+                        for (let i = 0; i < 4; i++) {
+                            const angle = time * 6 + (i / 4) * Math.PI * 2;
+                            this.game.systems.particle.create(
+                                player.x + Math.cos(angle) * spinRadius,
+                                player.y + Math.sin(angle) * spinRadius,
+                                {
+                                    vx: Math.cos(angle + Math.PI / 2) * 60,
+                                    vy: Math.sin(angle + Math.PI / 2) * 60,
+                                    color: weapon.evolvedColor || '#ADFF2F',
+                                    size: 3,
+                                    lifetime: 0.3,
+                                    fadeOut: true
+                                }
+                            );
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'blizzard_storm': {
+                // Blizzard: AoE freeze pulse every 4 seconds
+                if (!weapon._blizzardTimer) weapon._blizzardTimer = 0;
+                weapon._blizzardTimer += dt;
+                if (weapon._blizzardTimer >= 4.0) {
+                    weapon._blizzardTimer = 0;
+                    const blizzardRadius = weapon.specialStats?.aoeRadius || 140;
+                    const enemies = this.game.systems.enemy.getEnemiesInRange(
+                        player.x, player.y, blizzardRadius
+                    );
+                    const freezeDur = weapon.specialStats?.freezeDuration || 4.5;
+                    for (const enemy of enemies) {
+                        if (!enemy.active) continue;
+                        if (this.game.systems.statusEffect?.applyFreezeEffect) {
+                            this.game.systems.statusEffect.applyFreezeEffect(enemy, freezeDur, weapon);
+                        }
+                        // Small freeze damage
+                        if (typeof enemy.takeDamage === 'function') {
+                            enemy.takeDamage(Math.floor(weapon.currentStats.damage * 0.15), player, false);
+                        }
+                    }
+                    // Visual ice ring
+                    if (this.game.systems.particle) {
+                        for (let i = 0; i < 16; i++) {
+                            const angle = (i / 16) * Math.PI * 2;
+                            this.game.systems.particle.create(
+                                player.x + Math.cos(angle) * blizzardRadius,
+                                player.y + Math.sin(angle) * blizzardRadius,
+                                {
+                                    vx: Math.cos(angle) * -20,
+                                    vy: Math.sin(angle) * -20,
+                                    color: '#B3E5FF',
+                                    size: 4,
+                                    lifetime: 0.8,
+                                    fadeOut: true,
+                                    glow: true
+                                }
+                            );
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'phantom_chain': {
+                // Phantom Assassin: on kill, 40% chance to chain damage to nearest enemy
+                // Track enemy count and detect kills
+                if (!weapon._phantomLastEnemyCount) {
+                    weapon._phantomLastEnemyCount = this.game.systems.enemy.getActiveEnemies?.()?.length || 0;
+                }
+                const currentCount = this.game.systems.enemy.getActiveEnemies?.()?.length || 0;
+                const killsDelta = weapon._phantomLastEnemyCount - currentCount;
+                weapon._phantomLastEnemyCount = currentCount;
+
+                if (killsDelta > 0) {
+                    for (let k = 0; k < Math.min(killsDelta, 5); k++) {
+                        if (Math.random() < 0.4) {
+                            // Chain to nearest enemy within 200px of player
+                            const nearby = this.game.systems.enemy.getEnemiesInRange(
+                                player.x, player.y, 200
+                            );
+                            if (nearby.length > 0) {
+                                const target = nearby[0];
+                                if (typeof target.takeDamage === 'function') {
+                                    target.takeDamage(weapon.currentStats.damage, player, false);
+                                    // Visual chain line
+                                    if (this.game.systems.particle) {
+                                        for (let s = 0; s < 4; s++) {
+                                            const t = s / 3;
+                                            this.game.systems.particle.create(
+                                                player.x + (target.x - player.x) * t,
+                                                player.y + (target.y - player.y) * t,
+                                                {
+                                                    vx: 0, vy: 0,
+                                                    color: weapon.evolvedColor || '#4C1D95',
+                                                    size: 3,
+                                                    lifetime: 0.2,
+                                                    fadeOut: true,
+                                                    glow: true
+                                                }
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            }
         }
     }
 

@@ -343,7 +343,7 @@ describe('Balance regressions', () => {
 
         bossSystem._spawnBoss();
 
-        expect(bossSystem.bossEnemy.maxHealth).toBe(5887);
+        expect(bossSystem.bossEnemy.maxHealth).toBe(8024);
         expect(game.systems.enemy.activeEnemies).toHaveLength(1);
     });
 

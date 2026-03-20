@@ -179,6 +179,43 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-03-20 (Agent #17 — Balance Audit & Gothic Main Menu Redesign)
+
+**Executed a massive balance sweep and transformed the menus with a dark atmospheric aesthetic. 163/163 regression tests passing.**
+
+- **Combat Balance Mathematically Locked**: Fixed power creep by clamping global output (`300 DPS` soft cap with diminishing returns) and damage reduction (`60%` hard cap). Scaled enemy and boss difficulty by `player.level` and `weaponCount` (instead of just time) to ensure powerful builds maintain late-game tension. Nerfed L8 `Throwing Knife`, `Shadow Dagger`, and `Lightning Chain` to line up with the rest of the arsenal.
+- **Menu System Rearchitected**: `TitleScreenSystem` completely redesigned with a dense gothic visual engine. Renders four procedural fog bands, procedural blood drips on borders, and faint swaying character silhouettes. Standard buttons were replaced with textured stone tablets featuring inner and outer hover glows.
+- **Buttery State Transitions**: Added a 0.35s fade-to-black state machine via `triggerTransition()` in `TitleScreenSystem`. This replaces all previous instant-cut menu state changes with smooth, deliberate transitions.
+- **Bug Fixes**: Resolved the infinite screen shake bug (capped intensity/duration and wired it to `SettingsMenu`) and the level-up selection bug where choices made on invalid items during pause state failed silently.
+
+### 2026-03-19 (Agent #29 — Sprint #29: Smart Rarity & HUD Polish)
+
+**Rewrote the rarity engine to be deterministic and bumped all HUD sizes for readability. 123/123 tests passing.**
+
+- **Smart Rarity Scoring Engine (`RaritySystem.js`)**: Replaced random dice-roll rarity with a 0-100 deterministic scoring engine evaluating options based on Base Type Value, Build Synergy, and Contextual Scarcity. Passives that enable evolutions score massive "Epic" boosts when you own the matching max-level weapon. Stat upgrades get diminishing returns if picked 3+ times.
+- **Informational Rarity**: Rarity is now a pure "build advisor" label. It no longer applies hidden multipliers to stat upgrades. Changed `applyStatUpgrade()` to use fixed base values.
+- **HUD Readability Bump (`CanvasHUD.js`)**: Increased the sizing of all in-game HUD elements by ~20%. Weapon slots (38→46px), passive slots (26→32px), HUD fonts (7-9px → 9-12px range), and minimap radii were all enlarged.
+- **Scoring System Tests**: Added `tests/rarity-scoring.test.js` with 16 new tests validating synergy logic, diminishing returns, score-to-rarity mapping, and resets.
+
+### 2026-03-19 (Agent #27 — Sprint #27: Full Gap Closure)
+
+**Closed 6 verified gameplay gaps across 12 modified files + 1 new file. 85/85 tests remain green.**
+
+- **Death Cause Tracking**: `Player.js` now tracks `lastDamageSource` via `takeDamage(amount, source)`. All call sites threaded: `Enemy.js` (3), `Wraith.js`, `Demon.js` (2), `Projectile.js`, `BossSystem.js` (8), `RunTimerSystem.js` (Death reaper). `VampireSurvivorsGame.gameOver()` includes `killedBy` in `runData`. `RunSummarySystem.js` displays "☠ Killed by: [name]" on the death screen + milestone distance hint.
+- **6 Missing Evolution Abilities**: Implemented in `WeaponEvolutionSystem.js` `_updateEvolvedAbility()`: `homing_pierce` (Soul Missile — steer projectiles), `blade_storm` (Thousand Edge — fan burst every 3rd attack), `permanent_burn` (Hellfire — AoE burn patches), `death_spin` (Death Spiral — constant damage aura), `blizzard_storm` (Blizzard — AoE freeze pulse), `phantom_chain` (Phantom Assassin — chain on kill).
+- **Wave Pacing**: `EnemySystem.js` now has `getWaveType(waveNumber)` cycling rest/rush/normal in a 5-wave pattern. Rest waves halve spawn rate + slow enemies; rush waves increase spawn rate 60% + speed enemies up. `waveDuration` adjusts per type.
+- **Zone/Biome System**: `TerrainRenderer.js` has 4 concentric zones (Crypt/Catacombs/Graveyard/Wasteland) with distinct gradient palettes and grid tints. `getZoneAt(x,y)` returns zone by distance from origin. `renderZoneTransitions()` draws dashed circle outlines at zone boundaries.
+- **Endless Mode**: `RunTimerSystem.js` `endlessMode` flag skips Death spawn at 30 min; post-30min escalation boosts enemy cap and spawn rate every 5 minutes. `TitleScreenSystem.js` has 'ENDLESS' menu item.
+- **Bestiary/Codex**: New `CodexSystem.js` with 4 categories (enemies/weapons/evolutions/synergies), persistence via `PersistenceSystem.js` `codex` field, `getTotalDiscoveries()` and `getCompletionStats()` API. Discovery hooks in `Enemy.js die()` and `WeaponEvolutionSystem.js evolveWeapon()`.
+
+### 2026-03-18 (Agent #26 - CanvasHUD Redesign & Module Cache Fix)
+
+**The CanvasHUD received a massive visual upgrade to match the game's gothic aesthetic, and a critical ES-module caching bug was fixed.**
+
+- **CanvasHUD Redesign**: Transformed the flat UI into a polished, gothic interface. Added an amber gradient XP bar with a bright leading edge, a blood-red HP bar featuring a Heart (♥) icon and damage drain trail. Panels now use a deep dark purple background `rgba(16,9,30,0.96)` with glowing 1.5px gold borders. Power-up pills were redesigned with left-accent stripes, serif/mono fonts, and an expiry pulse animation. Weapon inventory slots were enlarged to 38px with improved styling. The level indicator and wave number were moved inside the character panel, and the minimap was shifted to the bottom-right and slightly resized to prevent text overlap.
+- **UI Collision Cleanup**: Unified the Economy and Kills readouts into a single canvas panel to resolve top-right overlapping issues. Removed duplicate `renderUIOverlays()` from `VampireSurvivorsGame.js` and suppressed the `SynergySystem` and `GoldSystem` duplicate legacy DOM rendering when `CanvasHUD` is active. Bottom UI panels now intelligently shift upward to make room when a micro-challenge card is displayed.
+- **ES-Module Cache Busting**: Addressed a critical bug where the local developer server (`0.0.0.0:8000`) served new files, but the browser was persistently caching and running stale ES modules (`CanvasHUD`, etc.). Implemented a robust cache-busting chain using version parameters (e.g., `?v=20260317-hudfix2`) passing from `index.html` → `vampireMain.js` → `VampireSurvivorsGame.js` → `CanvasHUD.js`.
+
 ### 2026-03-16 (Agent #25 - Challenge System Completion)
 
 **Challenge modifiers are now fully wired, selectable from the title screen, and regression-covered (`85/85` passing).**
@@ -251,6 +288,15 @@ src/entities/
 - **Surge/formations fixed**: Pressure surges now actually force the `swarm` pattern via `chooseSpawnPattern()`. Boss and formation spawns now respect remaining enemy capacity instead of freely overshooting active-enemy limits.
 - **Enemy render degradation path**: `src/entities/Enemy.js` now accepts a render detail level from `EnemySystem.render()`. Under heavy density/low FPS, standard enemies skip radial gradients and some cosmetic details, and full-health bars are hidden for non-elites to preserve clarity and reduce draw cost.
 - **Tests + verification**: Added `tests/enemy-system.test.js` covering dt-based timers, spawn throttling, surge pattern selection, and low-vs-high detail rendering. Verified with `node --check src/systems/EnemySystem.js`, `node --check src/entities/Enemy.js`, `node --check tests/enemy-system.test.js`, `npm test -- --runInBand tests/enemy-system.test.js`, and full `npm test -- --runInBand` (32 tests / 5 suites passing).
+
+### 2026-03-17 (Agent #28 — Sprint #28: Codex UI, Settings Canvas Migration, Polish)
+
+- **Codex discovery hooks wired**: `SynergySystem.update()` now calls `codex.discoverSynergy()` when a synergy activates. `BossSystem._spawnBoss()` now calls `codex.discoverEnemy('boss_' + type)` on spawn. Fixed `CodexSystem.getCompletionStats()` synergies total from 6→10 to match actual synergy count.
+- **Codex menu UI**: Added 'CODEX' between STATISTICS and SETTINGS in `TitleScreenSystem.menuItems`. Built `renderCodex()`, `handleCodexInput()`, `handleCodexClick()` — canvas overlay with 4 category tabs (Enemies, Weapons, Evolutions, Synergies), completion bar, discovery grid, and back button. Routed 'codex' game state through all 7 locations in `VampireSurvivorsGame.js`.
+- **Settings menu canvas migration**: Replaced DOM-based `SettingsMenu.toggle()` call with canvas-rendered settings overlay. Built `renderSettings()` with volume sliders (left/right arrow keys), toggle pills (enter to flip), reset-to-defaults button, and back button. `SettingsMenu` class still handles persistence and apply logic. Routed 'settings' game state through all 7 locations.
+- **Wave pacing HUD badge**: `CanvasHUD._renderCharPanel()` now shows a colored REST (green) or RUSH (red) pill badge next to the wave number when the current wave type is not normal.
+- **Zone-aware obstacles**: `TerrainSystem.generateObstacles()` now queries `TerrainRenderer.getZoneAt()` per obstacle position and selects from zone-specific type palettes (Crypt favors tombstones, Graveyard favors dead trees, etc.). Each obstacle stores zone-specific `colors` used by all 4 render methods (`renderRock`, `renderTombstone`, `renderDeadTree`, `renderRuinedWall`).
+- **Regression tests**: Added 22 new tests in `tests/new-features.test.js` covering CodexSystem (discovery, completion stats, reset), WeaponEvolutionSystem (recipes, specialAbility fields, ice_shard/shadow_dagger evolutions), wave pacing (getWaveType mod pattern), TerrainRenderer zones (concentric ring ordering, getZoneAt), and RunTimerSystem endless mode (default state, death skip, difficulty escalation, reset). Total: 107 tests / 8 suites passing.
 
 ### 2026-03-14 (Agent #17 - Audio Pleasantness Redesign)
 
@@ -451,3 +497,10 @@ Quick testing recipe:
 - **PassiveItemSystem.js**: 6 items × 5 levels. Integrated into `generateLevelUpOptions()` and `selectLevelUpOption()` as `new_passive`/`passive_upgrade` types. Stats applied in `Player.getEffectiveStats()`. Armor reduction in `Player.takeDamageEnhanced()`. HUD via `updatePassiveItemsHUD()`. Attractorb `pickupRange` modifier is read by `ExperienceSystem.autoCollectGems()` (formula fixed in Agent #23).
 - **Enemy death animations**: Per-type effects in `Enemy.die()`: fast=scatter, tank=dissolve, ranged=explosion, elite=multi-stage, basic=radial burst. Scale with combo level. Stack with existing `createEnhancedDeathEffect()`.
 - **Not browser-tested** — code follows established patterns but next agent should verify on first load.
+
+## Sprint #29 - UI/UX Polish & Handover
+- Re-engineered main menu layout to use adaptive spacing based on canvas height, fixing overlap issues.
+- Implemented native canvas pause menu with Resume, Settings, and Return to Menu options.
+- Polished run timer HUD with pill background and repositioned below XP bar.
+- Fixed ESC key conflict between DOM settings overlay and canvas pause state.
+- Prepared comprehensive architectural `HANDOVER.md` with 5 major expansion ideas for future development.

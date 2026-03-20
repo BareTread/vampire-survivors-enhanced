@@ -53,6 +53,7 @@ import { HelpOverlay } from '../ui/HelpOverlay.js';
 import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
 import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
+import { CodexSystem } from '../systems/CodexSystem.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
@@ -87,7 +88,7 @@ export class VampireSurvivorsGame {
         this.config = config;
 
         // Game state
-        this.gameState = 'menu'; // menu, characters, upgrades, challenges, statistics, playing, paused, levelUp, gameOver, summary
+        this.gameState = 'menu'; // menu, characters, upgrades, challenges, statistics, codex, settings, playing, paused, levelUp, gameOver, summary
         this.timeScale = 1.0;
         this.gameTime = 0;
         this.score = 0;
@@ -141,7 +142,8 @@ export class VampireSurvivorsGame {
             canvasHUD: new CanvasHUD(this),
             inventory: new InventoryOverlaySystem(this),
             floorItems: new FloorItemSystem(this),
-            challenge: new ChallengeSystem(this)
+            challenge: new ChallengeSystem(this),
+            codex: new CodexSystem(this)
         };
 
         // Debug systems
@@ -267,12 +269,16 @@ export class VampireSurvivorsGame {
                     }
                 }
                 this.canvas.style.cursor = this._levelUpHoveredIndex >= 0 ? 'pointer' : 'default';
+            } else if (this.gameState === 'paused') {
+                this.systems.titleScreen.handlePauseMouseMove(x, y);
             } else if (
                 this.gameState === 'menu' ||
                 this.gameState === 'upgrades' ||
                 this.gameState === 'characters' ||
                 this.gameState === 'challenges' ||
-                this.gameState === 'statistics'
+                this.gameState === 'statistics' ||
+                this.gameState === 'codex' ||
+                this.gameState === 'settings'
             ) {
                 this.systems.titleScreen.handleMouseMove(x, y);
             } else if (this.gameState === 'summary') {
@@ -571,7 +577,9 @@ export class VampireSurvivorsGame {
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
                     this.gameState === 'challenges' ||
-                    this.gameState === 'statistics'
+                    this.gameState === 'statistics' ||
+                    this.gameState === 'codex' ||
+                    this.gameState === 'settings'
                 ) {
                     this.gameState = 'menu';
                 } else if (this.gameState === 'summary') {
@@ -579,7 +587,10 @@ export class VampireSurvivorsGame {
                 } else if (this.gameState === 'playing') {
                     this.pauseGame();
                 } else if (this.gameState === 'paused') {
-                    this.resumeGame();
+                    // Don't resume if DOM settings overlay is open (ESC closes that first)
+                    if (!this.settingsMenu?.isVisible) {
+                        this.systems.titleScreen.handlePauseInput('escape');
+                    }
                 }
                 // Also close inventory if open
                 if (this.systems.inventory?.visible) {
@@ -653,9 +664,13 @@ export class VampireSurvivorsGame {
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
                     this.gameState === 'challenges' ||
-                    this.gameState === 'statistics'
+                    this.gameState === 'statistics' ||
+                    this.gameState === 'codex' ||
+                    this.gameState === 'settings'
                 ) {
                     this.systems.titleScreen.handleInput(key);
+                } else if (this.gameState === 'paused') {
+                    this.systems.titleScreen.handlePauseInput(key.toLowerCase());
                 } else if (this.gameState === 'summary') {
                     this.systems.runSummary.handleInput(key);
                 }
@@ -669,9 +684,13 @@ export class VampireSurvivorsGame {
                     this.gameState === 'upgrades' ||
                     this.gameState === 'characters' ||
                     this.gameState === 'challenges' ||
-                    this.gameState === 'statistics'
+                    this.gameState === 'statistics' ||
+                    this.gameState === 'codex' ||
+                    this.gameState === 'settings'
                 ) {
                     this.systems.titleScreen.handleInput(key);
+                } else if (this.gameState === 'paused') {
+                    this.systems.titleScreen.handlePauseInput(key.toLowerCase());
                 } else if (this.gameState === 'summary') {
                     this.systems.runSummary.handleInput(key);
                 }
@@ -853,12 +872,16 @@ export class VampireSurvivorsGame {
             return;
         }
 
-        if (
+        if (this.gameState === 'paused') {
+            this.systems.titleScreen.handlePauseClick(x, y);
+        } else if (
             this.gameState === 'menu' ||
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
             this.gameState === 'challenges' ||
-            this.gameState === 'statistics'
+            this.gameState === 'statistics' ||
+            this.gameState === 'codex' ||
+            this.gameState === 'settings'
         ) {
             this.systems.titleScreen.handleClick(x, y);
         } else if (this.gameState === 'summary') {
@@ -907,6 +930,7 @@ export class VampireSurvivorsGame {
         // Give character starting weapon
         const WeaponClass = this.weaponClasses.get(character.startingWeapon);
         this.player.addWeapon(WeaponClass || MagicMissile);
+        this.systems.codex?.discoverWeapon(character.startingWeapon);
 
         // Reset all systems
         this.systems.terrain.reset();
@@ -933,6 +957,7 @@ export class VampireSurvivorsGame {
         this.systems.canvasHUD.reset();
         this.systems.floorItems.reset();
         this.systems.challenge.reset(); // clear per-run multipliers
+        this.systems.rarity.reset(); // clear stat pick counts for new run
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
 
@@ -961,6 +986,8 @@ export class VampireSurvivorsGame {
         if (this.gameState === 'playing') {
             this.gameState = 'paused';
             this.timeScale = 0;
+            this.systems.titleScreen.pauseSelectedIndex = 0;
+            this.systems.titleScreen.pauseHoveredIndex = -1;
         }
     }
 
@@ -1034,7 +1061,8 @@ export class VampireSurvivorsGame {
             weaponsUsed: this.player ? Array.from(this.player.weapons.keys()) : [],
             damageDealt: this.score || 0,
             score: this.score || 0,
-            wave: this.systems.enemy.getCurrentWave()
+            wave: this.systems.enemy.getCurrentWave(),
+            killedBy: this.player?.lastDamageSource || null
         };
 
         // Show summary (computes record comparisons against current records)
@@ -1186,41 +1214,63 @@ export class VampireSurvivorsGame {
         const option = this.levelUpOptions[index];
         if (!option) return;
 
+        // FIX: Validate that the option is still applicable (queued level-ups
+        // can cause stale options where e.g. a weapon is already at max level).
         switch (option.type) {
-            case 'weapon_upgrade':
+            case 'weapon_upgrade': {
+                const weapon = this.player.weapons.get(option.weaponId);
+                if (!weapon || weapon.level >= weapon.maxLevel) {
+                    this.showToast('Option no longer available', '#FF6666', 1200);
+                    return; // Don't close UI — let player pick another
+                }
                 this.player.upgradeWeapon(option.weaponId);
-                // Play weapon upgrade sound
                 if (this.audioManager && this.audioManager.playWeaponUpgrade) {
                     this.audioManager.playWeaponUpgrade();
                 }
                 break;
-            case 'new_weapon':
+            }
+            case 'new_weapon': {
+                if (this.player.weapons.size >= this.player.maxWeapons) {
+                    this.showToast('Weapon slots full', '#FF6666', 1200);
+                    return;
+                }
+                if (Array.from(this.player.weapons.values()).some(w => w.id === option.weaponType)) {
+                    this.showToast('Already have this weapon', '#FF6666', 1200);
+                    return;
+                }
                 const WeaponClass = this.weaponClasses.get(option.weaponType);
                 if (WeaponClass) {
                     this.player.addWeapon(WeaponClass);
                 }
-                // Play weapon upgrade sound
+                this.systems.codex?.discoverWeapon(option.weaponType);
                 if (this.audioManager && this.audioManager.playWeaponUpgrade) {
                     this.audioManager.playWeaponUpgrade();
                 }
                 break;
+            }
             case 'stat_upgrade':
-                this.applyStatUpgrade(option.stat, option._rarityMultiplier || option.rarity?.multiplier || 1.0);
-                // Play level up sound
+                this.applyStatUpgrade(option.stat);
+                if (this.systems.rarity) {
+                    this.systems.rarity.recordStatPick(option.stat);
+                }
                 if (this.audioManager && this.audioManager.playLevelUp) {
                     this.audioManager.playLevelUp();
                 }
-                // Subtle toast for clarity
                 this.showToast(`${option.name}: ${option.description}`, '#7CF2FF', 1300);
                 break;
             case 'evolution':
                 if (this.systems.weaponEvolution) {
+                    const canEvolve = this.systems.weaponEvolution.getEvolutionOptions()
+                        .some(e => e.weaponId === option.weaponId);
+                    if (!canEvolve) {
+                        this.showToast('Evolution no longer available', '#FF6666', 1200);
+                        return;
+                    }
                     this.systems.weaponEvolution.evolveWeapon(option.weaponId);
                 }
                 break;
             case 'new_passive':
             case 'passive_upgrade':
-                // Passive item: add or upgrade via PassiveItemSystem
                 if (this.systems.passiveItems) {
                     this.systems.passiveItems.addItem(option.itemId);
                 }
@@ -1229,35 +1279,33 @@ export class VampireSurvivorsGame {
 
         // Enhanced visual effects - reduced intensity to prevent overlay
         this.systems.particle.createEvolutionEffect(this.player.x, this.player.y);
-        // Removed Gothic explosion that was causing the overlay effect
-        // this.systems.particle.createGothicExplosion(this.player.x, this.player.y, 60);
         // Small camera shake for feedback
         this.camera.shake(3, 0.2);
 
         this.hideLevelUpUI();
     }
 
-    applyStatUpgrade(stat, rarityMultiplier = 1.0) {
+    applyStatUpgrade(stat) {
         switch (stat) {
             case 'damage':
-                this.player.stats.damage *= 1 + 0.2 * rarityMultiplier;
+                this.player.stats.damage *= 1.2;
                 break;
             case 'speed':
-                this.player.stats.speed *= 1 + 0.15 * rarityMultiplier;
+                this.player.stats.speed *= 1.15;
                 break;
             case 'health':
                 const oldMaxHealth = this.player.maxHealth;
-                this.player.maxHealth = Math.floor(this.player.maxHealth * (1 + 0.25 * rarityMultiplier));
+                this.player.maxHealth = Math.floor(this.player.maxHealth * 1.25);
                 this.player.health += this.player.maxHealth - oldMaxHealth; // Heal for the difference
                 break;
             case 'luck':
-                this.player.stats.luck *= 1 + 0.1 * rarityMultiplier;
+                this.player.stats.luck *= 1.1;
                 break;
             case 'area':
-                this.player.stats.area *= 1 + 0.15 * rarityMultiplier;
+                this.player.stats.area *= 1.15;
                 break;
             case 'cooldown':
-                this.player.stats.cooldown *= 1 - 0.08 * rarityMultiplier;
+                this.player.stats.cooldown *= 0.92;
                 break;
         }
 
@@ -1620,7 +1668,9 @@ export class VampireSurvivorsGame {
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
             this.gameState === 'challenges' ||
-            this.gameState === 'statistics'
+            this.gameState === 'statistics' ||
+            this.gameState === 'codex' ||
+            this.gameState === 'settings'
         ) {
             this.systems.titleScreen.update(dt);
             return;
@@ -1739,7 +1789,9 @@ export class VampireSurvivorsGame {
             this.gameState === 'upgrades' ||
             this.gameState === 'characters' ||
             this.gameState === 'challenges' ||
-            this.gameState === 'statistics'
+            this.gameState === 'statistics' ||
+            this.gameState === 'codex' ||
+            this.gameState === 'settings'
         ) {
             this.systems.titleScreen.render(this.ctx);
             return;
@@ -1837,6 +1889,11 @@ export class VampireSurvivorsGame {
         this.camera.renderFlash(this.ctx);
         this.camera.renderPostEffects(this.ctx);
 
+        // Danger effects (low-health glow, edge chromatic aberration)
+        if (this.systems.screenEffects) {
+            this.systems.screenEffects.renderDangerEffects(this.ctx);
+        }
+
         // Debug overlays (render last, on top of everything)
         if (this.projectileDebugger.enabled) {
             this.ctx.save();
@@ -1870,18 +1927,11 @@ export class VampireSurvivorsGame {
             this.systems.inventory.render(this.ctx);
         }
 
-        // Pause overlay
+        // Pause menu overlay
         if (this.gameState === 'paused') {
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 48px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2);
-            this.ctx.font = '20px Arial';
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-            this.ctx.fillText('Press ESC to resume', this.canvas.width / 2, this.canvas.height / 2 + 50);
+            // Keep titleScreen time ticking for animations
+            this.systems.titleScreen.time += this.deltaTime;
+            this.systems.titleScreen.renderPauseMenu(this.ctx);
         }
 
         // Level-up overlay (canvas fallback when DOM level-up UI is present)

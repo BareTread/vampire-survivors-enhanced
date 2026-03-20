@@ -135,6 +135,9 @@ export class Player {
         this._destroyed = false;
         this._inputHandlers = null;
 
+        // Death cause tracking for run summary
+        this.lastDamageSource = null;
+
         this.setupInput();
     }
 
@@ -354,9 +357,9 @@ export class Player {
 
     // updateDamageNumbers removed - now handled by globalDamageNumberPool
 
-    takeDamage(amount) {
+    takeDamage(amount, source = null) {
         // Use the enhanced damage system for addictive mechanics
-        return this.takeDamageEnhanced(amount);
+        return this.takeDamageEnhanced(amount, source);
     }
 
     createDamageEffects(damage) {
@@ -1330,7 +1333,7 @@ export class Player {
     }
 
     // Override damage to include near-death bonuses and power-up effects
-    takeDamageEnhanced(amount) {
+    takeDamageEnhanced(amount, source = null) {
         // Invincibility power-up
         if (this.powerUps.invincible.active) {
             this.addDamageNumber('INVINCIBLE!', '#FFD700', '');
@@ -1338,6 +1341,14 @@ export class Player {
         }
 
         if (this.invulnerable || this.health <= 0) return false;
+
+        // Track damage source for death screen
+        this.lastDamageSource = {
+            type: source?.type || 'unknown',
+            name: source?.name || 'Unknown',
+            damage: amount,
+            time: this.game.gameTime
+        };
 
         let finalDamage = amount;
 
@@ -1362,6 +1373,10 @@ export class Player {
             finalDamage = Math.max(1, finalDamage - permArmor);
         }
 
+        // DR CAP: total damage reduction from ALL sources never exceeds 60%.
+        // This prevents near-invincibility from stacking nearDeath + holyBible + armor.
+        finalDamage = Math.max(finalDamage, amount * 0.4);
+
         const damage = Math.max(1, Math.floor(finalDamage));
         this.health = Math.max(0, this.health - damage);
 
@@ -1375,6 +1390,11 @@ export class Player {
 
         // Enhanced damage feedback
         this.createDamageEffects(damage);
+
+        // Hit-stop on boss damage for weighty impact
+        if (source && source.type === 'boss' && this.game.camera) {
+            this.game.camera.hitStop(4, 0.8);
+        }
 
         // Reset streaks
         this.streaks.noDamage = 0;
@@ -1526,6 +1546,7 @@ export class Player {
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.6);
             this.game.camera.shake(10, 0.5);
+            this.game.camera.hitStop(6, 1.0);
         }
 
         if (this.game.systems.particle) {

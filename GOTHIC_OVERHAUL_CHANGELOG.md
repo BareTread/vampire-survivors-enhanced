@@ -108,3 +108,25 @@ This document provides a highly meticulous, file-by-file breadcrumb of every sin
         *   **Ranged/Summoner Types**: Drawn as a stark white (`#FFFFFF`) glowing diamond directly in the center.
         *   **Juggernaut/Tank Types**: Drawn as a singular, thick yellow vertical slit (`#FFEB3B`) resembling a cyclops eye.
         *   **Default Types (Basic/Swarm)**: Drawn as two hollow, pale red circles (`#FFDDDD`) set aggressively wide apart on the face.
+
+---
+
+## 6. HUD / UI Gothic Redesign (`src/systems/CanvasHUD.js`)
+
+**Goal**: Elevate the functional, flat UI into a premium gothic design that complements the dark void aesthetic, while ensuring vital feedback remains legible in chaotic scenarios.
+
+*   **Global Architecture Shift (Canvas > DOM)**: Solidified the transition to 100% canvas rendering. Legacy overlapping UI elements from `GoldSystem` and `SynergySystem` were suppressed when `CanvasHUD` is active, and duplicate `renderUIOverlays()` were removed from the game loop.
+*   **XP Bar Makeover**: Upgraded from an un-styled 6px teal fill to an intense **12px amber/golden gradient** (`#1a8a7a` → `#40E0D0` → `#7FFFD4`) with a bright leading edge, a responsive glow pulse upon XP gain, and a faint anticipatory trailing line.
+*   **HP Bar Makeover**: Replaced the thin DOM-based `180x10px` float with a **Canvas-rendered Heart (♥) icon** accompanying a larger `198x18px` blood-red fill. Integrated a smooth reddish damage drain trail for delayed hit-feedback, alongside a bright green pulse for healing.
+*   **Panel & Background Styling**: Previously invisible panels whose color `rgba(8,5,18,0.88)` completely blended into the game background (`#0f0f23`) were updated:
+    *   **New Background**: A distinct, deeper purple void: `rgba(16,9,30,0.96)`.
+    *   **New Borders**: Augmented from a faint 52% opacity yellow to a **bright 1.5px 90% opacity gold** complete with an outer `shadowBlur` glow to pop off the action.
+    *   **Inner Depth**: Added a subtle top-edge highlight gradient to simulate panel volume.
+*   **Typography & Colors**: Replaced plain `#fff` and near-black values with deliberate aesthetic choices:
+    *   **Gold Label text**: shifted from a muddy `#7A5A10` to a readable amber `rgba(200, 160, 60, 0.8)`.
+    *   **Kills Label text**: shifted from `#7A5000` to a bright orange `rgba(190, 120, 40, 0.8)`.
+    *   **Mix of Fonts**: Interwove the standard `monospace` with elegant `serif` accents where appropriate to lean into the vampire/castle aesthetics.
+*   **Power-up Pills**: Enlarged and stylized bottom-right power-up trackers. Added left-side sharp color striping (e.g., `#FFD700` for invincible), a fading transparency as the timer dips under 2s, and an animated pulse when underneath 3s.
+*   **Weapon & Passive Inventory**:
+    *   Weapon slots expanded from 28px to **38px** to comfortably harbor newly drawn icon silhouettes (e.g., Shadow Dagger, Ice Shard). 
+    *   Evolved weapons now receive a high-visibility, 2px `#FFD700` (Gold) border with an underlying glow, differentiating them instantly from base weapons.

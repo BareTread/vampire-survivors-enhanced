@@ -53,8 +53,8 @@ export class ShadowDagger extends BaseWeapon {
             4: { damage: 54, cooldown: 1.5, bleedChance: 0.30, chainCount: 0 },
             5: { damage: 67, cooldown: 1.4, bleedChance: 0.40, chainCount: 0 },
             6: { damage: 84, cooldown: 1.3, bleedChance: 0.50, chainCount: 0 },
-            7: { damage: 105, cooldown: 1.2, bleedChance: 0.60, chainCount: 1 },
-            8: { damage: 132, cooldown: 1.0, bleedChance: 0.70, chainCount: 2 }
+            7: { damage: 85, cooldown: 1.2, bleedChance: 0.60, chainCount: 1 },
+            8: { damage: 95, cooldown: 1.0, bleedChance: 0.70, chainCount: 1 }
         };
     }
 

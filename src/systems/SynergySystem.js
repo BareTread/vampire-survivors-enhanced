@@ -235,6 +235,9 @@ export class SynergySystem {
                 synergy.apply(weapon);
                 this.activeSynergies.set(synergy.id, synergy);
 
+                // Record in Codex
+                this.game.systems.codex?.discoverSynergy(synergy.id);
+
                 // Show notification
                 this._notifications.push({
                     text: `${synergy.icon} ${synergy.name}: ${synergy.description}`,

@@ -70,6 +70,14 @@ export class PersistenceSystem {
                 soundVolume: 0.8,
                 musicVolume: 0.4,
                 screenShake: true
+            },
+
+            // Bestiary / Discovery Codex
+            codex: {
+                enemies: [],
+                weapons: [],
+                evolutions: [],
+                synergies: []
             }
         };
     }
@@ -186,7 +194,7 @@ export class PersistenceSystem {
         const u = this.data.upgrades;
         return {
             maxHealth: 1 + u.maxHealth * 0.05,
-            damage: 1 + u.damage * 0.03,
+            damage: 1 + u.damage * 0.025,
             moveSpeed: 1 + u.moveSpeed * 0.02,
             cooldown: 1 - u.cooldown * 0.03,
             xpGain: 1 + u.xpGain * 0.1,
@@ -220,9 +228,9 @@ export class PersistenceSystem {
     getUpgradeCosts() {
         return {
             maxHealth: 50,
-            damage: 80,
+            damage: 100,
             moveSpeed: 60,
-            cooldown: 100,
+            cooldown: 130,
             xpGain: 40,
             armor: 120,
             revival: 500,
@@ -239,7 +247,7 @@ export class PersistenceSystem {
             xpGain: 5,
             armor: 5,
             revival: 1,
-            goldGain: 8
+            goldGain: 5
         };
         return maxLevels[upgradeId] || 10;
     }

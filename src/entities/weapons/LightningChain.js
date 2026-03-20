@@ -46,7 +46,7 @@ export class LightningChain extends BaseWeapon {
             5: { damage: 30, cooldown: 1.2, chains: 4, chainRange: 200 },
             6: { damage: 35, cooldown: 1.0, chains: 4, chainRange: 220, chainAreaDamage: 30 },
             7: { damage: 40, cooldown: 0.8, chains: 5, chainRange: 250 },
-            8: { damage: 50, cooldown: 0.6, chains: 6, chainRange: 300, chainDamageMultiplier: 2.0 }
+            8: { damage: 50, cooldown: 0.6, chains: 6, chainRange: 300, chainDamageMultiplier: 1.5 }
         };
     }
 

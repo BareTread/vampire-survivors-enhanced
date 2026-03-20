@@ -32,14 +32,38 @@ export class TerrainSystem {
             return (seed >>> 0) / 0xFFFFFFFF;
         };
 
-        const obstacleTypes = [
-            { type: 'rock', radius: 18, weight: 4 },
-            { type: 'tombstone', radius: 12, weight: 3 },
-            { type: 'deadTree', radius: 15, weight: 2 },
-            { type: 'ruinedWall', radius: 25, weight: 1 }
-        ];
+        // Zone-specific obstacle palettes
+        const zoneObstacles = {
+            Crypt:     [
+                { type: 'tombstone', radius: 12, weight: 5 },
+                { type: 'ruinedWall', radius: 25, weight: 3 },
+                { type: 'rock', radius: 18, weight: 2 }
+            ],
+            Catacombs: [
+                { type: 'rock', radius: 18, weight: 4 },
+                { type: 'ruinedWall', radius: 25, weight: 4 },
+                { type: 'tombstone', radius: 12, weight: 2 }
+            ],
+            Graveyard: [
+                { type: 'tombstone', radius: 12, weight: 5 },
+                { type: 'deadTree', radius: 15, weight: 4 },
+                { type: 'rock', radius: 18, weight: 1 }
+            ],
+            Wasteland: [
+                { type: 'rock', radius: 18, weight: 5 },
+                { type: 'deadTree', radius: 15, weight: 3 },
+                { type: 'ruinedWall', radius: 25, weight: 2 }
+            ]
+        };
 
-        const totalWeight = obstacleTypes.reduce((s, t) => s + t.weight, 0);
+        // Zone-specific color tints (body, highlight, shadow alpha)
+        const zoneColors = {
+            Crypt:     { body: '#6B5B8A', highlight: '#8B7BAA', shadow: 0.25 },
+            Catacombs: { body: '#5B6B8A', highlight: '#7B8BAA', shadow: 0.22 },
+            Graveyard: { body: '#5B7B5B', highlight: '#7B9B7B', shadow: 0.18 },
+            Wasteland: { body: '#8A5B4B', highlight: '#AA7B6B', shadow: 0.28 }
+        };
+
         const targetCount = 40;
         let attempts = 0;
         const maxAttempts = 200;
@@ -53,10 +77,16 @@ export class TerrainSystem {
             // Skip center spawn area
             if (x * x + y * y < centerClear * centerClear) continue;
 
-            // Pick type by weighted random
+            // Determine zone at this position
+            const zone = this.terrainRenderer.getZoneAt(x, y);
+            const palette = zoneObstacles[zone.name] || zoneObstacles.Wasteland;
+            const colors = zoneColors[zone.name] || zoneColors.Wasteland;
+
+            // Pick type by weighted random from zone palette
+            const totalWeight = palette.reduce((s, t) => s + t.weight, 0);
             let roll = seededRandom() * totalWeight;
-            let chosen = obstacleTypes[0];
-            for (const ot of obstacleTypes) {
+            let chosen = palette[0];
+            for (const ot of palette) {
                 roll -= ot.weight;
                 if (roll <= 0) { chosen = ot; break; }
             }
@@ -77,7 +107,9 @@ export class TerrainSystem {
                 x, y,
                 type: chosen.type,
                 radius: chosen.radius,
-                seed: seededRandom() // Per-instance visual variation
+                seed: seededRandom(), // Per-instance visual variation
+                zone: zone.name,
+                colors
             });
         }
     }
@@ -138,16 +170,17 @@ export class TerrainSystem {
 
     renderRock(ctx, obs) {
         const r = obs.radius;
+        const c = obs.colors || { body: '#555555', highlight: '#777777', shadow: 0.2 };
         ctx.save();
 
         // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
         ctx.beginPath();
         ctx.ellipse(obs.x + 3, obs.y + 4, r * 1.1, r * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Main rock body — irregular shape
-        ctx.fillStyle = '#555555';
+        ctx.fillStyle = c.body;
         ctx.beginPath();
         const points = 7;
         for (let i = 0; i < points; i++) {
@@ -162,7 +195,7 @@ export class TerrainSystem {
         ctx.fill();
 
         // Lighter highlight on top-left
-        ctx.fillStyle = '#777777';
+        ctx.fillStyle = c.highlight;
         ctx.beginPath();
         ctx.arc(obs.x - r * 0.2, obs.y - r * 0.2, r * 0.5, 0, Math.PI * 2);
         ctx.fill();
@@ -172,14 +205,15 @@ export class TerrainSystem {
 
     renderTombstone(ctx, obs) {
         const r = obs.radius;
+        const c = obs.colors || { body: '#6B6B6B', highlight: '#888888', shadow: 0.2 };
         ctx.save();
 
         // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
         ctx.fillRect(obs.x - r * 0.5 + 2, obs.y - r * 0.3 + 3, r, r * 1.4);
 
         // Tombstone body
-        ctx.fillStyle = '#6B6B6B';
+        ctx.fillStyle = c.body;
         ctx.fillRect(obs.x - r * 0.5, obs.y - r * 0.3, r, r * 1.3);
 
         // Rounded top
@@ -188,7 +222,7 @@ export class TerrainSystem {
         ctx.fill();
 
         // Cross engraving
-        ctx.strokeStyle = '#888888';
+        ctx.strokeStyle = c.highlight;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(obs.x, obs.y - r * 0.6);
@@ -202,20 +236,21 @@ export class TerrainSystem {
 
     renderDeadTree(ctx, obs) {
         const r = obs.radius;
+        const c = obs.colors || { body: '#5D4037', highlight: '#4E342E', shadow: 0.15 };
         ctx.save();
 
         // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
         ctx.beginPath();
         ctx.ellipse(obs.x + 3, obs.y + r * 0.8, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Trunk
-        ctx.fillStyle = '#5D4037';
+        ctx.fillStyle = c.body;
         ctx.fillRect(obs.x - 3, obs.y - r * 0.5, 6, r * 1.3);
 
         // Branches (bare, no leaves — dead tree)
-        ctx.strokeStyle = '#4E342E';
+        ctx.strokeStyle = c.highlight;
         ctx.lineWidth = 2;
         // Left branch
         ctx.beginPath();
@@ -239,10 +274,11 @@ export class TerrainSystem {
 
     renderRuinedWall(ctx, obs) {
         const r = obs.radius;
+        const c = obs.colors || { body: '#7B7B7B', highlight: '#8E8E8E', shadow: 0.2 };
         ctx.save();
 
         // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
         ctx.fillRect(obs.x - r * 0.8 + 3, obs.y - r * 0.2 + 3, r * 1.6, r * 0.7);
 
         // Stone blocks at varying heights
@@ -257,11 +293,11 @@ export class TerrainSystem {
             const by = obs.y + r * 0.3 - block.h;
 
             // Main block
-            ctx.fillStyle = '#7B7B7B';
+            ctx.fillStyle = c.body;
             ctx.fillRect(bx, by, block.w, block.h);
 
             // Mortar lines
-            ctx.strokeStyle = '#666';
+            ctx.strokeStyle = c.highlight;
             ctx.lineWidth = 0.5;
             const rows = Math.floor(block.h / 8);
             for (let i = 1; i < rows; i++) {
@@ -272,7 +308,7 @@ export class TerrainSystem {
             }
 
             // Top highlight
-            ctx.fillStyle = '#8E8E8E';
+            ctx.fillStyle = c.highlight;
             ctx.fillRect(bx, by, block.w, 2);
         }
 

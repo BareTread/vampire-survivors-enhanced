@@ -104,8 +104,22 @@ export class ScreenEffectsSystem {
         }
         this._lastPlayerLevel = player.level;
 
+        // ── Heartbeat Zoom Pulse (low health) ────────────────
+        if (healthRatio < 0.25 && camera) {
+            // Pulse frequency increases as health drops: 3 Hz at 25% → 5 Hz at 5%
+            const freqHz = 3.0 + (1 - healthRatio / 0.25) * 2.0;
+            const pulse = 0.5 + 0.5 * Math.sin(this.lowHealthPulsePhase * (freqHz / 3.0));
+            camera.targetZoom = camera.baseZoom * (1 + 0.012 * pulse);
+            this._heartbeatZoomActive = true;
+        } else if (this._heartbeatZoomActive) {
+            // Clean reset when health recovers
+            if (camera) camera.targetZoom = camera.baseZoom;
+            this._heartbeatZoomActive = false;
+        }
+
         // ── Slow-Motion Recovery ─────────────────────────────
-        if (this.slowMoActive) {
+        // Guard: hit-stop takes priority over slow-mo recovery
+        if (this.slowMoActive && !(camera && camera.hitStopFrames > 0)) {
             this.slowMoTimer -= dt;
             if (this.slowMoTimer <= 0) {
                 // Smooth recovery back to normal speed
@@ -144,8 +158,9 @@ export class ScreenEffectsSystem {
         if (camera) {
             camera.flash('#FFFFFF', 0.8);
             camera.shake(18, 0.6, 'massive');
+            // Use hit-stop instead of slow-mo for snappier evolution feel
+            camera.hitStop(5, 0.7);
         }
-        this.triggerSlowMo(0.4, 0.2);
 
         if (this.game.audioManager) {
             this.game.audioManager.playVampireSound('weaponEvolution', 0.6);
@@ -161,6 +176,58 @@ export class ScreenEffectsSystem {
             camera.flash('#FFD700', 0.3);
         }
         this.triggerSlowMo(0.2, 0.3);
+    }
+
+    /**
+     * Render danger effects (screen-edge glow, edge-only chromatic aberration).
+     * Called from VampireSurvivorsGame.render() after camera post-effects.
+     */
+    renderDangerEffects(ctx) {
+        const player = this.game.player;
+        const camera = this.game.camera;
+        if (!player || !camera || !camera.effectsEnabled) return;
+
+        const healthRatio = player.health / player.maxHealth;
+        if (healthRatio >= 0.3) return; // No danger effects above 30% HP
+
+        const w = camera.width;
+        const h = camera.height;
+        const danger = 1 - healthRatio / 0.3; // 0 at 30%, 1 at 0%
+
+        ctx.save();
+
+        // ── Red screen-edge glow (below 30% HP) ──────────────
+        const glowAlpha = danger * 0.25;
+        const gradient = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0)');
+        gradient.addColorStop(1, `rgba(255, 20, 0, ${glowAlpha})`);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+
+        // ── Edge-only chromatic aberration (below 20% HP) ────
+        if (healthRatio < 0.2 && camera.performanceMode !== 'low') {
+            const abIntensity = (1 - healthRatio / 0.2);
+            const pulse = 0.5 + 0.5 * Math.sin(this.lowHealthPulsePhase);
+            const aberration = (2 + abIntensity * 4) * pulse;
+
+            // Radial mask: full effect at edges, zero in center
+            const maskGrad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.7);
+            maskGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            maskGrad.addColorStop(1, `rgba(0,0,0,${0.12 * abIntensity * pulse})`);
+
+            ctx.globalCompositeOperation = 'screen';
+            // Red channel shifts outward
+            ctx.globalAlpha = 0.08 * abIntensity * pulse;
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(-aberration, 0, w, h);
+            // Blue channel shifts inward
+            ctx.fillStyle = '#0000FF';
+            ctx.fillRect(aberration, 0, w, h);
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
     }
 
     reset() {

@@ -32,7 +32,9 @@ const createPlayerGame = (upgradeModifiers = {}) => ({
         shake: jest.fn(),
         flash: jest.fn(),
         addVignette: jest.fn(),
-        shakeKillStreak: jest.fn()
+        shakeKillStreak: jest.fn(),
+        hitStop: jest.fn(),
+        zoomPunch: jest.fn()
     },
     audioManager: {
         playVampireSound: jest.fn(),
