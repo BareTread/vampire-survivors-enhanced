@@ -179,9 +179,18 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-03-21 (Research-Guided Audio Fatigue Pass)
+
+**Applied a second refinement pass focused on long-session comfort, repetition fatigue, and making the score easier to ignore until it matters. 169/169 tests passing.**
+
+- **AudioManager.js improved again**: Added a bus-level harshness governor on the SFX path (`lowpass` + peaking presence dip) driven by active voice density and compressor stress. The mix now automatically softens when fights get busy instead of accumulating brittle upper-mid energy.
+- **Repeated sounds diversified**: Whip cracks, enemy deaths, gem pickups, lightning, garlic pulses, and orbiter whooshes now vary their envelope, filter motion, harmonic makeup, and subtle stereo placement so repeated combat sounds stop machine-gunning the same exact timbre.
+- **AdaptiveMusicSystem.js made even sparser**: Added deliberate rest bars and raised the thresholds for bass pulses, motifs, and shimmer. The underscore is now closer to an occasional atmospheric bed than a constant accompaniment.
+- **Regression coverage extended**: `tests/audio-manager.test.js` now also verifies that `setGameIntensity()` refreshes live mix state.
+
 ### 2026-03-21 (Audio Pleasantness Pass — Mix Cleanup & Sparse Underscore)
 
-**Refined the new audio engine for ear comfort and readability. Background audio is now dramatically less intrusive. 168/168 tests passing.**
+**Refined the new audio engine for ear comfort and readability. Background audio is now dramatically less intrusive. 169/169 tests passing.**
 
 - **AudioManager.js refined**: Split the mix into dedicated `sfx` and `music` buses, added automatic music ducking on impactful SFX, and introduced per-voice low-pass tone shaping that darkens the mix as voice density rises. This reduces high-frequency harshness and keeps swarms from turning into fizzy noise.
 - **Sound identity expanded**: Added dedicated softer recipes and routing for fireball launch/explosion, lightning strike/chain, garlic pulse, boomerang throw, orbiter whoosh, ice shard cast, boss spawn, victory/achievement cues, and demon roar. Also changed `BaseWeapon` to prefer subclass `getSoundName()` for fire/hit playback so weapons stop collapsing into generic fallback sounds.
@@ -190,7 +199,7 @@ src/entities/
 
 ### 2026-03-21 (Audio System Overhaul — Retro Gothic Synth)
 
-**Complete rewrite of the audio engine. Replaced 4-drone subtractive synth with voice-pooled chiptune engine. 168/168 tests passing.**
+**Complete rewrite of the audio engine. Replaced 4-drone subtractive synth with voice-pooled chiptune engine. 169/169 tests passing.**
 
 - **AudioManager.js rewritten**: 16-voice pool with priority-based stealing, 12 distinct synthesis recipes (magic missile, whip, knife, enemy death, gem pickup, level up, critical hit, game over, boss warning, heartbeat, UI hover/select), D minor pentatonic scale quantization, cathedral convolution reverb (1.8s), master compressor. Gem pickups cycle through pentatonic notes creating emergent melody.
 - **AdaptiveMusicSystem.js rewritten**: Initial 110 BPM beat-driven sequencer pass that replaced the old intensity-float modulator. This was later refined the same day by the "Audio Pleasantness Pass" above into a sparser pulse-and-bloom underscore with intentional silence and fewer constant melodic layers.

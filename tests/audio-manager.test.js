@@ -151,6 +151,15 @@ describe('AudioManager Retro Gothic Synth', () => {
         expect(audio.gameIntensity).toBe(0.7);
     });
 
+    test('setGameIntensity refreshes mix state', () => {
+        const audio = new AudioManager();
+        let refreshed = 0;
+        audio._updateMixState = () => { refreshed++; };
+
+        audio.setGameIntensity(0.4);
+        expect(refreshed).toBe(1);
+    });
+
     test('exposes scale and PRIORITY for AdaptiveMusicSystem', () => {
         const audio = new AudioManager();
         expect(audio.scale).toBeDefined();

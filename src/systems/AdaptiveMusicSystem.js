@@ -9,7 +9,7 @@ export class AdaptiveMusicSystem {
         this.intensity = 0;
 
         // Slow, sparse pulse-based score. Intentional silence is part of the design.
-        this.bpm = 82;
+        this.bpm = 76;
         this.beatDuration = 60 / this.bpm;
         this.beatAccumulator = 0;
         this.currentBeat = 0;
@@ -114,54 +114,69 @@ export class AdaptiveMusicSystem {
         if (!this.audioManager?.initialized || this.audioManager.muted) return;
 
         const am = this.audioManager;
-        const vol = am.musicVolume * am.masterVolume;
+        const vol = am.musicVolume * am.masterVolume * 0.72;
         if (vol <= 0.001) return;
 
         const slot = beat % this.measureLength;
         const bar = Math.floor(beat / this.measureLength);
+        const restBar = this._isRestBar(bar);
 
-        // Below this threshold, music mostly yields to ambience/silence.
-        if (this.intensity < 0.12) {
-            if (slot === 0 && bar % 4 === 0) {
-                this._playPadBloom(vol * 0.35, true);
+        // Very low intensity: mostly silence, with only rare ghost blooms.
+        if (this.intensity < 0.16) {
+            if (slot === 0 && bar % 8 === 0) {
+                this._playPadBloom(vol * 0.28, true);
             }
             return;
         }
 
-        // Foundation: sparse harmonic bloom, once per measure.
+        // Composed gaps are intentional. Rest bars keep the score from becoming wallpaper.
+        if (restBar) {
+            if (slot === 0 && this.intensity >= 0.22 && bar % 4 === 0) {
+                this._playPadBloom(vol * 0.34, true);
+            }
+            return;
+        }
+
+        // Foundation: one harmonic bloom per active measure.
         if (slot === 0) {
             this._playPadBloom(vol, false);
         }
 
-        // Bass pulse grows with intensity, but never turns into relentless EDM.
-        if (this.intensity >= 0.22) {
-            const bassBeats = this.intensity >= 0.72 ? [0, 2, 4, 6] : this.intensity >= 0.45 ? [0, 4] : [0];
+        // Bass support arrives late and stays sparse.
+        if (this.intensity >= 0.34) {
+            const bassBeats = this.intensity >= 0.82 ? [0, 4, 6] : this.intensity >= 0.6 ? [0, 4] : [0];
             if (bassBeats.includes(slot)) {
                 this._playBassPulse(vol);
             }
         }
 
-        // A small answer pulse on weak beats when combat gets dense.
-        if (this.intensity >= 0.58 && (slot === 3 || slot === 7)) {
-            this._playEchoPulse(vol * 0.9);
+        // Only add answer pulses in truly dense combat.
+        if (this.intensity >= 0.74 && (slot === 3 || slot === 7)) {
+            this._playEchoPulse(vol * 0.8);
         }
 
-        // Motifs are rare, measure-aware, and often absent on purpose.
         const shouldMotif =
-            (slot === 5 && this.intensity >= 0.34 && bar % 2 === 0) ||
-            (slot === 1 && this.intensity >= 0.78) ||
+            (slot === 6 && this.intensity >= 0.5 && bar % 4 === 2) ||
+            (slot === 2 && this.intensity >= 0.9 && bar % 2 === 0) ||
             this.motifBoost > 0;
 
-        if (shouldMotif && beat - this.lastMotifBeat >= 4) {
+        if (shouldMotif && beat - this.lastMotifBeat >= 8) {
             this._playMotif(vol, this.motifBoost > 0);
             this.lastMotifBeat = beat;
             this.motifBoost = Math.max(0, this.motifBoost - 1);
         }
 
-        // Air shimmer only at peak intensity and not every measure.
-        if (this.intensity >= 0.85 && slot === 7 && bar % 2 === 1) {
-            this._playHighAir(vol * 0.9);
+        // Rare air at peak danger only.
+        if (this.intensity >= 0.93 && slot === 7 && bar % 4 === 3) {
+            this._playHighAir(vol * 0.8);
         }
+    }
+
+    _isRestBar(bar) {
+        if (this.intensity < 0.28) return bar % 2 === 1;
+        if (this.intensity < 0.55) return bar % 4 === 1 || bar % 4 === 3;
+        if (this.intensity < 0.82) return bar % 4 === 3;
+        return bar % 8 === 7;
     }
 
     _playPadBloom(vol, ghost = false) {
@@ -184,11 +199,11 @@ export class AdaptiveMusicSystem {
         color.detune.value = 2;
 
         const g = voice.gain.gain;
-        const peak = (ghost ? 0.012 : 0.02 + this.intensity * 0.018) * vol;
+        const peak = (ghost ? 0.009 : 0.015 + this.intensity * 0.014) * vol;
         g.setValueAtTime(0.0001, now);
         g.linearRampToValueAtTime(peak, now + 0.25);
         g.exponentialRampToValueAtTime(0.0001, now + dur);
-        am.connectMusicVoice(voice, ghost ? 0.24 : 0.18);
+        am.connectMusicVoice(voice, ghost ? 0.18 : 0.14);
     }
 
     _playBassPulse(vol) {
@@ -207,12 +222,12 @@ export class AdaptiveMusicSystem {
         osc.frequency.exponentialRampToValueAtTime(SCALE[noteIdx] * 0.92, now + dur * 0.7);
 
         const g = voice.gain.gain;
-        const peak = (0.022 + this.intensity * 0.025) * vol;
+        const peak = (0.016 + this.intensity * 0.018) * vol;
         g.setValueAtTime(0.0001, now);
         g.linearRampToValueAtTime(peak, now + 0.02);
         g.setValueAtTime(peak * 0.9, now + dur * 0.45);
         g.exponentialRampToValueAtTime(0.0001, now + dur);
-        am.connectMusicVoice(voice, 0.1);
+        am.connectMusicVoice(voice, 0.08);
     }
 
     _playEchoPulse(vol) {
@@ -228,11 +243,11 @@ export class AdaptiveMusicSystem {
         osc.detune.value = 4;
 
         const g = voice.gain.gain;
-        const peak = (0.01 + this.intensity * 0.008) * vol;
+        const peak = (0.007 + this.intensity * 0.006) * vol;
         g.setValueAtTime(0.0001, now);
         g.linearRampToValueAtTime(peak, now + 0.01);
         g.exponentialRampToValueAtTime(0.0001, now + dur);
-        am.connectMusicVoice(voice, 0.22);
+        am.connectMusicVoice(voice, 0.16);
     }
 
     _playMotif(vol, boosted = false) {
@@ -258,12 +273,12 @@ export class AdaptiveMusicSystem {
             lead.detune.value = boosted ? 5 : 2;
 
             const g = voice.gain.gain;
-            const peak = ((boosted ? 0.03 : 0.018) + this.intensity * 0.01) * vol;
+            const peak = ((boosted ? 0.022 : 0.013) + this.intensity * 0.008) * vol;
             g.setValueAtTime(0.0001, startT);
             g.linearRampToValueAtTime(peak, startT + 0.012);
             g.exponentialRampToValueAtTime(0.0001, startT + dur);
             voice.endTime = startT + dur;
-            am.connectMusicVoice(voice, boosted ? 0.26 : 0.2);
+            am.connectMusicVoice(voice, boosted ? 0.2 : 0.14);
         }
     }
 
@@ -278,11 +293,11 @@ export class AdaptiveMusicSystem {
 
         am.createMusicOsc('sine', SCALE[Math.min(SCALE.length - 1, idx)], voice, dur, now);
         const g = voice.gain.gain;
-        const peak = 0.012 * vol;
+        const peak = 0.008 * vol;
         g.setValueAtTime(0.0001, now);
         g.linearRampToValueAtTime(peak, now + 0.03);
         g.exponentialRampToValueAtTime(0.0001, now + dur);
-        am.connectMusicVoice(voice, 0.32);
+        am.connectMusicVoice(voice, 0.22);
     }
 
     triggerMelodicFragment() {
@@ -292,8 +307,8 @@ export class AdaptiveMusicSystem {
         this.motifBoost = Math.min(2, this.motifBoost + 1);
 
         // If the score is currently very sparse, give an immediate soft response.
-        if (this.playing && this.intensity < 0.3) {
-            this._playMotif(this.audioManager.musicVolume * this.audioManager.masterVolume * 0.8, true);
+        if (this.playing && this.intensity < 0.22) {
+            this._playMotif(this.audioManager.musicVolume * this.audioManager.masterVolume * 0.5, true);
             this.lastMotifBeat = this.currentBeat;
             this.motifBoost = Math.max(0, this.motifBoost - 1);
         }

@@ -87,6 +87,10 @@ export class AudioManager {
         this.sfxBus = null;
         this.musicBus = null;
         this.musicDuckGain = null;
+        this.sfxToneFilter = null;
+        this.sfxPresenceDip = null;
+        this.musicToneFilter = null;
+        this.compressor = null;
         this.reverbConvolver = null;
         this.reverbReturn = null;
 
@@ -174,23 +178,40 @@ export class AudioManager {
             this.sfxBus = this.audioContext.createGain();
             this.musicBus = this.audioContext.createGain();
             this.musicDuckGain = this.audioContext.createGain();
+            this.sfxToneFilter = this.audioContext.createBiquadFilter();
+            this.sfxPresenceDip = this.audioContext.createBiquadFilter();
+            this.musicToneFilter = this.audioContext.createBiquadFilter();
 
-            const comp = this.audioContext.createDynamicsCompressor();
-            comp.threshold.value = -20;
-            comp.knee.value = 24;
-            comp.ratio.value = 5;
-            comp.attack.value = 0.01;
-            comp.release.value = 0.22;
+            this.sfxToneFilter.type = 'lowpass';
+            this.sfxToneFilter.frequency.value = 6200;
+            this.sfxToneFilter.Q.value = 0.65;
 
-            this.sfxBus.connect(this.mixBus);
-            this.musicBus.connect(this.musicDuckGain).connect(this.mixBus);
-            this.mixBus.connect(comp).connect(this.masterGain).connect(this.audioContext.destination);
+            this.sfxPresenceDip.type = 'peaking';
+            this.sfxPresenceDip.frequency.value = 3200;
+            this.sfxPresenceDip.Q.value = 0.85;
+            this.sfxPresenceDip.gain.value = -1.5;
+
+            this.musicToneFilter.type = 'lowpass';
+            this.musicToneFilter.frequency.value = 2400;
+            this.musicToneFilter.Q.value = 0.45;
+
+            this.compressor = this.audioContext.createDynamicsCompressor();
+            this.compressor.threshold.value = -22;
+            this.compressor.knee.value = 20;
+            this.compressor.ratio.value = 4.5;
+            this.compressor.attack.value = 0.008;
+            this.compressor.release.value = 0.24;
+
+            this.sfxBus.connect(this.sfxToneFilter).connect(this.sfxPresenceDip).connect(this.mixBus);
+            this.musicBus.connect(this.musicToneFilter).connect(this.musicDuckGain).connect(this.mixBus);
+            this.mixBus.connect(this.compressor).connect(this.masterGain).connect(this.audioContext.destination);
 
             this.musicDuckGain.gain.value = 1;
 
             this._createReverb();
             this._createNoiseBuffer();
             this._applyBusVolumes();
+            this._updateMixState();
             this.initialized = true;
         } catch (error) {
             console.warn('Web Audio API not supported:', error);
@@ -241,11 +262,14 @@ export class AudioManager {
 
     // --- Voice Pool ---
     _reapVoices(now = this.audioContext?.currentTime || 0) {
+        let removed = false;
         for (let i = this.voices.length - 1; i >= 0; i--) {
             if (this.voices[i].endTime <= now) {
                 this.voices.splice(i, 1);
+                removed = true;
             }
         }
+        if (removed) this._updateMixState();
     }
 
     _allocVoice(priority, duration, kind = 'sfx') {
@@ -284,11 +308,19 @@ export class AudioManager {
         const gain = this.audioContext.createGain();
         gain.gain.value = 0;
 
-        input.connect(toneFilter).connect(gain);
+        let panNode = null;
+        if (typeof this.audioContext.createStereoPanner === 'function') {
+            panNode = this.audioContext.createStereoPanner();
+            panNode.pan.value = 0;
+            input.connect(toneFilter).connect(panNode).connect(gain);
+        } else {
+            input.connect(toneFilter).connect(gain);
+        }
 
         const endTime = now + duration;
-        const voice = { input, filter: toneFilter, gain, priority, kind, startTime: now, endTime, nodes: [] };
+        const voice = { input, filter: toneFilter, panNode, gain, priority, kind, startTime: now, endTime, nodes: [] };
         this.voices.push(voice);
+        this._updateMixState();
         return voice;
     }
 
@@ -305,6 +337,33 @@ export class AudioManager {
         }
     }
 
+    _setVoicePan(voice, pan = 0) {
+        if (!voice?.panNode) return;
+        voice.panNode.pan.setValueAtTime(clamp(pan, -0.65, 0.65), this.audioContext.currentTime);
+    }
+
+    _updateMixState() {
+        if (!this.audioContext || !this.sfxToneFilter || !this.sfxPresenceDip || !this.musicToneFilter) return;
+
+        const now = this.audioContext.currentTime;
+        const density = clamp(this.voices.length / MAX_VOICES, 0, 1);
+        const compReduction = this.compressor ? Math.abs(Math.min(0, this.compressor.reduction || 0)) : 0;
+        const compStress = clamp(compReduction / 18, 0, 1);
+        const fatigue = clamp(density * 0.65 + this.gameIntensity * 0.2 + compStress * 0.4, 0, 1);
+
+        const sfxCutoff = 7600 - fatigue * 3600;
+        const presenceDip = -1.5 - fatigue * 4.5;
+        const musicCutoff = 2200 - density * 500 + this.gameIntensity * 350;
+        const reverbLevel = 0.18 - density * 0.05;
+
+        this.sfxToneFilter.frequency.setTargetAtTime(clamp(sfxCutoff, 2200, 8200), now, 0.05);
+        this.sfxPresenceDip.gain.setTargetAtTime(clamp(presenceDip, -7, -1), now, 0.06);
+        this.musicToneFilter.frequency.setTargetAtTime(clamp(musicCutoff, 1300, 2800), now, 0.08);
+        if (this.reverbReturn) {
+            this.reverbReturn.gain.setTargetAtTime(clamp(reverbLevel, 0.1, 0.2), now, 0.08);
+        }
+    }
+
     _shapeVoice(voice, {
         brightness = 1,
         resonance = 0.8,
@@ -313,7 +372,7 @@ export class AudioManager {
         const density = this._getDensityFactor();
         const intensityBias = 0.9 + this.gameIntensity * 0.12;
         const antiFatigue = 1 - density * 0.35;
-        const cutoff = clamp(450, 9000, 700 + brightness * 5200 * intensityBias * antiFatigue);
+        const cutoff = clamp(700 + brightness * 5200 * intensityBias * antiFatigue, 450, 9000);
 
         voice.filter.type = filterType;
         voice.filter.frequency.setValueAtTime(cutoff, this.audioContext.currentTime);
@@ -330,6 +389,7 @@ export class AudioManager {
         gain.cancelScheduledValues(now);
         gain.setTargetAtTime(target, now, 0.015);
         gain.setTargetAtTime(1, now + hold, 0.22);
+        this._updateMixState();
     }
 
     _getDensityFactor() {
@@ -404,6 +464,10 @@ export class AudioManager {
         return base * vol * (1 - density * 0.2);
     }
 
+    _randomRange(min, max) {
+        return min + Math.random() * (max - min);
+    }
+
     // --- Sound recipes ---
     _synthMagicMissile(vol, pitch = 1) {
         const dur = 0.16;
@@ -425,22 +489,29 @@ export class AudioManager {
     }
 
     _synthWhipCrack(vol, pitch = 1) {
-        const dur = 0.12;
+        const dur = 0.1 + this._randomRange(0.015, 0.04);
         const voice = this._allocVoice(PRIORITY.combat, dur);
         const now = this.audioContext.currentTime;
+        const snapBright = Math.random() < 0.45;
 
-        this._shapeVoice(voice, { brightness: 0.8, resonance: 1.2 });
-        const { filter } = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 3200 * pitch, q: 1.8 });
-        filter.frequency.setValueAtTime(5200 * pitch, now);
-        filter.frequency.exponentialRampToValueAtTime(1400, now + 0.08);
+        this._setVoicePan(voice, this._randomRange(-0.12, 0.12));
+        this._shapeVoice(voice, { brightness: snapBright ? 0.78 : 0.68, resonance: snapBright ? 1.1 : 0.85 });
+        const { filter } = this._noiseSource(voice, dur, {
+            type: 'bandpass',
+            frequency: this._randomRange(2200, 3200) * pitch,
+            q: snapBright ? 1.7 : 1.1
+        });
+        filter.frequency.setValueAtTime(this._randomRange(3600, 5000) * pitch, now);
+        filter.frequency.exponentialRampToValueAtTime(this._randomRange(900, 1500), now + dur * 0.72);
 
-        const body = this._osc('triangle', 90 * pitch, voice, dur);
-        body.frequency.setValueAtTime(180 * pitch, now);
-        body.frequency.exponentialRampToValueAtTime(55, now + 0.07);
+        const bodyWave = snapBright ? 'triangle' : 'sine';
+        const body = this._osc(bodyWave, this._randomRange(78, 96) * pitch, voice, dur);
+        body.frequency.setValueAtTime(this._randomRange(150, 190) * pitch, now);
+        body.frequency.exponentialRampToValueAtTime(this._randomRange(48, 62), now + dur * 0.62);
 
-        this._env(voice, { attack: 0.0015, decay: 0.09, peak: this._softPeak(vol, 0.19) });
-        this._connectVoice(voice, 0.08);
-        this._duckMusic(0.15, 0.11);
+        this._env(voice, { attack: 0.0015, decay: dur * 0.78, peak: this._softPeak(vol, 0.16) });
+        this._connectVoice(voice, 0.06);
+        this._duckMusic(0.14, 0.11);
     }
 
     _synthKnifeThrow(vol, pitch = 1) {
@@ -482,42 +553,61 @@ export class AudioManager {
     }
 
     _synthEnemyDeath(vol, pitch = 1) {
-        const dur = 0.16;
+        const variant = Math.floor(Math.random() * 3);
+        const dur = variant === 2 ? 0.12 : variant === 1 ? 0.18 : 0.15;
         const voice = this._allocVoice(PRIORITY.death, dur);
         const degree = Math.floor(Math.random() * 5);
         const freq = this._scaleNote(-1, degree) * pitch;
         const now = this.audioContext.currentTime;
 
-        this._shapeVoice(voice, { brightness: 0.55, resonance: 0.7 });
-        const body = this._osc('triangle', freq, voice, dur);
-        body.frequency.setValueAtTime(freq * 1.8, now);
-        body.frequency.exponentialRampToValueAtTime(Math.max(35, freq * 0.65), now + 0.11);
+        this._setVoicePan(voice, this._randomRange(-0.18, 0.18));
+        this._shapeVoice(voice, {
+            brightness: variant === 2 ? 0.4 : variant === 1 ? 0.52 : 0.46,
+            resonance: variant === 1 ? 0.9 : 0.65
+        });
 
-        const { filter } = this._noiseSource(voice, dur, { type: 'lowpass', frequency: 1700, q: 0.8, playbackRate: 0.8 + Math.random() * 0.15 });
-        filter.frequency.setValueAtTime(2400, now);
-        filter.frequency.exponentialRampToValueAtTime(380, now + 0.11);
+        const bodyWave = variant === 1 ? 'triangle' : 'sine';
+        const body = this._osc(bodyWave, freq, voice, dur);
+        body.frequency.setValueAtTime(freq * (variant === 1 ? 1.55 : 1.8), now);
+        body.frequency.exponentialRampToValueAtTime(Math.max(32, freq * (variant === 2 ? 0.78 : 0.62)), now + dur * 0.68);
 
-        this._env(voice, { attack: 0.002, decay: 0.13, peak: this._softPeak(vol, 0.15) });
-        this._connectVoice(voice, 0.06);
-        this._duckMusic(0.06, 0.08);
+        const { filter } = this._noiseSource(voice, dur, {
+            type: 'lowpass',
+            frequency: variant === 2 ? 1200 : 1700,
+            q: variant === 1 ? 1 : 0.7,
+            playbackRate: 0.72 + Math.random() * 0.18
+        });
+        filter.frequency.setValueAtTime(this._randomRange(1700, 2500), now);
+        filter.frequency.exponentialRampToValueAtTime(this._randomRange(280, 460), now + dur * 0.72);
+
+        this._env(voice, { attack: 0.002, decay: dur * 0.82, peak: this._softPeak(vol, 0.12) });
+        this._connectVoice(voice, 0.04);
+        this._duckMusic(0.05, 0.07);
     }
 
     _synthGemPickup(vol, pitch = 1) {
-        const dur = 0.22;
+        const variant = this.gemNoteIndex % 3;
+        const dur = variant === 2 ? 0.28 : 0.22;
         const voice = this._allocVoice(PRIORITY.reward, dur);
         const noteIdx = 5 + (this.gemNoteIndex % 5);
         const freq = SCALE[noteIdx] * pitch;
         this.gemNoteIndex = (this.gemNoteIndex + 1) % 5;
 
-        this._shapeVoice(voice, { brightness: 1.05, resonance: 0.8 });
+        this._setVoicePan(voice, this._randomRange(-0.08, 0.08));
+        this._shapeVoice(voice, { brightness: variant === 1 ? 0.92 : 1.0, resonance: 0.65 });
         const main = this._osc('sine', freq, voice, dur);
-        const bloom = this._osc('triangle', freq * 2, voice, dur);
-        bloom.detune.value = 3;
+        const bloom = this._osc(variant === 0 ? 'triangle' : 'sine', freq * (variant === 2 ? 1.5 : 2), voice, dur);
+        bloom.detune.value = variant === 2 ? -4 : 3;
         main.detune.value = this.gemNoteIndex % 2 === 0 ? -2 : 2;
 
-        this._env(voice, { attack: 0.006, decay: 0.18, peak: this._softPeak(vol, 0.14) });
-        this._connectVoice(voice, 0.24);
-        this._duckMusic(0.08, 0.06);
+        if (variant === 2) {
+            const sub = this._osc('sine', freq * 0.5, voice, dur);
+            sub.detune.value = -5;
+        }
+
+        this._env(voice, { attack: 0.008, decay: dur * 0.78, peak: this._softPeak(vol, 0.115) });
+        this._connectVoice(voice, variant === 2 ? 0.2 : 0.18);
+        this._duckMusic(0.05, 0.05);
     }
 
     _synthLevelUp(vol, pitch = 1) {
@@ -587,67 +677,80 @@ export class AudioManager {
     }
 
     _synthLightning(vol, pitch = 1, chain = false) {
-        const dur = chain ? 0.14 : 0.18;
+        const dur = chain ? 0.13 : 0.17;
         const voice = this._allocVoice(chain ? PRIORITY.combat : PRIORITY.reward, dur);
-        const freq = SCALE[12] * pitch;
+        const freq = SCALE[12] * pitch * (chain ? 1.05 : 1);
         const now = this.audioContext.currentTime;
+        const variant = Math.random() < 0.5;
 
-        this._shapeVoice(voice, { brightness: chain ? 0.95 : 1.1, resonance: 1.5, filterType: 'bandpass' });
+        this._setVoicePan(voice, this._randomRange(-0.16, 0.16));
+        this._shapeVoice(voice, {
+            brightness: chain ? 0.8 : 0.92,
+            resonance: variant ? 1.15 : 0.95,
+            filterType: 'bandpass'
+        });
         const carrier = this._osc('sine', freq, voice, dur);
         const mod = this.audioContext.createOscillator();
         const modGain = this.audioContext.createGain();
-        mod.type = 'triangle';
-        mod.frequency.value = chain ? 420 : 560;
-        modGain.gain.value = chain ? 70 : 120;
-        modGain.gain.exponentialRampToValueAtTime(8, now + dur * 0.8);
+        mod.type = variant ? 'sine' : 'triangle';
+        mod.frequency.value = chain ? this._randomRange(260, 360) : this._randomRange(380, 520);
+        modGain.gain.value = chain ? 45 : 80;
+        modGain.gain.exponentialRampToValueAtTime(6, now + dur * 0.8);
         mod.connect(modGain).connect(carrier.frequency);
         mod.start(now);
         mod.stop(now + dur + 0.05);
         voice.nodes.push(mod, modGain);
 
-        const air = this._noiseSource(voice, 0.08, { type: 'highpass', frequency: 2400, q: 0.8, playbackRate: 1.2 });
-        air.filter.frequency.setValueAtTime(2800, now);
+        const air = this._noiseSource(voice, 0.08, {
+            type: 'highpass',
+            frequency: chain ? 1700 : 2200,
+            q: 0.65,
+            playbackRate: variant ? 1.05 : 1.15
+        });
+        air.filter.frequency.setValueAtTime(chain ? 2200 : 2600, now);
 
-        this._env(voice, { attack: 0.001, decay: dur * 0.9, peak: this._softPeak(vol, chain ? 0.12 : 0.16) });
-        this._connectVoice(voice, chain ? 0.16 : 0.2);
-        this._duckMusic(chain ? 0.12 : 0.17, 0.12);
+        this._env(voice, { attack: 0.001, decay: dur * 0.88, peak: this._softPeak(vol, chain ? 0.09 : 0.13) });
+        this._connectVoice(voice, chain ? 0.12 : 0.16);
+        this._duckMusic(chain ? 0.1 : 0.15, 0.11);
     }
 
     _synthGarlicPulse(vol, pitch = 1) {
-        const dur = 0.22;
+        const dur = 0.22 + this._randomRange(0, 0.04);
         const voice = this._allocVoice(PRIORITY.combat, dur);
         const now = this.audioContext.currentTime;
-        const base = 120 * pitch;
+        const base = this._randomRange(105, 125) * pitch;
 
-        this._shapeVoice(voice, { brightness: 0.4, resonance: 0.5 });
-        const hum = this._osc('sine', base, voice, dur);
-        hum.frequency.setValueAtTime(base * 1.1, now);
-        hum.frequency.exponentialRampToValueAtTime(base * 0.8, now + 0.18);
+        this._setVoicePan(voice, this._randomRange(-0.05, 0.05));
+        this._shapeVoice(voice, { brightness: 0.34, resonance: 0.45 });
+        const hum = this._osc(Math.random() < 0.5 ? 'sine' : 'triangle', base, voice, dur);
+        hum.frequency.setValueAtTime(base * 1.08, now);
+        hum.frequency.exponentialRampToValueAtTime(base * 0.82, now + dur * 0.78);
 
-        const breath = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 900, q: 0.6, playbackRate: 0.9 });
-        breath.filter.frequency.setValueAtTime(1200, now);
-        breath.filter.frequency.exponentialRampToValueAtTime(500, now + 0.16);
+        const breath = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 760, q: 0.55, playbackRate: 0.84 });
+        breath.filter.frequency.setValueAtTime(980, now);
+        breath.filter.frequency.exponentialRampToValueAtTime(420, now + dur * 0.72);
 
-        this._env(voice, { attack: 0.015, decay: 0.17, peak: this._softPeak(vol, 0.12) });
-        this._connectVoice(voice, 0.1);
-        this._duckMusic(0.06, 0.08);
+        this._env(voice, { attack: 0.02, decay: dur * 0.72, peak: this._softPeak(vol, 0.095) });
+        this._connectVoice(voice, 0.08);
+        this._duckMusic(0.04, 0.06);
     }
 
     _synthOrbiterWhoosh(vol, pitch = 1) {
-        const dur = 0.14;
+        const dur = 0.13 + this._randomRange(0, 0.03);
         const voice = this._allocVoice(PRIORITY.combat, dur);
-        const freq = SCALE[11] * pitch;
+        const freq = SCALE[11] * pitch * this._randomRange(0.96, 1.03);
         const now = this.audioContext.currentTime;
 
-        this._shapeVoice(voice, { brightness: 0.78, resonance: 0.55 });
-        const whoosh = this._osc('triangle', freq, voice, dur);
-        whoosh.frequency.setValueAtTime(freq * 0.8, now);
-        whoosh.frequency.linearRampToValueAtTime(freq * 1.25, now + 0.035);
-        whoosh.frequency.exponentialRampToValueAtTime(freq * 0.95, now + 0.12);
+        this._setVoicePan(voice, this._randomRange(-0.25, 0.25));
+        this._shapeVoice(voice, { brightness: 0.64, resonance: 0.5 });
+        const whoosh = this._osc(Math.random() < 0.5 ? 'triangle' : 'sine', freq, voice, dur);
+        whoosh.frequency.setValueAtTime(freq * 0.84, now);
+        whoosh.frequency.linearRampToValueAtTime(freq * 1.16, now + 0.03);
+        whoosh.frequency.exponentialRampToValueAtTime(freq * 0.94, now + dur * 0.82);
 
-        this._env(voice, { attack: 0.004, decay: 0.11, peak: this._softPeak(vol, 0.11) });
-        this._connectVoice(voice, 0.14);
-        this._duckMusic(0.08, 0.07);
+        this._env(voice, { attack: 0.004, decay: dur * 0.8, peak: this._softPeak(vol, 0.09) });
+        this._connectVoice(voice, 0.1);
+        this._duckMusic(0.05, 0.06);
     }
 
     _synthBoomerang(vol, pitch = 1) {
@@ -1047,6 +1150,7 @@ export class AudioManager {
 
     setGameIntensity(intensity) {
         this.gameIntensity = clamp(intensity, 0, 1);
+        this._updateMixState();
     }
 
     // Expose for AdaptiveMusicSystem to create music voices

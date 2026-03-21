@@ -59,5 +59,5 @@ Now that the foundation is rock solid, visually polished, and features an intell
 
 ## 📝 Operating Directives
 1. **Always run tests:** Run `npm test` after modifying core files.
-2. **Check for regressions:** 168 tests currently pass. Keep it that way. Run tests with `NODE_OPTIONS=--experimental-vm-modules jest` or simply `npm test`.
+2. **Check for regressions:** 169 tests currently pass. Keep it that way. Run tests with `NODE_OPTIONS=--experimental-vm-modules jest` or simply `npm test`.
 3. **Respect the Linter:** Run `npm run format` and ensure no unused variables are left behind.
