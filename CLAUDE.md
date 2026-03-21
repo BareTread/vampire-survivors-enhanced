@@ -179,6 +179,16 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-03-21 (Silence-First Audio Telemetry + Settings Path Fix)
+
+**Pushed the audio system one step further toward long-session comfort and made it easier to tune with real runtime data.**
+
+- **AdaptiveMusicSystem.js refined again**: Low-intensity play is now even more silent. Active bars arrive less often in calmer states, pad blooms are softer, and higher-energy layers wait for more genuine combat pressure before entering.
+- **AudioManager.js now exposes live mix telemetry**: `getDebugInfo()` reports active voices, SFX/music voice split, density factor, compressor reduction, duck target/amount, harshness-governor state, and current mix cutoffs so tuning can be guided by evidence instead of ear alone.
+- **Debug pipeline hooked up**: `VampireSurvivorsGame.getDebugInfo()` now includes audio-manager telemetry plus adaptive-music state.
+- **Settings path corrected**: `SettingsMenu` now applies master/music/SFX sliders to the real `audioManager` (`setMasterVolume`, `setMusicVolume`, `setSoundVolume`) instead of the stale `audioSystem` path, with a guarded legacy fallback.
+- **Regression coverage extended**: `tests/audio-manager.test.js` now covers live mix telemetry, silence-first low-intensity score behavior, and settings-to-audio-manager routing.
+
 ### 2026-03-21 (Research-Guided Audio Fatigue Pass)
 
 **Applied a second refinement pass focused on long-session comfort, repetition fatigue, and making the score easier to ignore until it matters. 169/169 tests passing.**

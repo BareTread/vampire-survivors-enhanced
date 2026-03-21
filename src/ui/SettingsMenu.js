@@ -45,6 +45,9 @@ export class SettingsMenu {
             const saved = localStorage.getItem(this.settingsKey);
             if (saved) {
                 const parsedSettings = JSON.parse(saved);
+                if (parsedSettings && parsedSettings.soundVolume != null && parsedSettings.sfxVolume == null) {
+                    parsedSettings.sfxVolume = parsedSettings.soundVolume;
+                }
                 this.settings = { ...this.settings, ...parsedSettings };
             }
         } catch (error) {
@@ -365,11 +368,30 @@ export class SettingsMenu {
     }
     
     apply() {
-        // Apply audio settings
-        if (this.game.audioSystem) {
-            this.game.audioSystem.setMasterVolume(this.settings.masterVolume);
-            this.game.audioSystem.setMusicVolume(this.settings.musicVolume);
-            this.game.audioSystem.setSFXVolume(this.settings.sfxVolume);
+        // Apply audio settings to the real runtime audio manager first.
+        const runtimeAudio = this.game.audioManager;
+        if (runtimeAudio) {
+            if (typeof runtimeAudio.setMasterVolume === 'function') {
+                runtimeAudio.setMasterVolume(this.settings.masterVolume);
+            }
+            if (typeof runtimeAudio.setMusicVolume === 'function') {
+                runtimeAudio.setMusicVolume(this.settings.musicVolume);
+            }
+            if (typeof runtimeAudio.setSoundVolume === 'function') {
+                runtimeAudio.setSoundVolume(this.settings.sfxVolume);
+            }
+        } else if (this.game.audioSystem) {
+            // Legacy fallback if some older boot path still injects audioSystem only.
+            if (typeof this.game.audioSystem.setMasterVolume === 'function') {
+                this.game.audioSystem.setMasterVolume(this.settings.masterVolume);
+            }
+            if (typeof this.game.audioSystem.setMusicVolume === 'function') {
+                this.game.audioSystem.setMusicVolume(this.settings.musicVolume);
+            }
+            const sfxSetter = this.game.audioSystem.setSFXVolume || this.game.audioSystem.setSoundVolume;
+            if (typeof sfxSetter === 'function') {
+                sfxSetter.call(this.game.audioSystem, this.settings.sfxVolume);
+            }
         }
         
         // Apply visual effects settings

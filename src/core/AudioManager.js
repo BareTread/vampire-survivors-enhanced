@@ -99,6 +99,24 @@ export class AudioManager {
         this.throttleInterval = 50;
         this.gemNoteIndex = 0;
         this.noiseBuffer = null;
+        this.mixTelemetry = {
+            activeVoices: 0,
+            activeSfxVoices: 0,
+            activeMusicVoices: 0,
+            densityFactor: 0,
+            compressorReductionDb: 0,
+            compressorStress: 0,
+            fatigue: 0,
+            harshnessGovernor: 0,
+            sfxCutoffHz: 0,
+            sfxPresenceDipDb: 0,
+            musicCutoffHz: 0,
+            reverbSendLevel: 0,
+            musicDuckGain: 1,
+            musicDuckTarget: 1,
+            musicDuckAmount: 0,
+            lastDuckHold: 0
+        };
 
         // Compatibility stubs for legacy callers
         this.sounds = {};
@@ -343,24 +361,47 @@ export class AudioManager {
     }
 
     _updateMixState() {
-        if (!this.audioContext || !this.sfxToneFilter || !this.sfxPresenceDip || !this.musicToneFilter) return;
-
-        const now = this.audioContext.currentTime;
-        const density = clamp(this.voices.length / MAX_VOICES, 0, 1);
+        const activeVoices = this.voices.length;
+        const activeMusicVoices = this.voices.filter((voice) => voice.kind === 'music').length;
+        const activeSfxVoices = activeVoices - activeMusicVoices;
+        const density = clamp(activeVoices / MAX_VOICES, 0, 1);
         const compReduction = this.compressor ? Math.abs(Math.min(0, this.compressor.reduction || 0)) : 0;
         const compStress = clamp(compReduction / 18, 0, 1);
         const fatigue = clamp(density * 0.65 + this.gameIntensity * 0.2 + compStress * 0.4, 0, 1);
 
-        const sfxCutoff = 7600 - fatigue * 3600;
-        const presenceDip = -1.5 - fatigue * 4.5;
-        const musicCutoff = 2200 - density * 500 + this.gameIntensity * 350;
-        const reverbLevel = 0.18 - density * 0.05;
+        const sfxCutoff = clamp(7600 - fatigue * 3600, 2200, 8200);
+        const presenceDip = clamp(-1.5 - fatigue * 4.5, -7, -1);
+        const musicCutoff = clamp(2200 - density * 500 + this.gameIntensity * 350, 1300, 2800);
+        const reverbLevel = clamp(0.18 - density * 0.05, 0.1, 0.2);
+        const duckGainValue = this.musicDuckGain?.gain?.value ?? this.mixTelemetry.musicDuckTarget ?? 1;
 
-        this.sfxToneFilter.frequency.setTargetAtTime(clamp(sfxCutoff, 2200, 8200), now, 0.05);
-        this.sfxPresenceDip.gain.setTargetAtTime(clamp(presenceDip, -7, -1), now, 0.06);
-        this.musicToneFilter.frequency.setTargetAtTime(clamp(musicCutoff, 1300, 2800), now, 0.08);
+        this.mixTelemetry = {
+            activeVoices,
+            activeSfxVoices,
+            activeMusicVoices,
+            densityFactor: Number(density.toFixed(3)),
+            compressorReductionDb: Number(compReduction.toFixed(2)),
+            compressorStress: Number(compStress.toFixed(3)),
+            fatigue: Number(fatigue.toFixed(3)),
+            harshnessGovernor: Number(fatigue.toFixed(3)),
+            sfxCutoffHz: Math.round(sfxCutoff),
+            sfxPresenceDipDb: Number(presenceDip.toFixed(2)),
+            musicCutoffHz: Math.round(musicCutoff),
+            reverbSendLevel: Number(reverbLevel.toFixed(3)),
+            musicDuckGain: Number(duckGainValue.toFixed(3)),
+            musicDuckTarget: Number((this.mixTelemetry.musicDuckTarget ?? 1).toFixed(3)),
+            musicDuckAmount: Number((this.mixTelemetry.musicDuckAmount ?? 0).toFixed(3)),
+            lastDuckHold: Number((this.mixTelemetry.lastDuckHold ?? 0).toFixed(3))
+        };
+
+        if (!this.audioContext || !this.sfxToneFilter || !this.sfxPresenceDip || !this.musicToneFilter) return;
+
+        const now = this.audioContext.currentTime;
+        this.sfxToneFilter.frequency.setTargetAtTime(sfxCutoff, now, 0.05);
+        this.sfxPresenceDip.gain.setTargetAtTime(presenceDip, now, 0.06);
+        this.musicToneFilter.frequency.setTargetAtTime(musicCutoff, now, 0.08);
         if (this.reverbReturn) {
-            this.reverbReturn.gain.setTargetAtTime(clamp(reverbLevel, 0.1, 0.2), now, 0.08);
+            this.reverbReturn.gain.setTargetAtTime(reverbLevel, now, 0.08);
         }
     }
 
@@ -380,10 +421,17 @@ export class AudioManager {
     }
 
     _duckMusic(amount = 0.18, hold = 0.16) {
-        if (!this.musicDuckGain || !this.audioContext) return;
+        const target = clamp(1 - amount, 0.45, 1);
+        this.mixTelemetry.musicDuckTarget = target;
+        this.mixTelemetry.musicDuckAmount = clamp(1 - target, 0, 1);
+        this.mixTelemetry.lastDuckHold = hold;
+
+        if (!this.musicDuckGain || !this.audioContext) {
+            this._updateMixState();
+            return;
+        }
 
         const now = this.audioContext.currentTime;
-        const target = clamp(1 - amount, 0.45, 1);
         const gain = this.musicDuckGain.gain;
 
         gain.cancelScheduledValues(now);
@@ -1164,6 +1212,22 @@ export class AudioManager {
 
     createMusicOsc(type, freq, voice, duration, when = this.audioContext?.currentTime || 0) {
         return this._osc(type, freq, voice, duration, when);
+    }
+
+    getDebugInfo() {
+        this._updateMixState();
+        return {
+            initialized: this.initialized,
+            muted: this.muted,
+            maxVoices: MAX_VOICES,
+            gameIntensity: Number(this.gameIntensity.toFixed(3)),
+            volumes: {
+                master: Number(this.masterVolume.toFixed(3)),
+                sound: Number(this.soundVolume.toFixed(3)),
+                music: Number(this.musicVolume.toFixed(3))
+            },
+            mix: { ...this.mixTelemetry }
+        };
     }
 
     get currentTime() {

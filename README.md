@@ -41,10 +41,12 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 - **Voice-Pooled**: 16-voice pool with priority-based stealing prevents clipping during swarms
 - **Expanded Sound Families**: Weapons, bosses, pickups, and UI use softer, distinct synthesis recipes instead of generic fallback beeps
 - **Harshness Governor**: A bus-level low-pass + presence dip automatically tamps down upper-mid fatigue when combat gets dense
-- **Sparse Adaptive Score**: Background music now uses deliberate rest bars, low pulses, and rare motifs instead of a constant loop
+- **Silence-First Adaptive Score**: Background music now defaults to near-silence at low intensity and only blooms when combat pressure justifies it
 - **Variation Over Repetition**: Repeated families like deaths, lightning, pickups, whip cracks, garlic pulses, and orbiters now subtly vary pan, filter, envelope, and harmonic shape
+- **Live Audio Telemetry**: `debugCommands.getDebugInfo()` now includes runtime mix data such as voice density, ducking, compressor reduction, and harshness-governor state for evidence-based tuning
 - **Emergent Gem Melody**: Collecting gems still walks the D minor pentatonic, but with gentler chime voicing
 - **Shorter Cathedral Reverb**: A tighter convolution reverb keeps the gothic atmosphere without washing out the mix
+- **Settings Now Hit the Real Mix**: Master/music/SFX sliders drive `AudioManager` directly instead of a stale legacy path
 
 ## 🚀 Performance Optimizations
 

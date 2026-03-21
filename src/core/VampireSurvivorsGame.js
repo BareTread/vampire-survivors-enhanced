@@ -3064,10 +3064,12 @@ export class VampireSurvivorsGame {
             memory: memoryInfo,
             timers: globalTimerManager.getStats(),
             damageNumbers: globalDamageNumberPool.getStats(),
+            audio: this.audioManager?.getDebugInfo ? this.audioManager.getDebugInfo() : null,
             systems: {
                 enemy: this.systems.enemy.getDebugInfo(),
                 projectile: this.systems.projectile.getDebugInfo(),
-                experience: this.systems.experience.getDebugInfo()
+                experience: this.systems.experience.getDebugInfo(),
+                adaptiveMusic: this.systems.adaptiveMusic?.getDebugInfo ? this.systems.adaptiveMusic.getDebugInfo() : null
             }
         };
     }

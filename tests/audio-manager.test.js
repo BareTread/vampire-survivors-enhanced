@@ -1,5 +1,7 @@
 import { jest } from '@jest/globals';
 import { AudioManager } from '../src/core/AudioManager.js';
+import { AdaptiveMusicSystem } from '../src/systems/AdaptiveMusicSystem.js';
+import { SettingsMenu } from '../src/ui/SettingsMenu.js';
 
 describe('AudioManager Retro Gothic Synth', () => {
     let warnSpy;
@@ -166,5 +168,106 @@ describe('AudioManager Retro Gothic Synth', () => {
         expect(audio.scale.length).toBe(20);
         expect(audio.PRIORITY).toBeDefined();
         expect(audio.PRIORITY.milestone).toBe(5);
+    });
+
+    test('reports live mix telemetry for debug output', () => {
+        const audio = new AudioManager();
+        audio.audioContext = { currentTime: 0 };
+        audio.initialized = true;
+        audio.voices = [
+            { kind: 'sfx' },
+            { kind: 'music' },
+            { kind: 'sfx' }
+        ];
+        audio.sfxToneFilter = { frequency: { setTargetAtTime: jest.fn() } };
+        audio.sfxPresenceDip = { gain: { setTargetAtTime: jest.fn() } };
+        audio.musicToneFilter = { frequency: { setTargetAtTime: jest.fn() } };
+        audio.musicDuckGain = {
+            gain: {
+                value: 0.82,
+                cancelScheduledValues: jest.fn(),
+                setTargetAtTime: jest.fn()
+            }
+        };
+        audio.compressor = { reduction: -9 };
+        audio.reverbReturn = { gain: { setTargetAtTime: jest.fn() } };
+
+        audio.setGameIntensity(0.6);
+        audio._duckMusic(0.2, 0.14);
+
+        const info = audio.getDebugInfo();
+        expect(info.initialized).toBe(true);
+        expect(info.volumes.sound).toBe(0.5);
+        expect(info.mix.activeVoices).toBe(3);
+        expect(info.mix.activeMusicVoices).toBe(1);
+        expect(info.mix.activeSfxVoices).toBe(2);
+        expect(info.mix.compressorReductionDb).toBe(9);
+        expect(info.mix.musicDuckAmount).toBe(0.2);
+        expect(info.mix.musicDuckTarget).toBe(0.8);
+        expect(info.mix.fatigue).toBeGreaterThan(0);
+    });
+});
+
+describe('AdaptiveMusicSystem silence-first behavior', () => {
+    test('stays silent at very low intensity except for rare ghost blooms', () => {
+        const game = {
+            audioManager: {
+                initialized: true,
+                muted: false,
+                musicVolume: 1,
+                masterVolume: 1,
+                setGameIntensity: jest.fn()
+            },
+            systems: {},
+            player: { health: 100, maxHealth: 100 }
+        };
+
+        const music = new AdaptiveMusicSystem(game);
+        music.playing = true;
+        music.intensity = 0.15;
+        music._playPadBloom = jest.fn();
+
+        music._onBeat(music.measureLength);
+        expect(music._playPadBloom).not.toHaveBeenCalled();
+
+        music._onBeat(16 * music.measureLength);
+        expect(music._playPadBloom).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('SettingsMenu audio integration', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    test('applies volume sliders to AudioManager', () => {
+        localStorage.getItem.mockReturnValue(null);
+
+        const game = {
+            audioManager: {
+                setMasterVolume: jest.fn(),
+                setMusicVolume: jest.fn(),
+                setSoundVolume: jest.fn()
+            },
+            qualitySettings: {},
+            systems: {},
+            camera: null,
+            isRunning: false,
+            isPaused: false,
+            togglePause: jest.fn()
+        };
+
+        const menu = new SettingsMenu(game);
+        menu.settings.masterVolume = 0.4;
+        menu.settings.musicVolume = 0.3;
+        menu.settings.sfxVolume = 0.9;
+
+        menu.apply();
+
+        expect(game.audioManager.setMasterVolume).toHaveBeenLastCalledWith(0.4);
+        expect(game.audioManager.setMusicVolume).toHaveBeenLastCalledWith(0.3);
+        expect(game.audioManager.setSoundVolume).toHaveBeenLastCalledWith(0.9);
+
+        menu.destroy();
     });
 });

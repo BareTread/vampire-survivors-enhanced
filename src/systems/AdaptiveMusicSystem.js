@@ -114,50 +114,51 @@ export class AdaptiveMusicSystem {
         if (!this.audioManager?.initialized || this.audioManager.muted) return;
 
         const am = this.audioManager;
-        const vol = am.musicVolume * am.masterVolume * 0.72;
+        const vol = am.musicVolume * am.masterVolume * 0.62;
         if (vol <= 0.001) return;
 
         const slot = beat % this.measureLength;
         const bar = Math.floor(beat / this.measureLength);
         const restBar = this._isRestBar(bar);
 
-        // Very low intensity: mostly silence, with only rare ghost blooms.
-        if (this.intensity < 0.16) {
-            if (slot === 0 && bar % 8 === 0) {
-                this._playPadBloom(vol * 0.28, true);
+        // Very low intensity: default to silence, with only rare ghost blooms.
+        if (this.intensity < 0.22) {
+            if (slot === 0 && bar % 16 === 0) {
+                this._playPadBloom(vol * 0.2, true);
             }
             return;
         }
 
         // Composed gaps are intentional. Rest bars keep the score from becoming wallpaper.
         if (restBar) {
-            if (slot === 0 && this.intensity >= 0.22 && bar % 4 === 0) {
-                this._playPadBloom(vol * 0.34, true);
+            if (slot === 0 && this.intensity >= 0.32 && bar % 8 === 0) {
+                this._playPadBloom(vol * 0.22, true);
             }
             return;
         }
 
         // Foundation: one harmonic bloom per active measure.
         if (slot === 0) {
-            this._playPadBloom(vol, false);
+            const bloomScale = this.intensity < 0.36 ? 0.82 : 1;
+            this._playPadBloom(vol * bloomScale, false);
         }
 
-        // Bass support arrives late and stays sparse.
-        if (this.intensity >= 0.34) {
-            const bassBeats = this.intensity >= 0.82 ? [0, 4, 6] : this.intensity >= 0.6 ? [0, 4] : [0];
+        // Bass support arrives later and stays sparse.
+        if (this.intensity >= 0.42) {
+            const bassBeats = this.intensity >= 0.84 ? [0, 4, 6] : this.intensity >= 0.64 ? [0, 4] : [0];
             if (bassBeats.includes(slot)) {
                 this._playBassPulse(vol);
             }
         }
 
         // Only add answer pulses in truly dense combat.
-        if (this.intensity >= 0.74 && (slot === 3 || slot === 7)) {
-            this._playEchoPulse(vol * 0.8);
+        if (this.intensity >= 0.82 && (slot === 3 || slot === 7)) {
+            this._playEchoPulse(vol * 0.75);
         }
 
         const shouldMotif =
-            (slot === 6 && this.intensity >= 0.5 && bar % 4 === 2) ||
-            (slot === 2 && this.intensity >= 0.9 && bar % 2 === 0) ||
+            (slot === 6 && this.intensity >= 0.62 && bar % 4 === 2) ||
+            (slot === 2 && this.intensity >= 0.92 && bar % 2 === 0) ||
             this.motifBoost > 0;
 
         if (shouldMotif && beat - this.lastMotifBeat >= 8) {
@@ -167,14 +168,14 @@ export class AdaptiveMusicSystem {
         }
 
         // Rare air at peak danger only.
-        if (this.intensity >= 0.93 && slot === 7 && bar % 4 === 3) {
-            this._playHighAir(vol * 0.8);
+        if (this.intensity >= 0.96 && slot === 7 && bar % 4 === 3) {
+            this._playHighAir(vol * 0.75);
         }
     }
 
     _isRestBar(bar) {
-        if (this.intensity < 0.28) return bar % 2 === 1;
-        if (this.intensity < 0.55) return bar % 4 === 1 || bar % 4 === 3;
+        if (this.intensity < 0.34) return bar % 4 !== 0;
+        if (this.intensity < 0.58) return bar % 4 === 1 || bar % 4 === 3;
         if (this.intensity < 0.82) return bar % 4 === 3;
         return bar % 8 === 7;
     }
@@ -199,11 +200,11 @@ export class AdaptiveMusicSystem {
         color.detune.value = 2;
 
         const g = voice.gain.gain;
-        const peak = (ghost ? 0.009 : 0.015 + this.intensity * 0.014) * vol;
+        const peak = (ghost ? 0.0065 : 0.012 + this.intensity * 0.01) * vol;
         g.setValueAtTime(0.0001, now);
         g.linearRampToValueAtTime(peak, now + 0.25);
         g.exponentialRampToValueAtTime(0.0001, now + dur);
-        am.connectMusicVoice(voice, ghost ? 0.18 : 0.14);
+        am.connectMusicVoice(voice, ghost ? 0.16 : 0.12);
     }
 
     _playBassPulse(vol) {
@@ -331,9 +332,11 @@ export class AdaptiveMusicSystem {
         return {
             playing: this.playing,
             intensity: this.intensity.toFixed(2),
+            targetIntensity: this.targetIntensity.toFixed(2),
             beat: this.currentBeat,
             bpm: this.bpm,
-            motifBoost: this.motifBoost
+            motifBoost: this.motifBoost,
+            silenceBias: this.intensity < 0.34 ? 'high' : this.intensity < 0.58 ? 'medium' : 'low'
         };
     }
 }

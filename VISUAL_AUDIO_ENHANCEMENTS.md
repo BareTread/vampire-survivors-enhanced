@@ -72,6 +72,7 @@ All audio is 100% procedural via Web Audio API — no external `.mp3`/`.wav` fil
 - **16-voice pool** with priority-based stealing (`ui < combat < death < reward < milestone`)
 - **Dedicated SFX + music buses** with automatic music ducking on impactful combat events
 - **Per-voice low-pass tone shaping** that darkens the mix as voice density rises, reducing ear fatigue
+- **Live mix telemetry** exposed through debug info: active voices, density, ducking, compressor reduction, harshness-governor state, and current cutoff targets
 - **Shorter convolution reverb** and master compression to keep the gothic atmosphere without washing out the mix
 - **D minor pentatonic pitch language** keeps pickups, motifs, and milestone cues harmonically coherent
 
@@ -91,9 +92,9 @@ A `gemNoteIndex` counter still cycles through D3→F3→G3→A3→C4, but the vo
 ### Adaptive Underscore (`src/systems/AdaptiveMusicSystem.js`)
 
 #### Sparse Pulse-and-Bloom Score (82 BPM)
-- **Intentional silence**: low-intensity gameplay often has little or no score, letting combat breathe
-- **Pad blooms**: slow harmonic beds appear once per measure instead of constant looping arpeggios
-- **Bass pulses**: low-frequency support grows with intensity, but never becomes relentless
+- **Intentional silence**: low-intensity gameplay now defaults even harder toward little or no score, letting combat breathe
+- **Pad blooms**: slow harmonic beds appear only on selected active bars instead of forming a continuous bed
+- **Bass pulses**: low-frequency support grows with intensity, but now waits for more genuine combat pressure before entering
 - **Measure-aware motifs**: short phrases appear only at specific musical moments or milestones
 - **High air layer**: rare high shimmer at peak danger, used sparingly
 
