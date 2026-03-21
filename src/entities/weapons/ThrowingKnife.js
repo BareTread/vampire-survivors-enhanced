@@ -273,6 +273,20 @@ export class ThrowingKnife extends BaseWeapon {
             
         }
     }
+
+    // --- Overrides ---
+
+    getSoundName() {
+        return 'knifeThrowing';
+    }
+
+    getMuzzleFlashColor() {
+        return this.bladeColor;
+    }
+
+    getSoundPitch() {
+        return 1.0 + (this.level - 1) * 0.03;
+    }
     
     render(renderer) {
         const ctx = renderer.ctx;

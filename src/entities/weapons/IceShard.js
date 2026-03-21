@@ -176,6 +176,20 @@ export class IceShard extends BaseWeapon {
         this.updateStats();
     }
 
+    // --- Overrides ---
+
+    getSoundName() {
+        return 'iceShardCast';
+    }
+
+    getMuzzleFlashColor() {
+        return '#88DDFF';
+    }
+
+    getSoundPitch() {
+        return 1.05 + (this.level - 1) * 0.025;
+    }
+
     /** Blizzard (evolved): render a persistent ice storm ring around player */
     render(renderer) {
         if (!this.evolved) return;

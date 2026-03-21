@@ -197,6 +197,20 @@ export class ShadowDagger extends BaseWeapon {
         this.updateStats();
     }
 
+    // --- Overrides ---
+
+    getSoundName() {
+        return 'vampireBite';
+    }
+
+    getMuzzleFlashColor() {
+        return '#8B5CF6';
+    }
+
+    getSoundPitch() {
+        return 0.82 + (this.level - 1) * 0.025;
+    }
+
     /** Render evolved shadow aura */
     render(renderer) {
         if (!this.evolved) return;

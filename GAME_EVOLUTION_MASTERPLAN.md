@@ -87,15 +87,15 @@ _Fix what's broken. Activate what's dormant. Every agent benefits from this work
 
 ---
 
-## SILENCE BREAKER — Audio
+## SILENCE BREAKER — Audio ✅ COMPLETE
 
-_Currently the #1 feel gap. The game is completely silent. AudioManager exists with Web Audio API foundation — build on it. No file dependencies. Massive player impact. Should be done early._
+_Fully implemented. Current architecture: **Anti-Fatigue Gothic Synth** — split-bus procedural audio with ducking, per-voice tone shaping, and a sparse adaptive underscore._
 
-- [x] **`[M]` Procedural SFX Suite** — Complete overhaul of `synthesizeVampireSound()`: multi-oscillator layered synthesis (2-4 oscillators + white noise per sound type), pitch randomization ±8% per play, timing stagger between sub-layers, reverb routing. All 14+ sound types redesigned with distinct layered character. Added `_createLayer()` and `_createNoiseBurst()` helper methods. New `orbiter` type for Holy Bible weapon.
+- [x] **`[M]` Procedural SFX Suite** — `AudioManager.js` now uses a 16-voice pool with priority-based stealing, separate SFX/music buses, automatic music ducking, and density-aware low-pass filtering. Weapon/boss/reward families have distinct softer recipes, and gem pickups still cycle through pentatonic notes for emergent melody.
 
-- [x] **`[M]` Adaptive Music System** — Procedural soundtrack via `AdaptiveMusicSystem.js` using Web Audio API oscillators. 4 independent layers: (1) bass drone (sine A1 55Hz + triangle E2 82Hz with LFO modulation), (2) rhythmic pulse (staccato square wave, BPM 70→140 with intensity), (3) melodic fragments (C-minor arpeggios triggered by combos/kill streaks), (4) intensity filter sweep (sawtooth through high-pass that opens as FlowState stress rises). Intensity derived from: 60% FlowState stressLevel + 40% enemy density + player health urgency. Smooth crossfading between tiers. Starts on `startGame()`, stops on `gameOver()`/`returnToMenu()`.
+- [x] **`[M]` Adaptive Music System** — `AdaptiveMusicSystem.js` is now an ~82 BPM pulse-and-bloom underscore instead of a constant arp loop. It uses intentional silence, slow harmonic pads, restrained bass pulses, and measure-aware motifs that only grow busier when combat intensity truly rises.
 
-- [x] **`[S]` Audio Event Hooks** — Wire specific game events to dramatic audio cues: enemy death (`Enemy.js die()` → `playEnemyDeath()`), gem collection (`ExperienceGem.collect()` → `playExperienceGain()`), player damage (already wired via `playVampireSound('vampireBite')`), level-up (already wired via `playLevelUp()`). All weapon fire sounds already wired through `BaseWeapon.playEnhancedFireSound()`. _Remaining: boss spawn horn, near-death heartbeat (already in code), mass kill cascade._
+- [x] **`[S]` Audio Event Hooks** — All major game events remain wired: enemy death, gem collection, player damage, level-up, weapon fire, boss warning, heartbeat, critical hits, boss spawn/defeat, challenge cues, and UI sounds. Public API preserved for all existing callers.
 
 ---
 

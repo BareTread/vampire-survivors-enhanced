@@ -52,12 +52,12 @@ Now that the foundation is rock solid, visually polished, and features an intell
 * **Idea**: Implement a "Relic" system in the Upgrades menu. Relics are expensive, unique toggleable modifiers (e.g., "Start with -50% health but +100% damage").
 * **Engineering**: Extend `PersistenceSystem.js` and `TitleScreenSystem.js` (specifically `renderUpgrades`). Relics would be stored as a Set of active IDs applied during `VampireSurvivorsGame.startGame()`.
 
-### 5. Final Audio & Juice Pass
-**Concept**: The game looks great, but game feel can always be pushed further.
-* **Idea**: Implement "Hit Stop" (micro-freezes on big boss hits), better pitch-shifting on repeated rapid hit sounds (to prevent audio fatigue), and screen-edge chromatic aberration when at low health.
-* **Engineering**: Extend `Camera.js` with a `hitStop(ms)` method that temporarily forces `timeScale = 0` via a setTimeout. Use the Web Audio API in `AudioManager.js` to implement a `playbackRate` randomizer on hit sounds.
+### 5. Juice Pass (Audio Overhaul Complete)
+**Concept**: The audio engine now uses an anti-fatigue gothic synth mix: split SFX/music buses, automatic ducking, density-aware tone shaping, and a sparse adaptive underscore. Remaining juice work is visual/timing.
+* **Idea**: Implement "Hit Stop" (micro-freezes on big boss hits), screen-edge chromatic aberration when at low health, and camera hitstop on evolution reveals.
+* **Engineering**: Extend `Camera.js` with a `hitStop(ms)` method that temporarily forces `timeScale = 0` via a setTimeout. Audio already reacts cleanly to density and impact, so the next gains are mostly visual rhythm and temporal emphasis.
 
 ## 📝 Operating Directives
 1. **Always run tests:** Run `npm test` after modifying core files.
-2. **Check for regressions:** 123 tests currently pass. Keep it that way. Run tests with `NODE_OPTIONS=--experimental-vm-modules jest` or simply `npm test`.
+2. **Check for regressions:** 168 tests currently pass. Keep it that way. Run tests with `NODE_OPTIONS=--experimental-vm-modules jest` or simply `npm test`.
 3. **Respect the Linter:** Run `npm run format` and ensure no unused variables are left behind.

@@ -117,7 +117,8 @@ export class BaseWeapon {
     playEnhancedFireSound() {
         if (this.game.audioManager && this.game.audioManager.playEnhancedWeaponFire) {
             const isRapidFire = this.getEffectiveCooldown() < 0.3;
-            this.game.audioManager.playEnhancedWeaponFire(this.type, this.level, isRapidFire);
+            const audioKey = typeof this.getSoundName === 'function' ? this.getSoundName() : this.type;
+            this.game.audioManager.playEnhancedWeaponFire(audioKey || this.type, this.level, isRapidFire);
         }
     }
 
@@ -645,9 +646,11 @@ export class BaseWeapon {
     playLayeredHitSound(damage, critical, wasManualAim = false, combo = 1) {
         if (!this.game.audioManager) return;
 
+        const audioKey = typeof this.getSoundName === 'function' ? this.getSoundName() : this.type;
+
         // Use enhanced layered audio system
         if (this.game.audioManager.playLayeredHitSound) {
-            this.game.audioManager.playLayeredHitSound(damage, this.type, critical, combo);
+            this.game.audioManager.playLayeredHitSound(damage, audioKey || this.type, critical, combo);
         } else {
             // Fallback to original method
             this.playHitSound(damage, critical, wasManualAim);

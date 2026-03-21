@@ -41,7 +41,7 @@ src/core/
 ├── InputManager.js          # Keyboard/mouse input handling
 ├── Camera.js                # 2D camera with following and effects
 ├── Renderer.js              # Canvas rendering engine
-├── AudioManager.js          # Sound system (optional fallback)
+├── AudioManager.js          # Split-bus anti-fatigue synth engine (16 voices, ducking, tone shaping, procedural SFX)
 └── WeaponFactory.js         # Weapon creation and management
 ```
 
@@ -58,7 +58,7 @@ src/systems/
 ├── AchievementSystem.js     # 12 achievements with canvas popups + localStorage
 ├── RewardsSystem.js         # Critical hits, kill streaks, XP multipliers
 ├── MicroChallengeSystem.js  # In-game challenges with HUD + XP rewards
-├── AdaptiveMusicSystem.js   # 4-layer procedural music (bass, pulse, melody, filter)
+├── AdaptiveMusicSystem.js   # Sparse adaptive underscore (pulse, pad blooms, restrained motifs, intentional silence)
 ├── PassiveItemSystem.js     # 6 passive items with 5 upgrade levels each
 ├── KillMilestoneSystem.js   # Kill milestones celebrations
 ├── ScreenEffectsSystem.js   # Low-health vignette, boss desaturation, slow-mo
@@ -129,7 +129,7 @@ src/entities/
 - **Flow State**: Dynamic difficulty adjustment
 - **Reward Psychology**: Engagement mechanics and feedback loops
 - **Visual Feedback**: Screen shake, particles, audio cues for player actions
-- **Adaptive Music**: 4-layer procedural soundtrack tied to FlowState intensity
+- **Adaptive Music**: Sparse, intensity-reactive underscore that prioritizes space and readability over constant melody
 
 ### Passive Item System
 
@@ -178,6 +178,24 @@ src/entities/
 3. Call update/render methods in game loop
 
 ## Developer Log (most recent first)
+
+### 2026-03-21 (Audio Pleasantness Pass — Mix Cleanup & Sparse Underscore)
+
+**Refined the new audio engine for ear comfort and readability. Background audio is now dramatically less intrusive. 168/168 tests passing.**
+
+- **AudioManager.js refined**: Split the mix into dedicated `sfx` and `music` buses, added automatic music ducking on impactful SFX, and introduced per-voice low-pass tone shaping that darkens the mix as voice density rises. This reduces high-frequency harshness and keeps swarms from turning into fizzy noise.
+- **Sound identity expanded**: Added dedicated softer recipes and routing for fireball launch/explosion, lightning strike/chain, garlic pulse, boomerang throw, orbiter whoosh, ice shard cast, boss spawn, victory/achievement cues, and demon roar. Also changed `BaseWeapon` to prefer subclass `getSoundName()` for fire/hit playback so weapons stop collapsing into generic fallback sounds.
+- **AdaptiveMusicSystem.js redesigned**: Replaced the constant bass+arp loop with a sparse pulse-and-bloom underscore. The score now uses intentional silence, low-frequency pulses, slow harmonic blooms, and occasional measure-aware motifs, only becoming more active when combat intensity truly rises.
+- **Tests/docs updated**: `tests/audio-manager.test.js`, `README.md`, and `CLAUDE.md` were updated to reflect the anti-fatigue mix architecture and per-sound throttling.
+
+### 2026-03-21 (Audio System Overhaul — Retro Gothic Synth)
+
+**Complete rewrite of the audio engine. Replaced 4-drone subtractive synth with voice-pooled chiptune engine. 168/168 tests passing.**
+
+- **AudioManager.js rewritten**: 16-voice pool with priority-based stealing, 12 distinct synthesis recipes (magic missile, whip, knife, enemy death, gem pickup, level up, critical hit, game over, boss warning, heartbeat, UI hover/select), D minor pentatonic scale quantization, cathedral convolution reverb (1.8s), master compressor. Gem pickups cycle through pentatonic notes creating emergent melody.
+- **AdaptiveMusicSystem.js rewritten**: Initial 110 BPM beat-driven sequencer pass that replaced the old intensity-float modulator. This was later refined the same day by the "Audio Pleasantness Pass" above into a sparser pulse-and-bloom underscore with intentional silence and fewer constant melodic layers.
+- **Tests updated**: `tests/audio-manager.test.js` rewritten for new architecture — covers defaults, throttling, event routing, gem melody cycling, public API existence, intensity clamping, and exposed scale/PRIORITY constants.
+- **Public API preserved**: All existing callers (`playVampireSound`, `playLayeredHitSound`, `playEnhancedWeaponFire`, `setGameIntensity`, volume controls, etc.) continue to work without changes to any other files.
 
 ### 2026-03-20 (Agent #17 — Balance Audit & Gothic Main Menu Redesign)
 
@@ -300,11 +318,7 @@ src/entities/
 
 ### 2026-03-14 (Agent #17 - Audio Pleasantness Redesign)
 
-- **Shared mix + ambient bed**: `src/core/AudioManager.js` now routes synth audio through internal `ambient`, `music`, `combat`, `reward`, and `ui` buses with per-bus EQ shaping. Added persistent loop controllers for `windHowl`, `lowDrone`, `ritualPulse`, `gothicOrgan`, and refresh-to-hold `heartbeat`, so runs now start with a soft layered bed instead of incidental one-shots.
-- **Spam smoothing + cue cleanup**: `experienceGain` and `enemyDeath` now aggregate into short composite phrases, family-wide concurrency caps prevent dense combat stacks from turning into crackle walls, and load softening lowers brightness before level. Added defined defaults for previously missing `bossSpawn`, `bossWarning`, and `weaponFire` cues.
-- **Weapon/reward voicing pass**: The audio palette shifted toward warmer glass, reed, bell, drum, cloth, ceramic, and bone textures. Magic Missile, Whip, Lightning, Fire Wand, Bone Boomerang, Garlic Aura, boss, UI, and progression cues now use dedicated softer synth recipes instead of sharing generic bright combat tones.
-- **Adaptive music retune**: `src/systems/AdaptiveMusicSystem.js` now routes into the shared music bus, swaps the C-minor palette for D harmonic minor / Phrygian dominant material, uses a warmer D/A drone, denser hand-drum pulse patterns, softer modal ornaments, and a gentler filtered layer so intensity grows through rhythm and density instead of shrill top-end.
-- **Tests + verification**: Added `tests/audio-manager.test.js` covering aggregation and family concurrency caps. Verified with `node --check src/core/AudioManager.js`, `node --check src/systems/AdaptiveMusicSystem.js`, `node --check tests/audio-manager.test.js`, and `npm test -- --runInBand tests/audio-manager.test.js`. Browser ear-tuning is still recommended as a final polish pass.
+- **Superseded**: This audio system was fully replaced on 2026-03-21 by the Retro Gothic Synth overhaul (see top of dev log). The bus-based architecture, ambient drones, and composite phrase aggregation described here no longer exist.
 
 ### 2026-03-14 (Agent #16 - Build Depth + Inventory Overlay)
 

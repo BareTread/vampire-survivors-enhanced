@@ -1,3409 +1,1076 @@
-import {
-    managedSetTimeout,
-    managedSetInterval,
-    managedClearTimeout,
-    managedClearInterval
-} from '../core/TimerManager.js';
+// D minor pentatonic across multiple octaves (Hz)
+const SCALE = [
+    73.42, 87.31, 98.00, 110.00, 130.81,   // D2 F2 G2 A2 C3
+    146.83, 174.61, 196.00, 220.00, 261.63, // D3 F3 G3 A3 C4
+    293.66, 349.23, 392.00, 440.00, 523.25, // D4 F4 G4 A4 C5
+    587.33, 698.46, 783.99, 880.00, 1046.50 // D5 F5 G5 A5 C6
+];
+
+const PRIORITY = { ui: 1, combat: 2, death: 3, reward: 4, milestone: 5 };
+const MAX_VOICES = 16;
+
+const SOUND_ALIASES = {
+    projectile: 'magicMissile',
+    magic: 'magicMissile',
+    melee: 'whipCrack',
+    bladeHit: 'whipCrack',
+    whipHit: 'whipCrack',
+    throwing: 'knifeThrowing',
+    knife: 'knifeThrowing',
+    fireball: 'fireballLaunch',
+    lightning: 'lightningStrike',
+    aura: 'garlicPulse',
+    orbital: 'orbiterWhoosh',
+    boomerang: 'boomerangThrow',
+    ice_shard: 'iceShardCast',
+    orbiterHit: 'orbiterWhoosh',
+    powerUpCollect: 'experienceGain',
+    weaponUpgrade: 'levelUp',
+    levelUpFanfare: 'levelUp',
+    criticalBoom: 'criticalHit',
+    massiveImpact: 'criticalHit',
+    boneBreak: 'enemyDeath',
+    fleshTear: 'enemyDeath',
+    vampireScream: 'enemyDeath',
+    menuHover: 'uiHover',
+    menuSelect: 'uiSelect',
+    achievementUnlock: 'victoryFanfare',
+    weaponEvolution: 'victoryFanfare',
+    bossDefeat: 'victoryFanfare'
+};
+
+const SOUND_THROTTLES = {
+    uiHover: 70,
+    uiSelect: 90,
+    magicMissile: 34,
+    whipCrack: 45,
+    knifeThrowing: 40,
+    fireballLaunch: 48,
+    fireballExplosion: 72,
+    lightningStrike: 55,
+    lightningChain: 42,
+    garlicPulse: 85,
+    orbiterWhoosh: 60,
+    boomerangThrow: 56,
+    iceShardCast: 46,
+    enemyDeath: 38,
+    experienceGain: 28,
+    levelUp: 180,
+    criticalHit: 75,
+    bloodSplash: 65,
+    bossWarning: 220,
+    bossSpawn: 320,
+    heartbeat: 280,
+    victoryFanfare: 260,
+    demonRoar: 240,
+    gameOver: 400,
+    challengeBell: 220,
+    challengeComplete: 260,
+    challengeFail: 260
+};
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export class AudioManager {
     constructor() {
-        this.sounds = {};
-        this.music = {};
         this.masterVolume = 0.8;
         this.soundVolume = 0.5;
         this.musicVolume = 0.4;
         this.muted = false;
-        this.currentMusic = null;
 
-        // Enhanced audio features
         this.audioContext = null;
-        this.dynamicMixing = true;
-        this.gameIntensity = 0; // 0-1 scale for dynamic audio
-        this.soundPools = new Map(); // For performance
-        this.reverbBuffer = null;
+        this.gameIntensity = 0;
+        this.initialized = false;
 
-        // AUDIO THROTTLING - Prevent spam with many enemies
-        this.soundThrottle = new Map(); // Track last played time for each sound type
-        this.throttleInterval = 50; // Minimum ms between same sound type
-        this.maxSimultaneousSounds = 10; // Max sounds playing at once
-        this.currentlyPlaying = 0;
-        this.playingByFamily = new Map();
-        this.familyCaps = {
-            ambient: 4,
-            combat: 7,
-            progression: 4,
-            reward: 4,
-            ui: 3,
-            boss: 3,
-            music: 4
-        };
+        this.masterGain = null;
+        this.mixBus = null;
+        this.sfxBus = null;
+        this.musicBus = null;
+        this.musicDuckGain = null;
+        this.reverbConvolver = null;
+        this.reverbReturn = null;
 
-        this.busNodes = {};
-        this.reverbBuffer = null;
-        this.activeLoopingSounds = new Map();
-        this.pendingAggregations = new Map();
-        this.aggregationSettings = {
-            experienceGain: {
-                windowMs: 80,
-                aggregateName: 'experienceCluster',
-                aggregateType: 'collectCluster',
-                durationMs: 320,
-                reverb: 0.28,
-                family: 'reward'
-            },
-            enemyDeath: {
-                windowMs: 110,
-                aggregateName: 'enemyDeathBloom',
-                aggregateType: 'deathBloom',
-                durationMs: 420,
-                reverb: 0.24,
-                family: 'combat'
-            }
-        };
-        this.busSettings = {
-            ambient: { gain: 0.34, highpass: 40, lowpass: 2300 },
-            music: { gain: 0.7, highpass: 35, lowpass: 5200 },
-            combat: { gain: 0.82, highpass: 45, lowpass: 7000 },
-            reward: { gain: 0.78, highpass: 120, lowpass: 8200 },
-            ui: { gain: 0.68, highpass: 180, lowpass: 9200 }
-        };
-        this.mixDebug = {
-            busGains: {
-                ...Object.fromEntries(Object.entries(this.busSettings).map(([name, config]) => [name, config.gain]))
-            },
-            aggregationWindows: {
-                experienceGain: this.aggregationSettings.experienceGain.windowMs,
-                enemyDeath: this.aggregationSettings.enemyDeath.windowMs
-            }
-        };
+        this.voices = [];
+        this.soundThrottle = new Map();
+        this.throttleInterval = 50;
+        this.gemNoteIndex = 0;
+        this.noiseBuffer = null;
 
-        // Vampire-themed sound definitions
-        this.initializeVampireSounds();
+        // Compatibility stubs for legacy callers
+        this.sounds = {};
+        this.music = {};
+        this.loadSound = () => {};
+        this.loadMusic = () => {};
+        this.play = () => {};
+        this.playLoop = () => {};
+        this.playMusic = () => {};
+        this.stopMusic = () => {};
+        this.stop = () => {};
+        this.stopAll = () => {};
+
         this.initializeAudioContext();
     }
 
-    loadSound(name, src) {
-        try {
-            const audio = new Audio(src);
-            audio.volume = this.soundVolume * this.masterVolume;
-            this.sounds[name] = audio;
-        } catch (error) {
-            console.warn(`Failed to load sound: ${name}`);
-            // Create stub sound
-            this.sounds[name] = {
-                play: () => {},
-                pause: () => {},
-                currentTime: 0,
-                volume: 1
-            };
-        }
+    // --- Volume controls (public API) ---
+    setMasterVolume(v) {
+        this.masterVolume = clamp(v, 0, 1);
+        this._applyBusVolumes();
     }
 
-    loadMusic(name, src) {
-        try {
-            const audio = new Audio(src);
-            audio.volume = this.musicVolume * this.masterVolume;
-            audio.loop = true;
-            this.music[name] = audio;
-        } catch (error) {
-            console.warn(`Failed to load music: ${name}`);
-            // Create stub music
-            this.music[name] = {
-                play: () => {},
-                pause: () => {},
-                currentTime: 0,
-                volume: 1,
-                loop: true
-            };
-        }
+    setSoundVolume(v) {
+        this.soundVolume = clamp(v, 0, 1);
+        this._applyBusVolumes();
     }
 
-    play(name, volume = 1) {
-        if (this.muted) return;
-
-        const sound = this.sounds[name];
-        if (sound) {
-            try {
-                sound.volume = volume * this.soundVolume * this.masterVolume;
-                sound.currentTime = 0;
-                sound.play().catch(() => {
-                    // Ignore autoplay errors
-                });
-            } catch (error) {
-                // Ignore play errors
-            }
-        }
-    }
-
-    playLoop(name, volume = 1) {
-        if (this.muted) return;
-
-        const sound = this.sounds[name] || this.music[name];
-        if (sound) {
-            try {
-                sound.loop = true;
-                sound.volume = volume * this.soundVolume * this.masterVolume;
-                sound.play().catch(() => {
-                    // Ignore autoplay errors
-                });
-            } catch (error) {
-                // Ignore play errors
-            }
-        }
-    }
-
-    playMusic(name, fadeIn = false) {
-        if (this.muted) return;
-
-        // Stop current music
-        if (this.currentMusic) {
-            this.stopMusic();
-        }
-
-        const music = this.music[name];
-        if (music) {
-            try {
-                this.currentMusic = music;
-                music.volume = fadeIn ? 0 : this.musicVolume * this.masterVolume;
-                music.play().catch(() => {
-                    // Ignore autoplay errors
-                });
-
-                if (fadeIn) {
-                    this.fadeIn(music, this.musicVolume * this.masterVolume, 2000);
-                }
-            } catch (error) {
-                // Ignore play errors
-            }
-        }
-    }
-
-    stopMusic(fadeOut = false) {
-        if (this.currentMusic) {
-            if (fadeOut) {
-                this.fadeOut(this.currentMusic, 1000, () => {
-                    this.currentMusic.pause();
-                    this.currentMusic = null;
-                });
-            } else {
-                try {
-                    this.currentMusic.pause();
-                    this.currentMusic.currentTime = 0;
-                } catch (error) {
-                    // Ignore stop errors
-                }
-                this.currentMusic = null;
-            }
-        }
-    }
-
-    stop(name) {
-        this.stopLoopingSound(name);
-
-        const pending = this.pendingAggregations.get(name);
-        if (pending?.timerId) {
-            managedClearTimeout(pending.timerId);
-            this.pendingAggregations.delete(name);
-        }
-
-        const sound = this.sounds[name];
-        if (sound) {
-            try {
-                sound.pause();
-                sound.currentTime = 0;
-            } catch (error) {
-                // Ignore stop errors
-            }
-        }
-    }
-
-    stopAll() {
-        this.clearAggregations();
-        for (const name of [...this.activeLoopingSounds.keys()]) {
-            this.stopLoopingSound(name);
-        }
-
-        Object.values(this.sounds).forEach((sound) => {
-            try {
-                sound.pause();
-                sound.currentTime = 0;
-            } catch (error) {
-                // Ignore stop errors
-            }
-        });
-
-        this.stopMusic();
-        this.currentlyPlaying = 0;
-        this.playingByFamily.clear();
-    }
-
-    setMasterVolume(volume) {
-        this.masterVolume = Math.max(0, Math.min(1, volume));
-        this.updateVolumes();
-    }
-
-    setSoundVolume(volume) {
-        this.soundVolume = Math.max(0, Math.min(1, volume));
-        this.updateVolumes();
-    }
-
-    setMusicVolume(volume) {
-        this.musicVolume = Math.max(0, Math.min(1, volume));
-        this.updateVolumes();
+    setMusicVolume(v) {
+        this.musicVolume = clamp(v, 0, 1);
+        this._applyBusVolumes();
     }
 
     updateVolumes() {
-        Object.values(this.sounds).forEach((sound) => {
-            if (sound.volume !== undefined) {
-                sound.volume = this.soundVolume * this.masterVolume;
-            }
-        });
-
-        Object.values(this.music).forEach((music) => {
-            if (music.volume !== undefined) {
-                music.volume = this.musicVolume * this.masterVolume;
-            }
-        });
-
-        this.updateBusMix();
-        this.updateAmbientSounds();
+        this._applyBusVolumes();
     }
 
     mute() {
         this.muted = true;
-        this.stopAll();
+        this._applyBusVolumes();
     }
 
     unmute() {
         this.muted = false;
+        this._applyBusVolumes();
     }
 
     toggleMute() {
-        if (this.muted) {
-            this.unmute();
-        } else {
-            this.mute();
+        this.muted ? this.unmute() : this.mute();
+    }
+
+    _applyBusVolumes() {
+        if (!this.audioContext || !this.masterGain || !this.sfxBus || !this.musicBus) return;
+
+        const master = this.muted ? 0 : this.masterVolume;
+        const sfx = this.muted ? 0 : this.soundVolume;
+        const music = this.muted ? 0 : this.musicVolume;
+
+        try {
+            this.masterGain.gain.setTargetAtTime(master, this.audioContext.currentTime, 0.03);
+            this.sfxBus.gain.setTargetAtTime(sfx, this.audioContext.currentTime, 0.03);
+            this.musicBus.gain.setTargetAtTime(music, this.audioContext.currentTime, 0.08);
+        } catch (e) {
+            // noop
         }
     }
 
-    fadeIn(audio, targetVolume, duration) {
-        const startVolume = 0;
-        const startTime = Date.now();
-
-        const fade = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            try {
-                audio.volume = startVolume + (targetVolume - startVolume) * progress;
-            } catch (error) {
-                // Ignore volume errors
-            }
-
-            if (progress < 1) {
-                requestAnimationFrame(fade);
-            }
-        };
-
-        fade();
-    }
-
-    fadeOut(audio, duration, callback) {
-        const startVolume = audio.volume || 0;
-        const startTime = Date.now();
-
-        const fade = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            try {
-                audio.volume = startVolume * (1 - progress);
-            } catch (error) {
-                // Ignore volume errors
-            }
-
-            if (progress < 1) {
-                requestAnimationFrame(fade);
-            } else if (callback) {
-                callback();
-            }
-        };
-
-        fade();
-    }
-
-    // Enhanced vampire-themed audio methods
-    initializeVampireSounds() {
-        const combat = (type, overrides = {}) => ({
-            type,
-            bus: 'combat',
-            family: 'combat',
-            pitch: 1.0,
-            reverb: 0.16,
-            durationMs: 260,
-            throttleMs: 40,
-            ...overrides
-        });
-        const reward = (type, overrides = {}) => ({
-            type,
-            bus: 'reward',
-            family: 'reward',
-            pitch: 1.0,
-            reverb: 0.28,
-            durationMs: 420,
-            throttleMs: 70,
-            ...overrides
-        });
-        const progression = (type, overrides = {}) => ({
-            type,
-            bus: 'reward',
-            family: 'progression',
-            pitch: 1.0,
-            reverb: 0.34,
-            durationMs: 620,
-            throttleMs: 120,
-            ...overrides
-        });
-        const ui = (type, overrides = {}) => ({
-            type,
-            bus: 'ui',
-            family: 'ui',
-            pitch: 1.0,
-            reverb: 0.08,
-            durationMs: 170,
-            throttleMs: 45,
-            ...overrides
-        });
-        const ambient = (type, overrides = {}) => ({
-            type,
-            bus: 'ambient',
-            family: 'ambient',
-            pitch: 1.0,
-            reverb: 0.22,
-            durationMs: 1800,
-            throttleMs: 180,
-            ...overrides
-        });
-        const boss = (type, overrides = {}) => ({
-            type,
-            bus: 'combat',
-            family: 'boss',
-            pitch: 1.0,
-            reverb: 0.36,
-            durationMs: 950,
-            throttleMs: 220,
-            ...overrides
-        });
-
-        this.vampireSoundMap = {
-            vampireBite: combat('aggressiveWarm', { pitch: 0.94, durationMs: 220 }),
-            bloodSplash: combat('wetSoft', { pitch: 1.04, reverb: 0.1, durationMs: 190 }),
-            magicMissile: combat('glassPluck', { reverb: 0.26, durationMs: 280 }),
-            whipCrack: combat('whipBody', { pitch: 1.02, durationMs: 210 }),
-            knifeThrowing: combat('bladeAir', { pitch: 1.18, durationMs: 160, reverb: 0.1 }),
-            criticalHit: reward('modalRewardAccent', { pitch: 0.98, reverb: 0.32, durationMs: 360 }),
-            enemyDeath: combat('deathBloomCore', { pitch: 0.9, reverb: 0.2, durationMs: 240, throttleMs: 10 }),
-
-            magicHit: combat('glassHit', { pitch: 1.08, reverb: 0.24, durationMs: 210 }),
-            magicCharge: combat('magicChargeWarm', { pitch: 0.9, reverb: 0.28, durationMs: 320 }),
-            arcaneWhisper: combat('reedAir', { pitch: 1.16, reverb: 0.34, durationMs: 340 }),
-            whipHit: combat('whipImpact', { pitch: 0.94, reverb: 0.12, durationMs: 180 }),
-            whipSwoosh: combat('clothWhoosh', { pitch: 1.0, reverb: 0.08, durationMs: 150 }),
-            bladeHit: combat('woodBoneTick', { pitch: 1.08, reverb: 0.08, durationMs: 150 }),
-            bladeWhoosh: combat('bladeAir', { pitch: 1.22, reverb: 0.08, durationMs: 140 }),
-            metalGlint: reward('glassSpark', { pitch: 1.34, reverb: 0.2, durationMs: 220 }),
-            bulletHit: combat('softImpact', { pitch: 0.98, durationMs: 170 }),
-            gunshot: combat('softImpact', { pitch: 0.9, durationMs: 180, reverb: 0.12 }),
-            shellDrop: ui('uiTickLow', { pitch: 0.84, durationMs: 110, reverb: 0.04 }),
-
-            criticalBoom: reward('lowRewardBloom', { pitch: 0.82, reverb: 0.34, durationMs: 380 }),
-            metalRing: reward('glassSpark', { pitch: 1.42, reverb: 0.18, durationMs: 250 }),
-            comboChime: reward('modalRewardAccent', { pitch: 1.08, reverb: 0.24, durationMs: 300 }),
-            massiveImpact: combat('lowImpactBloom', { pitch: 0.74, reverb: 0.28, durationMs: 340 }),
-            deathSatisfaction: reward('lowRewardBloom', { pitch: 0.94, reverb: 0.18, durationMs: 260 }),
-
-            boneBreak: combat('boneFlutter', { pitch: 0.96, durationMs: 220, reverb: 0.16 }),
-            fleshTear: combat('wetSoft', { pitch: 0.84, durationMs: 200, reverb: 0.18 }),
-            vampireScream: boss('reedCry', { pitch: 1.0, durationMs: 520, reverb: 0.42 }),
-            ghostWail: boss('reedCry', { pitch: 1.28, durationMs: 600, reverb: 0.5 }),
-            demonRoar: boss('lowWarning', { pitch: 0.72, durationMs: 700, reverb: 0.34 }),
-            eliteDeath: combat('deathBloomCore', { pitch: 0.82, reverb: 0.28, durationMs: 340 }),
-            bossDefeat: progression('bossResolve', { pitch: 0.72, durationMs: 1100, reverb: 0.42, family: 'boss' }),
-            bossWarning: boss('bossWarningCue', { pitch: 0.96, durationMs: 760, reverb: 0.26 }),
-            bossSpawn: boss('bossSpawnCue', { pitch: 0.9, durationMs: 980, reverb: 0.34 }),
-
-            levelUp: progression('modalRewardPhrase', { pitch: 1.0, durationMs: 720 }),
-            experienceGain: reward('collectCore', { pitch: 1.04, durationMs: 160, throttleMs: 0 }),
-            weaponUpgrade: progression('upgradePhrase', { pitch: 1.02, durationMs: 760 }),
-            levelUpFanfare: progression('modalRewardPhrase', { pitch: 1.08, durationMs: 860, reverb: 0.38 }),
-            upgradeChime: progression('upgradePhrase', { pitch: 1.18, durationMs: 580, reverb: 0.3 }),
-
-            challengeBell: reward('ritualBell', { pitch: 1.0, durationMs: 500 }),
-            challengeComplete: progression('modalRewardPhrase', { pitch: 1.06, durationMs: 760 }),
-            challengeFail: ui('uiSoftError', { pitch: 0.88, durationMs: 220, reverb: 0.06 }),
-            victoryFanfare: progression('modalRewardPhrase', { pitch: 1.14, durationMs: 920, reverb: 0.4 }),
-            achievementUnlock: progression('achievementPhrase', { pitch: 1.08, durationMs: 820, reverb: 0.38 }),
-
-            heartbeat: ambient('heartbeatLoop', { loop: true, autoStopMs: 1600, durationMs: 1400, reverb: 0.1 }),
-            windHowl: ambient('windLoop', { loop: true, durationMs: 2600, reverb: 0.18, pitch: 0.92 }),
-            gothicOrgan: ambient('organDrone', {
-                loop: true,
-                durationMs: 3000,
-                bus: 'music',
-                family: 'music',
-                reverb: 0.3
-            }),
-            lowDrone: ambient('lowDroneLoop', { loop: true, durationMs: 2800, reverb: 0.2 }),
-            ritualPulse: ambient('ritualPulseLoop', { loop: true, durationMs: 1800, reverb: 0.12 }),
-
-            uiHover: ui('uiGlass', { pitch: 1.08, durationMs: 120 }),
-            uiSelect: ui('uiSelectWarm', { pitch: 1.0, durationMs: 170 }),
-            menuHover: ui('uiGlass', { pitch: 1.12, durationMs: 120 }),
-            menuSelect: ui('uiSelectWarm', { pitch: 0.96, durationMs: 180 }),
-            errorBuzz: ui('uiSoftError', { pitch: 0.84, durationMs: 210 }),
-            gameOver: boss('gameOverFall', { pitch: 0.72, durationMs: 1200, reverb: 0.38 }),
-
-            powerUpCollect: reward('modalRewardAccent', { pitch: 1.2, durationMs: 360, reverb: 0.26 }),
-            weaponEvolution: progression('achievementPhrase', { pitch: 0.92, durationMs: 980, reverb: 0.42 }),
-            skillShot: reward('glassSpark', { pitch: 1.28, durationMs: 260, reverb: 0.18 }),
-
-            lightningStrike: combat('silkLightning', { pitch: 1.0, durationMs: 180, reverb: 0.16 }),
-            lightningChain: combat('silkLightningChain', { pitch: 1.14, durationMs: 160, reverb: 0.16 }),
-
-            garlicPulse: combat('garlicHalo', { pitch: 0.96, durationMs: 260, reverb: 0.16, throttleMs: 65 }),
-
-            orbiterWhoosh: combat('orbiterHalo', { pitch: 0.98, durationMs: 180, reverb: 0.16 }),
-            orbiterHit: combat('glassHit', { pitch: 1.2, durationMs: 150, reverb: 0.12 }),
-
-            fireballLaunch: combat('fireCeramic', { pitch: 0.98, durationMs: 260, reverb: 0.18 }),
-            fireballExplosion: combat('fireBurstWarm', { pitch: 0.84, durationMs: 340, reverb: 0.28 }),
-
-            boomerangThrow: combat('boneFlutter', { pitch: 1.0, durationMs: 230, reverb: 0.14 }),
-            boomerangReturn: combat('boneReturnWhistle', { pitch: 1.14, durationMs: 210, reverb: 0.14 }),
-            weaponFire: combat('woodBoneTick', { pitch: 1.0, durationMs: 150, reverb: 0.08 })
-        };
-    }
-
+    // --- Init ---
     initializeAudioContext() {
         try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) throw new Error('AudioContext unavailable');
 
-            // Master dynamics compressor — tames peaks and reduces harshness
-            this.compressor = this.audioContext.createDynamicsCompressor();
-            this.compressor.threshold.setValueAtTime(-18, this.audioContext.currentTime);
-            this.compressor.knee.setValueAtTime(12, this.audioContext.currentTime);
-            this.compressor.ratio.setValueAtTime(6, this.audioContext.currentTime);
-            this.compressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
-            this.compressor.release.setValueAtTime(0.15, this.audioContext.currentTime);
-            this.compressor.connect(this.audioContext.destination);
+            this.audioContext = new AudioCtx();
 
-            // Master gain node — final stage before compression
-            this.masterGainNode = this.audioContext.createGain();
-            this.masterGainNode.gain.value = 1;
-            this.masterGainNode.connect(this.compressor);
+            this.masterGain = this.audioContext.createGain();
+            this.mixBus = this.audioContext.createGain();
+            this.sfxBus = this.audioContext.createGain();
+            this.musicBus = this.audioContext.createGain();
+            this.musicDuckGain = this.audioContext.createGain();
 
-            this.createAudioBuses();
-            this.createReverbEffect();
+            const comp = this.audioContext.createDynamicsCompressor();
+            comp.threshold.value = -20;
+            comp.knee.value = 24;
+            comp.ratio.value = 5;
+            comp.attack.value = 0.01;
+            comp.release.value = 0.22;
+
+            this.sfxBus.connect(this.mixBus);
+            this.musicBus.connect(this.musicDuckGain).connect(this.mixBus);
+            this.mixBus.connect(comp).connect(this.masterGain).connect(this.audioContext.destination);
+
+            this.musicDuckGain.gain.value = 1;
+
+            this._createReverb();
+            this._createNoiseBuffer();
+            this._applyBusVolumes();
+            this.initialized = true;
         } catch (error) {
             console.warn('Web Audio API not supported:', error);
             this.audioContext = null;
+            this.initialized = false;
         }
     }
 
-    createAudioBuses() {
-        if (!this.audioContext || !this.masterGainNode) return;
+    _createReverb() {
+        if (!this.audioContext || !this.mixBus) return;
 
-        this.busNodes = {};
+        const sr = this.audioContext.sampleRate;
+        const len = Math.floor(sr * 1.4);
+        const impulse = this.audioContext.createBuffer(2, len, sr);
 
-        for (const [name, settings] of Object.entries(this.busSettings)) {
-            const input = this.audioContext.createGain();
-            const highpass = this.audioContext.createBiquadFilter();
-            highpass.type = 'highpass';
-            highpass.frequency.value = settings.highpass;
-
-            const lowpass = this.audioContext.createBiquadFilter();
-            lowpass.type = 'lowpass';
-            lowpass.frequency.value = settings.lowpass;
-            lowpass.Q.value = name === 'combat' ? 0.4 : 0.2;
-
-            const gain = this.audioContext.createGain();
-            gain.gain.value = settings.gain;
-
-            input.connect(highpass);
-            highpass.connect(lowpass);
-            lowpass.connect(gain);
-            gain.connect(this.masterGainNode);
-
-            this.busNodes[name] = { input, highpass, lowpass, gain };
+        for (let ch = 0; ch < 2; ch++) {
+            const data = impulse.getChannelData(ch);
+            let last = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / len;
+                const white = Math.random() * 2 - 1;
+                last = last * 0.82 + white * 0.18;
+                const early = i < sr * 0.045 ? Math.sin(i * 0.17 + ch) * 0.18 : 0;
+                data[i] = (last * Math.pow(1 - t, 3.2) + early) * 0.5;
+            }
         }
 
-        this.updateBusMix();
+        this.reverbConvolver = this.audioContext.createConvolver();
+        this.reverbConvolver.buffer = impulse;
+        this.reverbReturn = this.audioContext.createGain();
+        this.reverbReturn.gain.value = 0.18;
+        this.reverbConvolver.connect(this.reverbReturn).connect(this.mixBus);
     }
 
-    createReverbEffect() {
+    _createNoiseBuffer() {
         if (!this.audioContext) return;
 
-        try {
-            // Create impulse response for a soft ritual hall reverb
-            const length = this.audioContext.sampleRate * 3; // 3 seconds
-            const impulse = this.audioContext.createBuffer(2, length, this.audioContext.sampleRate);
+        const len = this.audioContext.sampleRate * 2;
+        const buf = this.audioContext.createBuffer(1, len, this.audioContext.sampleRate);
+        const data = buf.getChannelData(0);
+        let brown = 0;
+        for (let i = 0; i < len; i++) {
+            brown = (brown + (Math.random() * 2 - 1) * 0.18) * 0.985;
+            data[i] = clamp(brown, -1, 1);
+        }
+        this.noiseBuffer = buf;
+    }
 
-            for (let channel = 0; channel < 2; channel++) {
-                const channelData = impulse.getChannelData(channel);
-                for (let i = 0; i < length; i++) {
-                    const decay = Math.pow(1 - i / length, 2.7);
-                    const toneTilt = 1 - Math.min(0.65, i / length);
-                    channelData[i] = (Math.random() * 2 - 1) * decay * toneTilt;
+    // --- Voice Pool ---
+    _reapVoices(now = this.audioContext?.currentTime || 0) {
+        for (let i = this.voices.length - 1; i >= 0; i--) {
+            if (this.voices[i].endTime <= now) {
+                this.voices.splice(i, 1);
+            }
+        }
+    }
+
+    _allocVoice(priority, duration, kind = 'sfx') {
+        this._reapVoices();
+        const now = this.audioContext.currentTime;
+
+        if (this.voices.length >= MAX_VOICES) {
+            let stealIdx = 0;
+            let stealScore = Infinity;
+            for (let i = 0; i < this.voices.length; i++) {
+                const v = this.voices[i];
+                const timeLeft = Math.max(0, v.endTime - now);
+                const score = v.priority * 1000 + timeLeft * 100 + (v.kind === 'music' ? 50 : 0);
+                if (score < stealScore) {
+                    stealScore = score;
+                    stealIdx = i;
                 }
             }
 
-            this.reverbBuffer = impulse;
-        } catch (error) {
-            console.warn('Failed to create reverb effect:', error);
-            this.reverbBuffer = null;
-        }
-    }
-
-    getBusInput(name) {
-        return this.busNodes[name]?.input || this.masterGainNode || this.audioContext?.destination || null;
-    }
-
-    updateBusMix() {
-        if (!this.audioContext || !this.busNodes) return;
-
-        const now = this.audioContext.currentTime;
-        const intensity = this.gameIntensity || 0;
-        const settings = {
-            ambient: {
-                gain: this.mixDebug.busGains.ambient * (0.9 - intensity * 0.1),
-                lowpass: 2400 - intensity * 300
-            },
-            music: {
-                gain: this.mixDebug.busGains.music,
-                lowpass: 5200 - intensity * 500
-            },
-            combat: {
-                gain: this.mixDebug.busGains.combat,
-                lowpass: 7600 - intensity * 2400
-            },
-            reward: {
-                gain: this.mixDebug.busGains.reward,
-                lowpass: 8400 - intensity * 900
-            },
-            ui: {
-                gain: this.mixDebug.busGains.ui,
-                lowpass: 9000
-            }
-        };
-
-        for (const [name, bus] of Object.entries(this.busNodes)) {
-            const mix = settings[name];
-            if (!mix) continue;
-
+            const stolen = this.voices[stealIdx];
             try {
-                bus.gain.gain.setTargetAtTime(mix.gain, now, 0.25);
-                bus.lowpass.frequency.setTargetAtTime(mix.lowpass, now, 0.25);
-            } catch (error) {
-                // Ignore filter automation errors
+                stolen.gain.gain.cancelScheduledValues(now);
+                stolen.gain.gain.setValueAtTime(0, now);
+            } catch (e) {
+                // noop
             }
-        }
-    }
-
-    getSoundConfig(name) {
-        return (
-            this.vampireSoundMap[name] || {
-                type: 'softImpact',
-                bus: 'combat',
-                family: 'combat',
-                pitch: 1.0,
-                reverb: 0.12,
-                durationMs: 220,
-                throttleMs: this.throttleInterval
-            }
-        );
-    }
-
-    shouldAggregateSound(name) {
-        return Boolean(this.aggregationSettings[name]);
-    }
-
-    queueAggregatedSound(name, volume, pitch, config) {
-        const settings = this.aggregationSettings[name];
-        if (!settings) return false;
-
-        const pending = this.pendingAggregations.get(name) || {
-            count: 0,
-            totalVolume: 0,
-            maxVolume: 0,
-            pitchSum: 0,
-            maxPitch: 0,
-            config
-        };
-
-        pending.count++;
-        pending.totalVolume += volume;
-        pending.maxVolume = Math.max(pending.maxVolume, volume);
-        pending.pitchSum += pitch;
-        pending.maxPitch = Math.max(pending.maxPitch, pitch);
-        pending.config = config;
-
-        if (pending.timerId) {
-            managedClearTimeout(pending.timerId);
+            this.voices.splice(stealIdx, 1);
         }
 
-        pending.timerId = managedSetTimeout(
-            () => {
-                this.flushAggregatedSound(name);
-            },
-            settings.windowMs,
-            this
-        );
+        const input = this.audioContext.createGain();
+        const toneFilter = this.audioContext.createBiquadFilter();
+        toneFilter.type = 'lowpass';
+        toneFilter.frequency.value = kind === 'music' ? 2800 : 4800;
+        toneFilter.Q.value = 0.7;
 
-        this.pendingAggregations.set(name, pending);
-        return true;
-    }
-
-    flushAggregatedSound(name) {
-        const pending = this.pendingAggregations.get(name);
-        const settings = this.aggregationSettings[name];
-        if (!pending || !settings) return;
-
-        this.pendingAggregations.delete(name);
-
-        const averagePitch = pending.pitchSum / Math.max(1, pending.count);
-        const densityBoost = Math.min(1.75, 1 + pending.count * 0.08);
-        const volume = Math.min(
-            0.95,
-            Math.min(0.85, Math.max(pending.maxVolume, pending.totalVolume * 0.35)) * densityBoost
-        );
-        const pitch = Math.min(pending.maxPitch + 0.08, averagePitch + pending.count * 0.015);
-        const aggregateConfig = {
-            ...pending.config,
-            type: settings.aggregateType,
-            family: settings.family || pending.config.family,
-            durationMs: settings.durationMs,
-            reverb: settings.reverb ?? pending.config.reverb,
-            throttleMs: settings.windowMs
-        };
-
-        this.playResolvedSound(settings.aggregateName, volume, pitch, aggregateConfig, {
-            bypassAggregation: true,
-            bypassThrottle: true
-        });
-    }
-
-    playLoopingSound(name, volume, pitch, config) {
-        if (!this.audioContext) return;
-
-        const existing = this.activeLoopingSounds.get(name);
-        if (existing) {
-            existing.volume = volume;
-            existing.pitch = pitch;
-            if (typeof existing.update === 'function') {
-                existing.update(volume, pitch);
-            }
-            this.refreshLoopAutoStop(name, config);
-            return;
-        }
-
-        const controller = this.createLoopingController(name, volume, pitch, config);
-        if (!controller) return;
-
-        this.activeLoopingSounds.set(name, controller);
-        this.refreshLoopAutoStop(name, config);
-    }
-
-    refreshLoopAutoStop(name, config) {
-        const controller = this.activeLoopingSounds.get(name);
-        if (!controller || !config.autoStopMs) return;
-
-        if (controller.autoStopTimerId) {
-            managedClearTimeout(controller.autoStopTimerId);
-        }
-
-        controller.autoStopTimerId = managedSetTimeout(
-            () => {
-                this.stopLoopingSound(name);
-            },
-            config.autoStopMs,
-            this
-        );
-    }
-
-    createLoopingController(name, volume, pitch, config) {
-        const busInput = this.getBusInput(config.bus || 'ambient');
-        if (!busInput) return null;
-
-        switch (config.type) {
-            case 'windLoop':
-                return this.createWindLoopController(name, busInput, volume, pitch, config);
-            case 'lowDroneLoop':
-                return this.createLowDroneController(name, busInput, volume, pitch, config);
-            case 'ritualPulseLoop':
-                return this.createRitualPulseController(name, busInput, volume, pitch, config);
-            case 'heartbeatLoop':
-                return this.createHeartbeatLoopController(name, busInput, volume, pitch, config);
-            case 'organDrone':
-                return this.createOrganLoopController(name, busInput, volume, pitch, config);
-            default:
-                return this.createOneShotLoopController(name, volume, pitch, config);
-        }
-    }
-
-    createLoopGain(busInput, targetVolume) {
         const gain = this.audioContext.createGain();
-        gain.gain.value = 0.0001;
-        gain.connect(busInput);
+        gain.gain.value = 0;
 
-        try {
-            gain.gain.setTargetAtTime(Math.max(0.0001, targetVolume), this.audioContext.currentTime, 0.6);
-        } catch (error) {
-            gain.gain.value = targetVolume;
-        }
+        input.connect(toneFilter).connect(gain);
 
-        return gain;
+        const endTime = now + duration;
+        const voice = { input, filter: toneFilter, gain, priority, kind, startTime: now, endTime, nodes: [] };
+        this.voices.push(voice);
+        return voice;
     }
 
-    createWindLoopController(name, busInput, volume, pitch, config) {
-        const gain = this.createLoopGain(busInput, volume * this.soundVolume * this.masterVolume * 0.55);
-        const source = this.audioContext.createBufferSource();
-        source.buffer = this.getNoiseBuffer();
-        source.loop = true;
+    _connectVoice(voice, wetAmount = 0.12) {
+        const bus = voice.kind === 'music' ? this.musicBus : this.sfxBus;
+        voice.gain.connect(bus);
 
-        const bandpass = this.audioContext.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.value = 420 * pitch;
-        bandpass.Q.value = 0.4;
-
-        const lowpass = this.audioContext.createBiquadFilter();
-        lowpass.type = 'lowpass';
-        lowpass.frequency.value = 1800;
-
-        const lfo = this.audioContext.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.value = 0.05;
-        const lfoGain = this.audioContext.createGain();
-        lfoGain.gain.value = 120;
-
-        source.connect(bandpass);
-        bandpass.connect(lowpass);
-        lowpass.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(bandpass.frequency);
-
-        source.start();
-        lfo.start();
-
-        return {
-            name,
-            gain,
-            nodes: [source, bandpass, lowpass, lfo, lfoGain],
-            update: (nextVolume, nextPitch) => {
-                gain.gain.setTargetAtTime(
-                    Math.max(0.0001, nextVolume * this.soundVolume * this.masterVolume * 0.55),
-                    this.audioContext.currentTime,
-                    0.8
-                );
-                bandpass.frequency.setTargetAtTime(420 * nextPitch, this.audioContext.currentTime, 1.2);
-            }
-        };
-    }
-
-    createLowDroneController(name, busInput, volume, pitch) {
-        const gain = this.createLoopGain(busInput, volume * this.soundVolume * this.masterVolume * 0.42);
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 360;
-        filter.Q.value = 0.3;
-
-        const osc1 = this.audioContext.createOscillator();
-        osc1.type = 'sine';
-        osc1.frequency.value = 73.42 * pitch;
-
-        const osc2 = this.audioContext.createOscillator();
-        osc2.type = 'triangle';
-        osc2.frequency.value = 110 * pitch;
-
-        const osc2Gain = this.audioContext.createGain();
-        osc2Gain.gain.value = 0.32;
-
-        const lfo = this.audioContext.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.value = 0.07;
-        const lfoGain = this.audioContext.createGain();
-        lfoGain.gain.value = 4;
-
-        osc1.connect(filter);
-        osc2.connect(osc2Gain);
-        osc2Gain.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc1.frequency);
-
-        osc1.start();
-        osc2.start();
-        lfo.start();
-
-        return {
-            name,
-            gain,
-            nodes: [osc1, osc2, osc2Gain, filter, lfo, lfoGain],
-            update: (nextVolume, nextPitch) => {
-                gain.gain.setTargetAtTime(
-                    Math.max(0.0001, nextVolume * this.soundVolume * this.masterVolume * 0.42),
-                    this.audioContext.currentTime,
-                    0.9
-                );
-                osc1.frequency.setTargetAtTime(73.42 * nextPitch, this.audioContext.currentTime, 1.4);
-                osc2.frequency.setTargetAtTime(110 * nextPitch, this.audioContext.currentTime, 1.4);
-            }
-        };
-    }
-
-    createOrganLoopController(name, busInput, volume, pitch) {
-        const gain = this.createLoopGain(busInput, volume * this.soundVolume * this.masterVolume * 0.28);
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 1400;
-        filter.Q.value = 0.2;
-
-        const freqs = [146.83, 220, 293.66].map((freq) => freq * pitch);
-        const nodes = [filter];
-
-        freqs.forEach((freq, index) => {
-            const osc = this.audioContext.createOscillator();
-            osc.type = index === 1 ? 'triangle' : 'sine';
-            osc.frequency.value = freq;
-
-            const partialGain = this.audioContext.createGain();
-            partialGain.gain.value = index === 1 ? 0.32 : 0.22;
-            osc.connect(partialGain);
-            partialGain.connect(filter);
-            osc.start();
-
-            nodes.push(osc, partialGain);
-        });
-
-        filter.connect(gain);
-
-        return {
-            name,
-            gain,
-            nodes,
-            update: (nextVolume) => {
-                gain.gain.setTargetAtTime(
-                    Math.max(0.0001, nextVolume * this.soundVolume * this.masterVolume * 0.28),
-                    this.audioContext.currentTime,
-                    1.2
-                );
-            }
-        };
-    }
-
-    createRitualPulseController(name, busInput, volume, pitch, config) {
-        const gain = this.createLoopGain(busInput, volume * this.soundVolume * this.masterVolume);
-        const state = { volume, pitch };
-        const timerId = managedSetInterval(
-            () => {
-                if (this.muted) return;
-                const pulseConfig = {
-                    ...config,
-                    loop: false,
-                    reverb: 0.08,
-                    durationMs: 220,
-                    bus: 'ambient',
-                    family: 'ambient'
-                };
-                this.synthesizeVampireSound('ritualPulseOneShot', state.volume * 0.45, state.pitch, pulseConfig);
-            },
-            2300,
-            this
-        );
-
-        return {
-            name,
-            gain,
-            intervalIds: [timerId],
-            nodes: [],
-            update: (nextVolume, nextPitch) => {
-                state.volume = nextVolume;
-                state.pitch = nextPitch;
-                gain.gain.setTargetAtTime(
-                    Math.max(0.0001, nextVolume * this.soundVolume * this.masterVolume),
-                    this.audioContext.currentTime,
-                    0.8
-                );
-            }
-        };
-    }
-
-    createHeartbeatLoopController(name, busInput, volume, pitch, config) {
-        const gain = this.createLoopGain(busInput, volume * this.soundVolume * this.masterVolume);
-        const state = { volume, pitch };
-        const timerId = managedSetInterval(
-            () => {
-                if (this.muted) return;
-                const heartbeatConfig = {
-                    ...config,
-                    loop: false,
-                    reverb: 0.04,
-                    durationMs: 180,
-                    bus: 'ambient',
-                    family: 'ambient'
-                };
-                this.synthesizeVampireSound('heartbeatPulse', state.volume * 0.48, state.pitch, heartbeatConfig);
-                managedSetTimeout(
-                    () => {
-                        this.synthesizeVampireSound(
-                            'heartbeatPulse',
-                            state.volume * 0.35,
-                            state.pitch * 0.98,
-                            heartbeatConfig
-                        );
-                    },
-                    180,
-                    this
-                );
-            },
-            900,
-            this
-        );
-
-        return {
-            name,
-            gain,
-            intervalIds: [timerId],
-            nodes: [],
-            update: (nextVolume, nextPitch) => {
-                state.volume = nextVolume;
-                state.pitch = nextPitch;
-                gain.gain.setTargetAtTime(
-                    Math.max(0.0001, nextVolume * this.soundVolume * this.masterVolume),
-                    this.audioContext.currentTime,
-                    0.35
-                );
-            }
-        };
-    }
-
-    createOneShotLoopController(name, volume, pitch, config) {
-        const state = { volume, pitch };
-        const timerId = managedSetInterval(
-            () => {
-                if (this.muted) return;
-                this.playResolvedSound(
-                    name,
-                    state.volume,
-                    state.pitch,
-                    { ...config, loop: false },
-                    { bypassAggregation: true }
-                );
-            },
-            Math.max(400, config.durationMs || 1200),
-            this
-        );
-
-        return {
-            name,
-            nodes: [],
-            intervalIds: [timerId],
-            update: (nextVolume, nextPitch) => {
-                state.volume = nextVolume;
-                state.pitch = nextPitch;
-            }
-        };
-    }
-
-    stopLoopingSound(name) {
-        const controller = this.activeLoopingSounds.get(name);
-        if (!controller) return;
-
-        this.activeLoopingSounds.delete(name);
-
-        if (controller.autoStopTimerId) {
-            managedClearTimeout(controller.autoStopTimerId);
-        }
-
-        if (controller.intervalIds) {
-            controller.intervalIds.forEach((id) => managedClearInterval(id));
-        }
-
-        if (controller.gain && this.audioContext) {
-            try {
-                controller.gain.gain.setTargetAtTime(0.0001, this.audioContext.currentTime, 0.25);
-            } catch (error) {
-                // Ignore gain automation errors
-            }
-        }
-
-        managedSetTimeout(
-            () => {
-                const disconnectables = [...(controller.nodes || []), controller.gain].filter(Boolean);
-                disconnectables.forEach((node) => {
-                    try {
-                        if (typeof node.stop === 'function') node.stop();
-                    } catch (error) {
-                        // Ignore stop errors
-                    }
-
-                    try {
-                        if (typeof node.disconnect === 'function') node.disconnect();
-                    } catch (error) {
-                        // Ignore disconnect errors
-                    }
-                });
-            },
-            320,
-            this
-        );
-    }
-
-    clearAggregations() {
-        for (const [name, pending] of this.pendingAggregations.entries()) {
-            if (pending.timerId) {
-                managedClearTimeout(pending.timerId);
-            }
-            this.pendingAggregations.delete(name);
+        if (this.reverbConvolver && wetAmount > 0) {
+            const wet = this.audioContext.createGain();
+            wet.gain.value = wetAmount;
+            voice.gain.connect(wet);
+            wet.connect(this.reverbConvolver);
+            voice.nodes.push(wet);
         }
     }
 
-    getNoiseBuffer() {
-        if (!this.audioContext) return null;
-        if (!this._noiseBuffer) {
-            const len = this.audioContext.sampleRate;
-            this._noiseBuffer = this.audioContext.createBuffer(1, len, this.audioContext.sampleRate);
-            const data = this._noiseBuffer.getChannelData(0);
-            for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-        }
-        return this._noiseBuffer;
+    _shapeVoice(voice, {
+        brightness = 1,
+        resonance = 0.8,
+        filterType = 'lowpass'
+    } = {}) {
+        const density = this._getDensityFactor();
+        const intensityBias = 0.9 + this.gameIntensity * 0.12;
+        const antiFatigue = 1 - density * 0.35;
+        const cutoff = clamp(450, 9000, 700 + brightness * 5200 * intensityBias * antiFatigue);
+
+        voice.filter.type = filterType;
+        voice.filter.frequency.setValueAtTime(cutoff, this.audioContext.currentTime);
+        voice.filter.Q.setValueAtTime(clamp(resonance, 0.2, 8), this.audioContext.currentTime);
     }
 
-    // Enhanced play method with vampire-themed processing AND THROTTLING
-    playVampireSound(name, volume = 1, pitch = 1) {
-        if (this.muted) return;
+    _duckMusic(amount = 0.18, hold = 0.16) {
+        if (!this.musicDuckGain || !this.audioContext) return;
 
-        const soundConfig = this.getSoundConfig(name);
-
-        if (soundConfig.loop) {
-            this.playLoopingSound(name, volume, pitch, soundConfig);
-            return;
-        }
-
-        if (this.shouldAggregateSound(name)) {
-            this.queueAggregatedSound(name, volume, pitch, soundConfig);
-            return;
-        }
-
-        this.playResolvedSound(name, volume, pitch, soundConfig);
-    }
-
-    playResolvedSound(name, volume, pitch, config, options = {}) {
-        if (this.muted) return false;
-
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume().catch(() => {});
-        }
-
-        const throttleTime = config.throttleMs ?? this.throttleInterval;
-        const now = performance.now();
-        const lastPlayed = this.soundThrottle.get(name) || 0;
-        if (!options.bypassThrottle && throttleTime > 0 && now - lastPlayed < throttleTime) {
-            return false;
-        }
-
-        const family = config.family || 'combat';
-        const familyCount = this.playingByFamily.get(family) || 0;
-        const familyCap = this.familyCaps[family] || this.maxSimultaneousSounds;
-        if (!options.bypassFamilyCap && familyCount >= familyCap) {
-            return false;
-        }
-
-        if (
-            !options.bypassFamilyCap &&
-            this.currentlyPlaying >= this.maxSimultaneousSounds &&
-            !['ui', 'boss'].includes(family)
-        ) {
-            return false;
-        }
-
-        this.soundThrottle.set(name, now);
-        this.currentlyPlaying++;
-        this.playingByFamily.set(family, familyCount + 1);
-
-        const durationMs = config.durationMs || 260;
-        managedSetTimeout(
-            () => {
-                this.currentlyPlaying = Math.max(0, this.currentlyPlaying - 1);
-                const nextCount = Math.max(0, (this.playingByFamily.get(family) || 1) - 1);
-                if (nextCount === 0) {
-                    this.playingByFamily.delete(family);
-                } else {
-                    this.playingByFamily.set(family, nextCount);
-                }
-            },
-            durationMs,
-            this
-        );
-
-        const adjustedVolume = volume * this.getIntensityMultiplier(config.type);
-        const adjustedPitch = pitch * (config.pitch || 1);
-        const loadSoftness = this.getLoadSoftness(family, familyCap);
-
-        this.playWithEffects(name, adjustedVolume, adjustedPitch, { ...config, loadSoftness });
-        return true;
-    }
-
-    getLoadSoftness(family, familyCap) {
-        const familyLoad = (this.playingByFamily.get(family) || 0) / Math.max(1, familyCap);
-        const globalLoad = this.currentlyPlaying / Math.max(1, this.maxSimultaneousSounds);
-        return Math.max(0, Math.min(1, Math.max(familyLoad, globalLoad * 0.9)));
-    }
-
-    playWithEffects(name, volume, pitch, config) {
-        const sound = this.sounds[name];
-        if (!sound) {
-            // Create a synthesized sound if the actual sound file doesn't exist
-            this.synthesizeVampireSound(config.type, volume, pitch, config);
-            return;
-        }
-
-        try {
-            // Apply dynamic volume based on game intensity
-            const finalVolume = volume * this.soundVolume * this.masterVolume;
-            sound.volume = finalVolume;
-
-            // Apply pitch if supported (limited in HTML5 Audio)
-            if (sound.playbackRate !== undefined) {
-                sound.playbackRate = pitch;
-            }
-
-            sound.currentTime = 0;
-            sound.play().catch(() => {
-                // Ignore autoplay errors
-            });
-        } catch (error) {
-            // Fall back to synthesized sound
-            this.synthesizeVampireSound(config.type, volume, pitch, config);
-        }
-    }
-
-    createSynthDestination(config) {
-        const busInput = this.getBusInput(config.bus || 'combat');
-        if (!busInput || !this.audioContext) {
-            return this.masterGainNode || this.audioContext?.destination;
-        }
-
-        const softness = config.loadSoftness || 0;
-
-        const sourceGain = this.audioContext.createGain();
-        const routeFilter = this.audioContext.createBiquadFilter();
-        routeFilter.type = 'lowpass';
-        routeFilter.frequency.value = 12000 - softness * 6500;
-        routeFilter.Q.value = 0.2;
-        sourceGain.connect(routeFilter);
-
-        const finalOutput = this.audioContext.createGain();
-        finalOutput.gain.value = 1 - Math.max(0, softness - 0.6) * 0.15;
-        const cleanupNodes = [sourceGain, routeFilter, finalOutput];
-
-        if (this.reverbBuffer && config.reverb > 0) {
-            const dryGain = this.audioContext.createGain();
-            dryGain.gain.value = 1 - config.reverb * 0.5;
-
-            const wetSend = this.audioContext.createGain();
-            wetSend.gain.value = config.reverb * 0.45;
-            const convolver = this.audioContext.createConvolver();
-            convolver.buffer = this.reverbBuffer;
-            cleanupNodes.push(dryGain, wetSend, convolver);
-
-            routeFilter.connect(dryGain);
-            routeFilter.connect(wetSend);
-            wetSend.connect(convolver);
-            convolver.connect(finalOutput);
-            dryGain.connect(finalOutput);
-        } else {
-            routeFilter.connect(finalOutput);
-        }
-
-        finalOutput.connect(busInput);
-
-        managedSetTimeout(
-            () => {
-                cleanupNodes.forEach((node) => {
-                    try {
-                        node.disconnect();
-                    } catch (error) {
-                        // Ignore disconnect errors
-                    }
-                });
-            },
-            (config.durationMs || 260) + 300,
-            this
-        );
-
-        return sourceGain;
-    }
-
-    // ── Multi-oscillator layered synthesis engine ──────────────────────
-    // Each sound type creates 2-4 oscillator layers + optional noise for
-    // rich, satisfying audio.  Pitch is randomized ±5-15 % per play so
-    // no two hits sound identical.
-
-    /**
-     * Create a one-shot noise burst (white noise through a bandpass).
-     * Returns a {source, gain} pair already connected to `destination`.
-     */
-    _createNoiseBurst(destination, volume, duration, freqCenter = 1000, Q = 1) {
-        const src = this.audioContext.createBufferSource();
-        src.buffer = this.getNoiseBuffer();
-
-        const bp = this.audioContext.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.value = freqCenter;
-        bp.Q.value = Q;
-
-        const g = this.audioContext.createGain();
         const now = this.audioContext.currentTime;
-        g.gain.setValueAtTime(0, now);
-        g.gain.linearRampToValueAtTime(Math.min(0.06, volume * 0.08), now + 0.005);
-        g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        const target = clamp(1 - amount, 0.45, 1);
+        const gain = this.musicDuckGain.gain;
 
-        src.connect(bp).connect(g).connect(destination);
-        src.start(now);
-        src.stop(now + duration);
-        return { source: src, gain: g };
+        gain.cancelScheduledValues(now);
+        gain.setTargetAtTime(target, now, 0.015);
+        gain.setTargetAtTime(1, now + hold, 0.22);
     }
 
-    /**
-     * Helper — create one oscillator layer with envelope.
-     * @returns {OscillatorNode}
-     */
-    _createLayer(
-        destination,
-        {
-            wave,
-            freqStart,
-            freqEnd,
-            freqDur,
-            attack = 0.01,
-            sustain = 0.08,
-            decay = 0.2,
-            volume = 0.1,
-            delay = 0,
-            sweepType = 'exp'
-        }
-    ) {
-        const now = this.audioContext.currentTime + delay;
+    _getDensityFactor() {
+        this._reapVoices();
+        return clamp(this.voices.length / MAX_VOICES, 0, 1);
+    }
+
+    // --- Synthesis primitives ---
+    _osc(type, freq, voice, duration, when = this.audioContext.currentTime) {
         const osc = this.audioContext.createOscillator();
-        osc.type = wave;
-        osc.frequency.setValueAtTime(freqStart, now);
-        if (freqEnd && freqDur) {
-            if (sweepType === 'exp') {
-                osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), now + freqDur);
-            } else {
-                osc.frequency.linearRampToValueAtTime(freqEnd, now + freqDur);
-            }
-        }
-
-        const g = this.audioContext.createGain();
-        const peak = Math.min(0.1, volume);
-        const actualAttack = Math.max(0.005, attack);
-        g.gain.setValueAtTime(0.0001, now);
-        g.gain.exponentialRampToValueAtTime(peak, now + actualAttack);
-        g.gain.setValueAtTime(peak * 0.75, now + actualAttack + sustain);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + actualAttack + sustain + decay);
-
-        osc.connect(g).connect(destination);
-        const total = actualAttack + sustain + decay;
-        osc.start(now);
-        osc.stop(now + total + 0.01);
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(voice.input);
+        osc.start(when);
+        osc.stop(when + duration + 0.05);
+        voice.nodes.push(osc);
         return osc;
     }
 
-    synthesizeVampireSound(type, volume, pitch, config) {
-        if (!this.audioContext) return;
+    _noiseSource(voice, duration, {
+        type = 'bandpass',
+        frequency = 2500,
+        q = 1,
+        when = this.audioContext.currentTime,
+        playbackRate = 1
+    } = {}) {
+        const src = this.audioContext.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        src.loop = true;
+        src.playbackRate.value = playbackRate;
 
-        try {
-            // Pitch randomization — ±8 % so repeated sounds differ
-            const pr = pitch * (0.92 + Math.random() * 0.16);
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = type;
+        filter.frequency.value = frequency;
+        filter.Q.value = q;
 
-            const dest = this.createSynthDestination(config || {});
-            const v = volume * (1 - (config?.loadSoftness || 0) * 0.12);
-            const sparkle = 1 - (config?.loadSoftness || 0) * 0.45;
-            const noiseSoftness = 1 - (config?.loadSoftness || 0) * 0.55;
+        src.connect(filter).connect(voice.input);
+        src.start(when);
+        src.stop(when + duration + 0.05);
+        voice.nodes.push(src, filter);
+        return { src, filter };
+    }
 
-            switch (type) {
-                // ── COMBAT ──────────────────────────────────────
-                case 'glassPluck': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 587 * pr,
-                        freqEnd: 740 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.1,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.18
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 880 * pr,
-                        freqEnd: 932 * pr,
-                        freqDur: 0.1,
-                        volume: v * 0.06 * sparkle,
-                        attack: 0.008,
-                        sustain: 0.03,
-                        decay: 0.22,
-                        delay: 0.012
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 1174 * pr,
-                        freqEnd: 1318 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.03 * sparkle,
-                        attack: 0.015,
-                        sustain: 0.05,
-                        decay: 0.26,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'glassHit': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 740 * pr,
-                        freqEnd: 698 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.08,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.16
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1480 * pr,
-                        freqEnd: 1244 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.035 * sparkle,
-                        attack: 0.005,
-                        sustain: 0.025,
-                        decay: 0.14,
-                        delay: 0.008
-                    });
-                    break;
-                }
-
-                case 'magicChargeWarm': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 220 * pr,
-                        freqEnd: 293 * pr,
-                        freqDur: 0.22,
-                        volume: v * 0.09,
-                        attack: 0.04,
-                        sustain: 0.1,
-                        decay: 0.22,
-                        sweepType: 'lin'
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 440 * pr,
-                        freqEnd: 523 * pr,
-                        freqDur: 0.22,
-                        volume: v * 0.05 * sparkle,
-                        attack: 0.05,
-                        sustain: 0.08,
-                        decay: 0.26,
-                        delay: 0.03,
-                        sweepType: 'lin'
-                    });
-                    break;
-                }
-
-                case 'reedAir': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 392 * pr,
-                        freqEnd: 440 * pr,
-                        freqDur: 0.18,
-                        volume: v * 0.06,
-                        attack: 0.02,
-                        sustain: 0.06,
-                        decay: 0.18
-                    });
-                    this._createNoiseBurst(dest, v * 0.16 * noiseSoftness, 0.12, 1800, 0.5);
-                    break;
-                }
-
-                case 'whipBody': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 180 * pr,
-                        freqEnd: 120 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.12,
-                        attack: 0.004,
-                        sustain: 0.02,
-                        decay: 0.12
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 82 * pr,
-                        freqEnd: 60 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.08,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.14,
-                        delay: 0.008
-                    });
-                    this._createNoiseBurst(dest, v * 0.14 * noiseSoftness, 0.04, 2200, 0.9);
-                    break;
-                }
-
-                case 'whipImpact': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 130 * pr,
-                        freqEnd: 88 * pr,
-                        freqDur: 0.06,
-                        volume: v * 0.12,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.1
-                    });
-                    this._createNoiseBurst(dest, v * 0.1 * noiseSoftness, 0.03, 1500, 0.7);
-                    break;
-                }
-
-                case 'clothWhoosh': {
-                    this._createNoiseBurst(dest, v * 0.14 * noiseSoftness, 0.08, 1100, 0.45);
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 260 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.03,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.08
-                    });
-                    break;
-                }
-
-                case 'bladeAir': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 980 * pr,
-                        freqEnd: 1240 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.06,
-                        attack: 0.002,
-                        sustain: 0.015,
-                        decay: 0.08
-                    });
-                    this._createNoiseBurst(dest, v * 0.08 * noiseSoftness, 0.05, 2600, 0.8);
-                    break;
-                }
-
-                case 'woodBoneTick': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 420 * pr,
-                        freqEnd: 300 * pr,
-                        freqDur: 0.04,
-                        volume: v * 0.06,
-                        attack: 0.002,
-                        sustain: 0.015,
-                        decay: 0.06
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 210 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.04,
-                        attack: 0.002,
-                        sustain: 0.01,
-                        decay: 0.08,
-                        delay: 0.004
-                    });
-                    break;
-                }
-
-                case 'softImpact': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 90 * pr,
-                        freqEnd: 50 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.1,
-                        attack: 0.003,
-                        sustain: 0.025,
-                        decay: 0.12
-                    });
-                    this._createNoiseBurst(dest, v * 0.1 * noiseSoftness, 0.04, 1700, 0.8);
-                    break;
-                }
-
-                case 'aggressiveWarm': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 150 * pr,
-                        freqEnd: 105 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.12,
-                        attack: 0.006,
-                        sustain: 0.04,
-                        decay: 0.16
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 62 * pr,
-                        freqEnd: 46 * pr,
-                        freqDur: 0.13,
-                        volume: v * 0.08,
-                        attack: 0.005,
-                        sustain: 0.03,
-                        decay: 0.14,
-                        delay: 0.004
-                    });
-                    this._createNoiseBurst(dest, v * 0.12 * noiseSoftness, 0.05, 1800, 0.7);
-                    break;
-                }
-
-                case 'wetSoft': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 180 * pr,
-                        freqEnd: 150 * pr,
-                        freqDur: 0.18,
-                        volume: v * 0.08,
-                        attack: 0.006,
-                        sustain: 0.04,
-                        decay: 0.14,
-                        sweepType: 'lin'
-                    });
-                    this._createNoiseBurst(dest, v * 0.12 * noiseSoftness, 0.08, 700, 0.4);
-                    break;
-                }
-
-                case 'deathBloomCore': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 220 * pr,
-                        freqEnd: 90 * pr,
-                        freqDur: 0.22,
-                        volume: v * 0.08,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.2
-                    });
-                    this._createNoiseBurst(dest, v * 0.1 * noiseSoftness, 0.08, 1400, 0.5);
-                    break;
-                }
-
-                case 'deathBloom': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 246 * pr,
-                        freqEnd: 110 * pr,
-                        freqDur: 0.28,
-                        volume: v * 0.09,
-                        attack: 0.01,
-                        sustain: 0.06,
-                        decay: 0.24
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 147 * pr,
-                        freqEnd: 73 * pr,
-                        freqDur: 0.24,
-                        volume: v * 0.06,
-                        attack: 0.01,
-                        sustain: 0.05,
-                        decay: 0.22,
-                        delay: 0.03
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 587 * pr,
-                        freqEnd: 220 * pr,
-                        freqDur: 0.26,
-                        volume: v * 0.03 * sparkle,
-                        attack: 0.03,
-                        sustain: 0.05,
-                        decay: 0.3,
-                        delay: 0.04
-                    });
-                    break;
-                }
-
-                case 'collectCore': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 587 * pr,
-                        freqEnd: 622 * pr,
-                        freqDur: 0.06,
-                        volume: v * 0.07,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.08
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 740 * pr,
-                        freqEnd: 784 * pr,
-                        freqDur: 0.07,
-                        volume: v * 0.06,
-                        attack: 0.003,
-                        sustain: 0.025,
-                        decay: 0.1,
-                        delay: 0.025
-                    });
-                    break;
-                }
-
-                case 'collectCluster': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 587 * pr,
-                        freqEnd: 659 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.08,
-                        attack: 0.003,
-                        sustain: 0.03,
-                        decay: 0.12
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 740 * pr,
-                        freqEnd: 784 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.07,
-                        attack: 0.003,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.04
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 880 * pr,
-                        freqEnd: 988 * pr,
-                        freqDur: 0.1,
-                        volume: v * 0.05 * sparkle,
-                        attack: 0.01,
-                        sustain: 0.04,
-                        decay: 0.16,
-                        delay: 0.08
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 1174 * pr,
-                        freqEnd: 1318 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.03 * sparkle,
-                        attack: 0.012,
-                        sustain: 0.05,
-                        decay: 0.18,
-                        delay: 0.11
-                    });
-                    break;
-                }
-
-                case 'modalRewardAccent': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 293 * pr,
-                        freqEnd: 311 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.08,
-                        attack: 0.01,
-                        sustain: 0.05,
-                        decay: 0.2
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 440 * pr,
-                        freqEnd: 466 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.05 * sparkle,
-                        attack: 0.015,
-                        sustain: 0.05,
-                        decay: 0.22,
-                        delay: 0.04
-                    });
-                    break;
-                }
-
-                case 'lowRewardBloom': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 146 * pr,
-                        freqEnd: 196 * pr,
-                        freqDur: 0.18,
-                        volume: v * 0.08,
-                        attack: 0.012,
-                        sustain: 0.06,
-                        decay: 0.24
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 293 * pr,
-                        freqEnd: 349 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.04,
-                        attack: 0.02,
-                        sustain: 0.05,
-                        decay: 0.22,
-                        delay: 0.04
-                    });
-                    break;
-                }
-
-                case 'modalRewardPhrase':
-                case 'upgradePhrase':
-                case 'achievementPhrase':
-                case 'bossResolve': {
-                    const phrase =
-                        type === 'bossResolve'
-                            ? [146, 174, 220, 293]
-                            : type === 'upgradePhrase'
-                              ? [293, 349, 440]
-                              : [293, 349, 440, 466];
-                    phrase.forEach((freq, index) => {
-                        this._createLayer(dest, {
-                            wave: index % 2 === 0 ? 'sine' : 'triangle',
-                            freqStart: freq * pr,
-                            freqEnd: freq * (1.02 + index * 0.01) * pr,
-                            freqDur: 0.14,
-                            volume: v * (0.085 - index * 0.012),
-                            attack: 0.01,
-                            sustain: 0.06,
-                            decay: 0.24,
-                            delay: index * 0.08,
-                            sweepType: 'lin'
-                        });
-                    });
-                    break;
-                }
-
-                case 'ritualBell': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 440 * pr,
-                        freqEnd: 466 * pr,
-                        freqDur: 0.18,
-                        volume: v * 0.06,
-                        attack: 0.01,
-                        sustain: 0.05,
-                        decay: 0.32
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 880 * pr,
-                        freqEnd: 932 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.03 * sparkle,
-                        attack: 0.015,
-                        sustain: 0.04,
-                        decay: 0.34,
-                        delay: 0.03
-                    });
-                    break;
-                }
-
-                case 'glassSpark': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1174 * pr,
-                        freqEnd: 1318 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.04 * sparkle,
-                        attack: 0.004,
-                        sustain: 0.02,
-                        decay: 0.12
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 1568 * pr,
-                        freqEnd: 1760 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.02 * sparkle,
-                        attack: 0.006,
-                        sustain: 0.02,
-                        decay: 0.14,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'silkLightning': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 980 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.06,
-                        volume: v * 0.09,
-                        attack: 0.002,
-                        sustain: 0.015,
-                        decay: 0.08
-                    });
-                    this._createNoiseBurst(dest, v * 0.14 * noiseSoftness, 0.05, 2600, 1.1);
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 540 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.03,
-                        attack: 0.004,
-                        sustain: 0.02,
-                        decay: 0.1,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'silkLightningChain': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 880 * pr,
-                        freqEnd: 280 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.07,
-                        attack: 0.002,
-                        sustain: 0.012,
-                        decay: 0.07
-                    });
-                    this._createNoiseBurst(dest, v * 0.1 * noiseSoftness, 0.04, 2200, 0.9);
-                    break;
-                }
-
-                case 'garlicHalo': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 196 * pr,
-                        freqEnd: 220 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.06,
-                        attack: 0.02,
-                        sustain: 0.05,
-                        decay: 0.16,
-                        sweepType: 'lin'
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 392 * pr,
-                        freqEnd: 440 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.025 * sparkle,
-                        attack: 0.03,
-                        sustain: 0.05,
-                        decay: 0.18,
-                        delay: 0.01,
-                        sweepType: 'lin'
-                    });
-                    break;
-                }
-
-                case 'orbiterHalo': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 330 * pr,
-                        freqEnd: 494 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.05,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.12
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 784 * pr,
-                        freqEnd: 988 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.025 * sparkle,
-                        attack: 0.01,
-                        sustain: 0.03,
-                        decay: 0.1,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'fireCeramic': {
-                    this._createNoiseBurst(dest, v * 0.12 * noiseSoftness, 0.1, 1200, 0.5);
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 320 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.08,
-                        attack: 0.004,
-                        sustain: 0.04,
-                        decay: 0.16
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 620 * pr,
-                        freqEnd: 420 * pr,
-                        freqDur: 0.11,
-                        volume: v * 0.03,
-                        attack: 0.01,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.015
-                    });
-                    break;
-                }
-
-                case 'fireBurstWarm': {
-                    this._createNoiseBurst(dest, v * 0.16 * noiseSoftness, 0.12, 1000, 0.45);
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 260 * pr,
-                        freqEnd: 120 * pr,
-                        freqDur: 0.14,
-                        volume: v * 0.09,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.18
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 140 * pr,
-                        freqEnd: 70 * pr,
-                        freqDur: 0.16,
-                        volume: v * 0.05,
-                        attack: 0.008,
-                        sustain: 0.05,
-                        decay: 0.2,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'boneFlutter': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 340 * pr,
-                        freqEnd: 520 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.06,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.14
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 190 * pr,
-                        freqEnd: 260 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.04,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.01
-                    });
-                    this._createNoiseBurst(dest, v * 0.08 * noiseSoftness, 0.05, 900, 0.4);
-                    break;
-                }
-
-                case 'boneReturnWhistle': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 440 * pr,
-                        freqEnd: 620 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.05,
-                        attack: 0.004,
-                        sustain: 0.04,
-                        decay: 0.14
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 620 * pr,
-                        freqEnd: 520 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.02 * sparkle,
-                        attack: 0.01,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'bossWarningCue': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 146 * pr,
-                        freqEnd: 110 * pr,
-                        freqDur: 0.32,
-                        volume: v * 0.08,
-                        attack: 0.02,
-                        sustain: 0.08,
-                        decay: 0.3
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 220 * pr,
-                        freqEnd: 174 * pr,
-                        freqDur: 0.28,
-                        volume: v * 0.05,
-                        attack: 0.03,
-                        sustain: 0.08,
-                        decay: 0.32,
-                        delay: 0.04
-                    });
-                    break;
-                }
-
-                case 'bossSpawnCue': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 110 * pr,
-                        freqEnd: 73 * pr,
-                        freqDur: 0.45,
-                        volume: v * 0.1,
-                        attack: 0.02,
-                        sustain: 0.12,
-                        decay: 0.42
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 220 * pr,
-                        freqEnd: 293 * pr,
-                        freqDur: 0.38,
-                        volume: v * 0.04,
-                        attack: 0.03,
-                        sustain: 0.12,
-                        decay: 0.36,
-                        delay: 0.06,
-                        sweepType: 'lin'
-                    });
-                    break;
-                }
-
-                case 'lowWarning': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 98 * pr,
-                        freqEnd: 73 * pr,
-                        freqDur: 0.3,
-                        volume: v * 0.08,
-                        attack: 0.01,
-                        sustain: 0.08,
-                        decay: 0.24
-                    });
-                    break;
-                }
-
-                case 'reedCry': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 330 * pr,
-                        freqEnd: 220 * pr,
-                        freqDur: 0.22,
-                        volume: v * 0.06,
-                        attack: 0.02,
-                        sustain: 0.07,
-                        decay: 0.26
-                    });
-                    this._createNoiseBurst(dest, v * 0.08 * noiseSoftness, 0.1, 1600, 0.6);
-                    break;
-                }
-
-                case 'uiGlass': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 880 * pr,
-                        freqEnd: 988 * pr,
-                        freqDur: 0.03,
-                        volume: v * 0.04,
-                        attack: 0.002,
-                        sustain: 0.015,
-                        decay: 0.05
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1320 * pr,
-                        freqEnd: 1480 * pr,
-                        freqDur: 0.03,
-                        volume: v * 0.015 * sparkle,
-                        attack: 0.003,
-                        sustain: 0.01,
-                        decay: 0.05,
-                        delay: 0.004
-                    });
-                    break;
-                }
-
-                case 'uiSelectWarm': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 659 * pr,
-                        freqEnd: 740 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.05,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.07
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 988 * pr,
-                        freqEnd: 1108 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.018 * sparkle,
-                        attack: 0.004,
-                        sustain: 0.015,
-                        decay: 0.07,
-                        delay: 0.006
-                    });
-                    break;
-                }
-
-                case 'uiTickLow': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 420 * pr,
-                        freqEnd: 360 * pr,
-                        freqDur: 0.04,
-                        volume: v * 0.04,
-                        attack: 0.002,
-                        sustain: 0.012,
-                        decay: 0.05
-                    });
-                    break;
-                }
-
-                case 'uiSoftError': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 330 * pr,
-                        freqEnd: 250 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.04,
-                        attack: 0.004,
-                        sustain: 0.015,
-                        decay: 0.09
-                    });
-                    break;
-                }
-
-                case 'heartbeatPulse': {
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 64 * pr,
-                        freqEnd: 52 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.08,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.12
-                    });
-                    break;
-                }
-
-                case 'ritualPulseOneShot': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 146 * pr,
-                        freqEnd: 110 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.07,
-                        attack: 0.004,
-                        sustain: 0.03,
-                        decay: 0.11
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 293 * pr,
-                        freqEnd: 330 * pr,
-                        freqDur: 0.09,
-                        volume: v * 0.03,
-                        attack: 0.01,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'gameOverFall': {
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 196 * pr,
-                        freqEnd: 73 * pr,
-                        freqDur: 0.6,
-                        volume: v * 0.1,
-                        attack: 0.02,
-                        sustain: 0.12,
-                        decay: 0.55
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 98 * pr,
-                        freqEnd: 49 * pr,
-                        freqDur: 0.56,
-                        volume: v * 0.06,
-                        attack: 0.03,
-                        sustain: 0.1,
-                        decay: 0.5,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'aggressive': {
-                    // Layer 1: triangle growl (softer than sawtooth)
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 130 * pr,
-                        freqEnd: 90 * pr,
-                        freqDur: 0.18,
-                        volume: v * 0.14,
-                        attack: 0.01,
-                        sustain: 0.06,
-                        decay: 0.22
-                    });
-                    // Layer 2: sub-bass sine punch
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 55 * pr,
-                        freqEnd: 40 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.1,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.18,
-                        delay: 0.005
-                    });
-                    // Layer 3: noise crack
-                    this._createNoiseBurst(dest, v * 0.3, 0.08, 2400, 0.8);
-                    break;
-                }
-
-                case 'magical': {
-                    // Layer 1: C5 sine
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 523 * pr,
-                        freqEnd: 587 * pr,
-                        freqDur: 0.25,
-                        volume: v * 0.12,
-                        attack: 0.015,
-                        sustain: 0.12,
-                        decay: 0.25
-                    });
-                    // Layer 2: E5 harmonic (major third shimmer)
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 659 * pr,
-                        freqEnd: 698 * pr,
-                        freqDur: 0.25,
-                        volume: v * 0.08,
-                        attack: 0.02,
-                        sustain: 0.1,
-                        decay: 0.3,
-                        delay: 0.015
-                    });
-                    // Layer 3: high shimmer triangle
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1318 * pr,
-                        freqEnd: 1568 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.04,
-                        attack: 0.03,
-                        sustain: 0.08,
-                        decay: 0.35,
-                        delay: 0.03
-                    });
-                    break;
-                }
-
-                case 'impact': {
-                    // Layer 1: triangle thud
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 80 * pr,
-                        freqEnd: 45 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.15,
-                        attack: 0.003,
-                        sustain: 0.03,
-                        decay: 0.15
-                    });
-                    // Layer 2: sub sine
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 50 * pr,
-                        freqEnd: 30 * pr,
-                        freqDur: 0.1,
-                        volume: v * 0.1,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.12,
-                        delay: 0.003
-                    });
-                    // Layer 3: noise snap
-                    this._createNoiseBurst(dest, v * 0.35, 0.06, 3500, 1.2);
-                    break;
-                }
-
-                case 'collect': {
-                    // Ascending arpeggio: E5 → G5 → C6
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 659 * pr,
-                        freqEnd: 680 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.1,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.12
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 784 * pr,
-                        freqEnd: 800 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.09,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.12,
-                        delay: 0.04
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 1047 * pr,
-                        freqEnd: 1100 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.08,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.15,
-                        delay: 0.08
-                    });
-                    // Sparkle overtone
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 2093 * pr,
-                        freqEnd: 2400 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.03,
-                        attack: 0.01,
-                        sustain: 0.05,
-                        decay: 0.2,
-                        delay: 0.06
-                    });
-                    break;
-                }
-
-                case 'positive': {
-                    // Major triad staggered: C5, E5, G5
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 523 * pr,
-                        freqEnd: 540 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.1,
-                        attack: 0.01,
-                        sustain: 0.1,
-                        decay: 0.25
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 659 * pr,
-                        freqEnd: 670 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.08,
-                        attack: 0.01,
-                        sustain: 0.1,
-                        decay: 0.25,
-                        delay: 0.03
-                    });
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 784 * pr,
-                        freqEnd: 800 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.06,
-                        attack: 0.01,
-                        sustain: 0.1,
-                        decay: 0.3,
-                        delay: 0.06
-                    });
-                    // High shimmer
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1568 * pr,
-                        freqEnd: 1760 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.03,
-                        attack: 0.02,
-                        sustain: 0.06,
-                        decay: 0.2,
-                        delay: 0.08
-                    });
-                    break;
-                }
-
-                case 'ui': {
-                    // Clean sine tap + soft harmonic
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 880 * pr,
-                        freqEnd: 920 * pr,
-                        freqDur: 0.04,
-                        volume: v * 0.06,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.08
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1760 * pr,
-                        freqEnd: 1800 * pr,
-                        freqDur: 0.03,
-                        volume: v * 0.03,
-                        attack: 0.005,
-                        sustain: 0.01,
-                        decay: 0.06,
-                        delay: 0.005
-                    });
-                    break;
-                }
-
-                case 'death': {
-                    // Layer 1: descending sawtooth
-                    this._createLayer(dest, {
-                        wave: 'sawtooth',
-                        freqStart: 220 * pr,
-                        freqEnd: 80 * pr,
-                        freqDur: 0.35,
-                        volume: v * 0.12,
-                        attack: 0.005,
-                        sustain: 0.08,
-                        decay: 0.35
-                    });
-                    // Layer 2: sub triangle rumble (softer than square)
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 65 * pr,
-                        freqEnd: 35 * pr,
-                        freqDur: 0.3,
-                        volume: v * 0.06,
-                        attack: 0.01,
-                        sustain: 0.06,
-                        decay: 0.25,
-                        delay: 0.01
-                    });
-                    // Layer 3: noise burst
-                    this._createNoiseBurst(dest, v * 0.3, 0.12, 1800, 0.6);
-                    // Layer 4: descending whistle
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 600 * pr,
-                        freqEnd: 150 * pr,
-                        freqDur: 0.3,
-                        volume: v * 0.04,
-                        attack: 0.02,
-                        sustain: 0.05,
-                        decay: 0.3,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'sharp': {
-                    // Layer 1: bright triangle
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1100 * pr,
-                        freqEnd: 1400 * pr,
-                        freqDur: 0.06,
-                        volume: v * 0.1,
-                        attack: 0.002,
-                        sustain: 0.02,
-                        decay: 0.1
-                    });
-                    // Layer 2: metallic sine
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 2200 * pr,
-                        freqEnd: 2600 * pr,
-                        freqDur: 0.05,
-                        volume: v * 0.04,
-                        attack: 0.003,
-                        sustain: 0.015,
-                        decay: 0.08,
-                        delay: 0.003
-                    });
-                    // Layer 3: tiny noise edge
-                    this._createNoiseBurst(dest, v * 0.2, 0.04, 5000, 1.0);
-                    break;
-                }
-
-                case 'wet': {
-                    // Layer 1: deep sine wobble
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 200 * pr,
-                        freqEnd: 170 * pr,
-                        freqDur: 0.25,
-                        volume: v * 0.1,
-                        attack: 0.01,
-                        sustain: 0.08,
-                        decay: 0.2,
-                        sweepType: 'lin'
-                    });
-                    // Layer 2: filtered noise bubble
-                    this._createNoiseBurst(dest, v * 0.25, 0.15, 800, 0.5);
-                    // Layer 3: harmonic overtone
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 400 * pr,
-                        freqEnd: 350 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.04,
-                        attack: 0.02,
-                        sustain: 0.06,
-                        decay: 0.15,
-                        delay: 0.01
-                    });
-                    break;
-                }
-
-                case 'dramatic': {
-                    // Layer 1: heavy sawtooth descent
-                    this._createLayer(dest, {
-                        wave: 'sawtooth',
-                        freqStart: 150 * pr,
-                        freqEnd: 55 * pr,
-                        freqDur: 0.7,
-                        volume: v * 0.13,
-                        attack: 0.01,
-                        sustain: 0.15,
-                        decay: 0.6
-                    });
-                    // Layer 2: sub bass
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 65 * pr,
-                        freqEnd: 35 * pr,
-                        freqDur: 0.6,
-                        volume: v * 0.08,
-                        attack: 0.02,
-                        sustain: 0.1,
-                        decay: 0.5,
-                        delay: 0.02
-                    });
-                    // Layer 3: tense harmonic
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 330 * pr,
-                        freqEnd: 220 * pr,
-                        freqDur: 0.5,
-                        volume: v * 0.05,
-                        attack: 0.03,
-                        sustain: 0.1,
-                        decay: 0.4,
-                        delay: 0.04
-                    });
-                    break;
-                }
-
-                case 'musical': {
-                    // Layer 1: C4 sine
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 261 * pr,
-                        freqEnd: 329 * pr,
-                        freqDur: 0.4,
-                        volume: v * 0.1,
-                        attack: 0.02,
-                        sustain: 0.2,
-                        decay: 0.35
-                    });
-                    // Layer 2: E4 harmony
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 329 * pr,
-                        freqEnd: 392 * pr,
-                        freqDur: 0.4,
-                        volume: v * 0.06,
-                        attack: 0.03,
-                        sustain: 0.18,
-                        decay: 0.3,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'ambient': {
-                    // Layer 1: slow sine sweep
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 440 * pr,
-                        freqEnd: 466 * pr,
-                        freqDur: 1.8,
-                        volume: v * 0.08,
-                        attack: 0.1,
-                        sustain: 0.5,
-                        decay: 1.5,
-                        sweepType: 'lin'
-                    });
-                    // Layer 2: sub drone
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 220 * pr,
-                        freqEnd: 233 * pr,
-                        freqDur: 1.8,
-                        volume: v * 0.04,
-                        attack: 0.15,
-                        sustain: 0.5,
-                        decay: 1.5,
-                        delay: 0.05,
-                        sweepType: 'lin'
-                    });
-                    break;
-                }
-
-                case 'lightning': {
-                    // Layer 1: triangle crack (softer than sawtooth)
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1400 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.07,
-                        volume: v * 0.14,
-                        attack: 0.002,
-                        sustain: 0.02,
-                        decay: 0.1
-                    });
-                    // Layer 2: noise crackle
-                    this._createNoiseBurst(dest, v * 0.35, 0.08, 4000, 1.5);
-                    // Layer 3: sine zap trail
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 800 * pr,
-                        freqEnd: 200 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.06,
-                        attack: 0.005,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.015
-                    });
-                    break;
-                }
-
-                case 'aura': {
-                    // Layer 1: sine drone
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 120 * pr,
-                        freqEnd: 140 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.08,
-                        attack: 0.01,
-                        sustain: 0.06,
-                        decay: 0.12,
-                        sweepType: 'lin'
-                    });
-                    // Layer 2: triangle pulse
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 240 * pr,
-                        freqEnd: 260 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.04,
-                        attack: 0.015,
-                        sustain: 0.04,
-                        decay: 0.1,
-                        delay: 0.01,
-                        sweepType: 'lin'
-                    });
-                    // Layer 3: sub-harmonic
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 60 * pr,
-                        freqEnd: 70 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.05,
-                        attack: 0.02,
-                        sustain: 0.05,
-                        decay: 0.1,
-                        delay: 0.005,
-                        sweepType: 'lin'
-                    });
-                    break;
-                }
-
-                case 'orbiter': {
-                    // Ethereal whoosh with harmonic shimmer
-                    // Layer 1: whoosh sweep
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 300 * pr,
-                        freqEnd: 600 * pr,
-                        freqDur: 0.1,
-                        volume: v * 0.07,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.12
-                    });
-                    // Layer 2: harmonic chime
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 880 * pr,
-                        freqEnd: 1100 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.04,
-                        attack: 0.01,
-                        sustain: 0.03,
-                        decay: 0.1,
-                        delay: 0.01
-                    });
-                    // Layer 3: soft noise air
-                    this._createNoiseBurst(dest, v * 0.15, 0.1, 2000, 0.4);
-                    break;
-                }
-
-                case 'fireball': {
-                    // Layer 1: whooshing flame (triangle is softer than sawtooth)
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 400 * pr,
-                        freqEnd: 180 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.12,
-                        attack: 0.005,
-                        sustain: 0.05,
-                        decay: 0.18
-                    });
-                    // Layer 2: crackling fire noise
-                    this._createNoiseBurst(dest, v * 0.3, 0.12, 2800, 0.9);
-                    // Layer 3: deep bass impact
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 100 * pr,
-                        freqEnd: 50 * pr,
-                        freqDur: 0.2,
-                        volume: v * 0.08,
-                        attack: 0.01,
-                        sustain: 0.06,
-                        decay: 0.2,
-                        delay: 0.01
-                    });
-                    // Layer 4: bright flame top
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 900 * pr,
-                        freqEnd: 500 * pr,
-                        freqDur: 0.1,
-                        volume: v * 0.04,
-                        attack: 0.008,
-                        sustain: 0.03,
-                        decay: 0.12,
-                        delay: 0.02
-                    });
-                    break;
-                }
-
-                case 'boomerang': {
-                    // Layer 1: spinning whoosh
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 250 * pr,
-                        freqEnd: 450 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.09,
-                        attack: 0.005,
-                        sustain: 0.04,
-                        decay: 0.14
-                    });
-                    // Layer 2: bone rattle
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 1200 * pr,
-                        freqEnd: 800 * pr,
-                        freqDur: 0.08,
-                        volume: v * 0.05,
-                        attack: 0.003,
-                        sustain: 0.02,
-                        decay: 0.08,
-                        delay: 0.01
-                    });
-                    // Layer 3: air cutting noise
-                    this._createNoiseBurst(dest, v * 0.2, 0.08, 3500, 1.2);
-                    break;
-                }
-
-                default: {
-                    // Fallback: warm sine + harmonic
-                    this._createLayer(dest, {
-                        wave: 'sine',
-                        freqStart: 440 * pr,
-                        freqEnd: 460 * pr,
-                        freqDur: 0.15,
-                        volume: v * 0.1,
-                        attack: 0.01,
-                        sustain: 0.05,
-                        decay: 0.15
-                    });
-                    this._createLayer(dest, {
-                        wave: 'triangle',
-                        freqStart: 880 * pr,
-                        freqEnd: 900 * pr,
-                        freqDur: 0.12,
-                        volume: v * 0.04,
-                        attack: 0.02,
-                        sustain: 0.04,
-                        decay: 0.12,
-                        delay: 0.01
-                    });
-                    break;
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to synthesize vampire sound:', error);
+    _env(voice, {
+        attack = 0.005,
+        decay = 0.12,
+        peak = 0.1,
+        sustain = 0.001,
+        hold = 0,
+        startTime = this.audioContext.currentTime
+    } = {}) {
+        const g = voice.gain.gain;
+        g.setValueAtTime(0.0001, startTime);
+        g.linearRampToValueAtTime(Math.max(0.0001, peak), startTime + attack);
+        if (hold > 0) {
+            g.setValueAtTime(Math.max(0.0001, peak), startTime + attack + hold);
         }
-    }
-
-    getIntensityMultiplier(type) {
-        if (!this.dynamicMixing) return 1;
-
-        switch (type) {
-            case 'windLoop':
-            case 'lowDroneLoop':
-            case 'ritualPulseLoop':
-            case 'heartbeatLoop':
-            case 'organDrone':
-                return 0.7 - this.gameIntensity * 0.12;
-            case 'glassPluck':
-            case 'glassHit':
-            case 'magicChargeWarm':
-            case 'reedAir':
-            case 'whipBody':
-            case 'whipImpact':
-            case 'clothWhoosh':
-            case 'bladeAir':
-            case 'woodBoneTick':
-            case 'softImpact':
-            case 'aggressiveWarm':
-            case 'wetSoft':
-            case 'deathBloomCore':
-            case 'deathBloom':
-            case 'silkLightning':
-            case 'silkLightningChain':
-            case 'garlicHalo':
-            case 'orbiterHalo':
-            case 'fireCeramic':
-            case 'fireBurstWarm':
-            case 'boneFlutter':
-            case 'boneReturnWhistle':
-            case 'heartbeatPulse':
-            case 'ritualPulseOneShot':
-                return 0.56 + this.gameIntensity * 0.22;
-            case 'collectCore':
-            case 'collectCluster':
-                return 0.65 + this.gameIntensity * 0.12;
-            case 'modalRewardAccent':
-            case 'lowRewardBloom':
-            case 'modalRewardPhrase':
-            case 'upgradePhrase':
-            case 'achievementPhrase':
-            case 'ritualBell':
-            case 'glassSpark':
-            case 'bossResolve':
-                return 0.78 + this.gameIntensity * 0.18;
-            case 'bossWarningCue':
-            case 'bossSpawnCue':
-            case 'lowWarning':
-            case 'reedCry':
-            case 'gameOverFall':
-                return 0.72 + this.gameIntensity * 0.2;
-            case 'uiGlass':
-            case 'uiSelectWarm':
-            case 'uiTickLow':
-            case 'uiSoftError':
-                return 0.58;
-            case 'aggressive':
-            case 'impact':
-                return 0.5 + this.gameIntensity * 0.3;
-            case 'ambient':
-                return 0.8 - this.gameIntensity * 0.2;
-            case 'magical':
-                return 0.7 + this.gameIntensity * 0.2;
-            case 'positive':
-                return 0.8 + this.gameIntensity * 0.3;
-            case 'ui':
-                return 0.6;
-            case 'collect':
-                return 0.7 + this.gameIntensity * 0.2;
-            case 'death':
-                return 0.6 + this.gameIntensity * 0.2;
-            case 'sharp':
-                return 0.5 + this.gameIntensity * 0.25;
-            case 'dramatic':
-                return 0.7 + this.gameIntensity * 0.4;
-            case 'musical':
-                return 0.9 - this.gameIntensity * 0.1;
-            case 'lightning':
-                return 0.6 + this.gameIntensity * 0.3;
-            case 'aura':
-                return 0.4 + this.gameIntensity * 0.15;
-            case 'orbiter':
-                return 0.5 + this.gameIntensity * 0.2;
-            case 'fireball':
-                return 0.6 + this.gameIntensity * 0.25;
-            case 'boomerang':
-                return 0.5 + this.gameIntensity * 0.2;
-            default:
-                return 0.7;
-        }
-    }
-
-    setGameIntensity(intensity) {
-        this.gameIntensity = Math.max(0, Math.min(1, intensity));
-
-        // Adjust music based on intensity
-        if (this.currentMusic && this.dynamicMixing) {
-            const targetVolume = this.musicVolume * this.masterVolume * (0.6 + intensity * 0.4);
-            this.currentMusic.volume = targetVolume;
-        }
-
-        this.updateBusMix();
-        this.updateAmbientSounds();
-    }
-
-    playVampireBite() {
-        this.playVampireSound('vampireBite', 0.4);
-    }
-
-    playBloodSplash() {
-        this.playVampireSound('bloodSplash', 0.6);
-    }
-
-    playMagicMissile() {
-        this.playVampireSound('magicMissile', 0.4);
-    }
-
-    playWhipCrack() {
-        this.playVampireSound('whipCrack', 0.45);
-    }
-
-    playKnifeThrow() {
-        this.playVampireSound('knifeThrowing', 0.5);
-    }
-
-    playCriticalHit() {
-        this.playVampireSound('criticalHit', 0.5);
-        this.setGameIntensity(Math.min(1, this.gameIntensity + 0.1)); // Increase intensity
-    }
-
-    playEnemyDeath() {
-        this.playVampireSound('enemyDeath', 0.4);
-    }
-
-    playLevelUp() {
-        this.playVampireSound('levelUp', 0.5);
-    }
-
-    playExperienceGain() {
-        this.playVampireSound('experienceGain', 0.4);
-    }
-
-    playWeaponUpgrade() {
-        this.playVampireSound('weaponUpgrade', 0.4);
-    }
-
-    playMenuHover() {
-        this.playVampireSound('menuHover', 0.3);
-    }
-
-    playMenuSelect() {
-        this.playVampireSound('menuSelect', 0.5);
-    }
-
-    playGameOver() {
-        this.playVampireSound('gameOver', 0.6);
-        this.setGameIntensity(0); // Reset intensity
-    }
-
-    startVampireAmbient() {
-        this.playVampireSound('windHowl', 0.16);
-        this.playVampireSound('lowDrone', 0.2);
-        this.playVampireSound('ritualPulse', 0.1);
-
-        managedSetTimeout(
-            () => {
-                this.setGameIntensity(0.2);
-            },
-            2000,
-            this
+        g.exponentialRampToValueAtTime(
+            Math.max(0.0001, sustain),
+            startTime + attack + hold + decay
         );
     }
 
-    stopVampireAmbient() {
-        this.stop('heartbeat');
-        this.stop('windHowl');
-        this.stop('lowDrone');
-        this.stop('ritualPulse');
-        this.stop('gothicOrgan');
-        this.setGameIntensity(0);
+    _scaleNote(octaveOffset, degreeOffset) {
+        const base = 5 + octaveOffset * 5;
+        const idx = clamp(base + degreeOffset, 0, SCALE.length - 1);
+        return SCALE[idx];
     }
 
-    // Enhanced layered audio feedback system
+    _softPeak(vol, base = 0.14) {
+        const density = this._getDensityFactor();
+        return base * vol * (1 - density * 0.2);
+    }
+
+    // --- Sound recipes ---
+    _synthMagicMissile(vol, pitch = 1) {
+        const dur = 0.16;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const freq = this._scaleNote(1, 1 + Math.floor(Math.random() * 3)) * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.92, resonance: 0.9 });
+        const osc = this._osc('triangle', freq * 1.5, voice, dur);
+        const shimmer = this._osc('sine', freq * 2.01, voice, dur);
+        osc.frequency.setValueAtTime(freq * 2.6, now);
+        osc.frequency.exponentialRampToValueAtTime(freq, now + 0.09);
+        shimmer.frequency.setValueAtTime(freq * 2.9, now);
+        shimmer.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.08);
+
+        this._env(voice, { attack: 0.003, decay: 0.13, peak: this._softPeak(vol, 0.15) });
+        this._connectVoice(voice, 0.12);
+        this._duckMusic(0.12, 0.1);
+    }
+
+    _synthWhipCrack(vol, pitch = 1) {
+        const dur = 0.12;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.8, resonance: 1.2 });
+        const { filter } = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 3200 * pitch, q: 1.8 });
+        filter.frequency.setValueAtTime(5200 * pitch, now);
+        filter.frequency.exponentialRampToValueAtTime(1400, now + 0.08);
+
+        const body = this._osc('triangle', 90 * pitch, voice, dur);
+        body.frequency.setValueAtTime(180 * pitch, now);
+        body.frequency.exponentialRampToValueAtTime(55, now + 0.07);
+
+        this._env(voice, { attack: 0.0015, decay: 0.09, peak: this._softPeak(vol, 0.19) });
+        this._connectVoice(voice, 0.08);
+        this._duckMusic(0.15, 0.11);
+    }
+
+    _synthKnifeThrow(vol, pitch = 1) {
+        const dur = 0.1;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const freq = SCALE[12] * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.72, resonance: 0.6 });
+        const osc = this._osc('triangle', freq, voice, dur);
+        osc.frequency.setValueAtTime(freq * 0.7, now);
+        osc.frequency.linearRampToValueAtTime(freq * 1.6, now + 0.018);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.85, now + 0.08);
+
+        const snap = this._noiseSource(voice, 0.06, { type: 'highpass', frequency: 2600, q: 0.7 });
+        snap.filter.frequency.setValueAtTime(3200, now);
+
+        this._env(voice, { attack: 0.002, decay: 0.075, peak: this._softPeak(vol, 0.13) });
+        this._connectVoice(voice, 0.06);
+        this._duckMusic(0.1, 0.08);
+    }
+
+    _synthIceShard(vol, pitch = 1) {
+        const dur = 0.15;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const freq = SCALE[14] * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.95, resonance: 1.1 });
+        const osc = this._osc('sine', freq, voice, dur);
+        const glass = this._osc('triangle', freq * 2, voice, dur);
+        glass.detune.value = -4;
+        osc.frequency.setValueAtTime(freq * 1.25, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.92, now + 0.1);
+
+        this._env(voice, { attack: 0.004, decay: 0.12, peak: this._softPeak(vol, 0.13) });
+        this._connectVoice(voice, 0.18);
+        this._duckMusic(0.09, 0.09);
+    }
+
+    _synthEnemyDeath(vol, pitch = 1) {
+        const dur = 0.16;
+        const voice = this._allocVoice(PRIORITY.death, dur);
+        const degree = Math.floor(Math.random() * 5);
+        const freq = this._scaleNote(-1, degree) * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.55, resonance: 0.7 });
+        const body = this._osc('triangle', freq, voice, dur);
+        body.frequency.setValueAtTime(freq * 1.8, now);
+        body.frequency.exponentialRampToValueAtTime(Math.max(35, freq * 0.65), now + 0.11);
+
+        const { filter } = this._noiseSource(voice, dur, { type: 'lowpass', frequency: 1700, q: 0.8, playbackRate: 0.8 + Math.random() * 0.15 });
+        filter.frequency.setValueAtTime(2400, now);
+        filter.frequency.exponentialRampToValueAtTime(380, now + 0.11);
+
+        this._env(voice, { attack: 0.002, decay: 0.13, peak: this._softPeak(vol, 0.15) });
+        this._connectVoice(voice, 0.06);
+        this._duckMusic(0.06, 0.08);
+    }
+
+    _synthGemPickup(vol, pitch = 1) {
+        const dur = 0.22;
+        const voice = this._allocVoice(PRIORITY.reward, dur);
+        const noteIdx = 5 + (this.gemNoteIndex % 5);
+        const freq = SCALE[noteIdx] * pitch;
+        this.gemNoteIndex = (this.gemNoteIndex + 1) % 5;
+
+        this._shapeVoice(voice, { brightness: 1.05, resonance: 0.8 });
+        const main = this._osc('sine', freq, voice, dur);
+        const bloom = this._osc('triangle', freq * 2, voice, dur);
+        bloom.detune.value = 3;
+        main.detune.value = this.gemNoteIndex % 2 === 0 ? -2 : 2;
+
+        this._env(voice, { attack: 0.006, decay: 0.18, peak: this._softPeak(vol, 0.14) });
+        this._connectVoice(voice, 0.24);
+        this._duckMusic(0.08, 0.06);
+    }
+
+    _synthLevelUp(vol, pitch = 1) {
+        const notes = [SCALE[10], SCALE[11], SCALE[13], SCALE[15]].map((n) => n * pitch);
+        const now = this.audioContext.currentTime;
+
+        for (let i = 0; i < notes.length; i++) {
+            const dur = 0.72 - i * 0.07;
+            const voice = this._allocVoice(PRIORITY.milestone, dur);
+            this._shapeVoice(voice, { brightness: 0.88, resonance: 0.7 });
+
+            const lead = this._osc('triangle', notes[i], voice, dur, now + i * 0.09);
+            const warmth = this._osc('sine', notes[i] * 0.5, voice, dur, now + i * 0.09);
+            warmth.detune.value = -2;
+            lead.detune.value = 3;
+
+            this._env(voice, {
+                attack: 0.01,
+                decay: dur - 0.05,
+                peak: this._softPeak(vol, 0.18),
+                startTime: now + i * 0.09
+            });
+            voice.endTime = now + i * 0.09 + dur;
+            this._connectVoice(voice, 0.32);
+        }
+
+        this._duckMusic(0.22, 0.28);
+    }
+
+    _synthFireballLaunch(vol, pitch = 1) {
+        const dur = 0.18;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const now = this.audioContext.currentTime;
+        const freq = SCALE[8] * pitch;
+
+        this._shapeVoice(voice, { brightness: 0.72, resonance: 0.65 });
+        const whoosh = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 1200, q: 1.1, playbackRate: 0.9 });
+        whoosh.filter.frequency.setValueAtTime(900, now);
+        whoosh.filter.frequency.linearRampToValueAtTime(1800, now + 0.1);
+
+        const orb = this._osc('triangle', freq, voice, dur);
+        orb.frequency.setValueAtTime(freq * 0.7, now);
+        orb.frequency.linearRampToValueAtTime(freq * 1.15, now + 0.05);
+
+        this._env(voice, { attack: 0.004, decay: 0.15, peak: this._softPeak(vol, 0.14) });
+        this._connectVoice(voice, 0.14);
+        this._duckMusic(0.12, 0.1);
+    }
+
+    _synthFireballExplosion(vol, pitch = 1) {
+        const dur = 0.3;
+        const voice = this._allocVoice(PRIORITY.milestone, dur);
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.45, resonance: 0.9 });
+        const boom = this._osc('sine', 58 * pitch, voice, dur);
+        boom.frequency.setValueAtTime(110 * pitch, now);
+        boom.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+
+        const blast = this._noiseSource(voice, dur, { type: 'lowpass', frequency: 1800, q: 0.7 });
+        blast.filter.frequency.setValueAtTime(2200, now);
+        blast.filter.frequency.exponentialRampToValueAtTime(500, now + 0.18);
+
+        this._env(voice, { attack: 0.002, decay: 0.24, peak: this._softPeak(vol, 0.2) });
+        this._connectVoice(voice, 0.12);
+        this._duckMusic(0.18, 0.16);
+    }
+
+    _synthLightning(vol, pitch = 1, chain = false) {
+        const dur = chain ? 0.14 : 0.18;
+        const voice = this._allocVoice(chain ? PRIORITY.combat : PRIORITY.reward, dur);
+        const freq = SCALE[12] * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: chain ? 0.95 : 1.1, resonance: 1.5, filterType: 'bandpass' });
+        const carrier = this._osc('sine', freq, voice, dur);
+        const mod = this.audioContext.createOscillator();
+        const modGain = this.audioContext.createGain();
+        mod.type = 'triangle';
+        mod.frequency.value = chain ? 420 : 560;
+        modGain.gain.value = chain ? 70 : 120;
+        modGain.gain.exponentialRampToValueAtTime(8, now + dur * 0.8);
+        mod.connect(modGain).connect(carrier.frequency);
+        mod.start(now);
+        mod.stop(now + dur + 0.05);
+        voice.nodes.push(mod, modGain);
+
+        const air = this._noiseSource(voice, 0.08, { type: 'highpass', frequency: 2400, q: 0.8, playbackRate: 1.2 });
+        air.filter.frequency.setValueAtTime(2800, now);
+
+        this._env(voice, { attack: 0.001, decay: dur * 0.9, peak: this._softPeak(vol, chain ? 0.12 : 0.16) });
+        this._connectVoice(voice, chain ? 0.16 : 0.2);
+        this._duckMusic(chain ? 0.12 : 0.17, 0.12);
+    }
+
+    _synthGarlicPulse(vol, pitch = 1) {
+        const dur = 0.22;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const now = this.audioContext.currentTime;
+        const base = 120 * pitch;
+
+        this._shapeVoice(voice, { brightness: 0.4, resonance: 0.5 });
+        const hum = this._osc('sine', base, voice, dur);
+        hum.frequency.setValueAtTime(base * 1.1, now);
+        hum.frequency.exponentialRampToValueAtTime(base * 0.8, now + 0.18);
+
+        const breath = this._noiseSource(voice, dur, { type: 'bandpass', frequency: 900, q: 0.6, playbackRate: 0.9 });
+        breath.filter.frequency.setValueAtTime(1200, now);
+        breath.filter.frequency.exponentialRampToValueAtTime(500, now + 0.16);
+
+        this._env(voice, { attack: 0.015, decay: 0.17, peak: this._softPeak(vol, 0.12) });
+        this._connectVoice(voice, 0.1);
+        this._duckMusic(0.06, 0.08);
+    }
+
+    _synthOrbiterWhoosh(vol, pitch = 1) {
+        const dur = 0.14;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const freq = SCALE[11] * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.78, resonance: 0.55 });
+        const whoosh = this._osc('triangle', freq, voice, dur);
+        whoosh.frequency.setValueAtTime(freq * 0.8, now);
+        whoosh.frequency.linearRampToValueAtTime(freq * 1.25, now + 0.035);
+        whoosh.frequency.exponentialRampToValueAtTime(freq * 0.95, now + 0.12);
+
+        this._env(voice, { attack: 0.004, decay: 0.11, peak: this._softPeak(vol, 0.11) });
+        this._connectVoice(voice, 0.14);
+        this._duckMusic(0.08, 0.07);
+    }
+
+    _synthBoomerang(vol, pitch = 1) {
+        const dur = 0.16;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const freq = SCALE[8] * pitch;
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.64, resonance: 0.6 });
+        const tone = this._osc('triangle', freq, voice, dur);
+        tone.frequency.setValueAtTime(freq * 0.9, now);
+        tone.frequency.linearRampToValueAtTime(freq * 1.18, now + 0.03);
+        tone.frequency.exponentialRampToValueAtTime(freq * 0.75, now + 0.12);
+
+        const air = this._noiseSource(voice, 0.09, { type: 'bandpass', frequency: 1600, q: 0.9 });
+        air.filter.frequency.setValueAtTime(1800, now);
+
+        this._env(voice, { attack: 0.003, decay: 0.12, peak: this._softPeak(vol, 0.12) });
+        this._connectVoice(voice, 0.08);
+        this._duckMusic(0.08, 0.08);
+    }
+
+    _synthCriticalHit(vol, pitch = 1) {
+        const dur = 0.32;
+        const voice = this._allocVoice(PRIORITY.milestone, dur);
+        const now = this.audioContext.currentTime;
+        const freq = SCALE[10] * pitch;
+
+        this._shapeVoice(voice, { brightness: 0.9, resonance: 1.3 });
+        const carrier = this._osc('sine', freq, voice, dur);
+        const sub = this._osc('sine', 60 * Math.max(0.8, pitch), voice, dur);
+        sub.frequency.setValueAtTime(110, now);
+        sub.frequency.exponentialRampToValueAtTime(42, now + 0.22);
+
+        const mod = this.audioContext.createOscillator();
+        const modGain = this.audioContext.createGain();
+        mod.type = 'sine';
+        mod.frequency.value = freq * 2.4;
+        modGain.gain.value = 110;
+        modGain.gain.exponentialRampToValueAtTime(10, now + 0.25);
+        mod.connect(modGain).connect(carrier.frequency);
+        mod.start(now);
+        mod.stop(now + dur + 0.05);
+        voice.nodes.push(mod, modGain);
+
+        this._env(voice, { attack: 0.003, decay: 0.28, peak: this._softPeak(vol, 0.19) });
+        this._connectVoice(voice, 0.24);
+        this._duckMusic(0.22, 0.18);
+    }
+
+    _synthBloodSplash(vol, pitch = 1) {
+        const dur = 0.12;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.38, resonance: 0.45 });
+        const spray = this._noiseSource(voice, dur, { type: 'lowpass', frequency: 1100 * pitch, q: 0.8, playbackRate: 0.92 });
+        spray.filter.frequency.setValueAtTime(1700, now);
+        spray.filter.frequency.exponentialRampToValueAtTime(260, now + 0.1);
+
+        const body = this._osc('sine', 70 * pitch, voice, dur);
+        body.frequency.setValueAtTime(120 * pitch, now);
+        body.frequency.exponentialRampToValueAtTime(50, now + 0.08);
+
+        this._env(voice, { attack: 0.002, decay: 0.1, peak: this._softPeak(vol, 0.1) });
+        this._connectVoice(voice, 0.06);
+        this._duckMusic(0.07, 0.07);
+    }
+
+    _synthBossWarning(vol, pitch = 1) {
+        const now = this.audioContext.currentTime;
+        for (let i = 0; i < 4; i++) {
+            const dur = 0.22;
+            const startT = now + i * (0.24 - i * 0.025);
+            const voice = this._allocVoice(PRIORITY.milestone, dur);
+            this._shapeVoice(voice, { brightness: 0.45, resonance: 1.1 });
+
+            const low = this._osc('triangle', SCALE[0] * pitch, voice, dur, startT);
+            low.frequency.setValueAtTime(SCALE[0] * 1.05 * pitch, startT);
+            low.frequency.exponentialRampToValueAtTime(SCALE[0] * 0.8, startT + 0.16);
+
+            this._env(voice, {
+                attack: 0.01,
+                decay: 0.16,
+                peak: this._softPeak(vol, 0.16),
+                startTime: startT
+            });
+            voice.endTime = startT + dur;
+            this._connectVoice(voice, 0.24);
+        }
+        this._duckMusic(0.24, 0.4);
+    }
+
+    _synthBossSpawn(vol, pitch = 1) {
+        const notes = [SCALE[5], SCALE[8], SCALE[10]].map((n) => n * pitch);
+        const now = this.audioContext.currentTime;
+        for (let i = 0; i < notes.length; i++) {
+            const dur = 0.8;
+            const startT = now + i * 0.06;
+            const voice = this._allocVoice(PRIORITY.milestone, dur);
+            this._shapeVoice(voice, { brightness: 0.58, resonance: 0.9 });
+            this._osc('triangle', notes[i], voice, dur, startT);
+            this._osc('sine', notes[i] * 0.5, voice, dur, startT);
+            this._env(voice, {
+                attack: 0.03,
+                decay: 0.68,
+                peak: this._softPeak(vol, 0.16),
+                startTime: startT
+            });
+            voice.endTime = startT + dur;
+            this._connectVoice(voice, 0.3);
+        }
+        this._duckMusic(0.26, 0.45);
+    }
+
+    _synthHeartbeat(vol, pitch = 1) {
+        const dur = 0.34;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        const now = this.audioContext.currentTime;
+        const osc = this._osc('sine', 52 * pitch, voice, dur);
+        osc.frequency.setValueAtTime(54 * pitch, now);
+
+        const g = voice.gain.gain;
+        const peakA = this._softPeak(vol, 0.12);
+        const peakB = this._softPeak(vol, 0.1);
+        g.setValueAtTime(0.0001, now);
+        g.linearRampToValueAtTime(peakA, now + 0.02);
+        g.exponentialRampToValueAtTime(0.02, now + 0.08);
+        g.linearRampToValueAtTime(peakB, now + 0.13);
+        g.exponentialRampToValueAtTime(0.0001, now + 0.3);
+
+        this._shapeVoice(voice, { brightness: 0.32, resonance: 0.6 });
+        this._connectVoice(voice, 0.04);
+        this._duckMusic(0.08, 0.12);
+    }
+
+    _synthVictoryFanfare(vol, pitch = 1) {
+        const phrase = [SCALE[10], SCALE[11], SCALE[13], SCALE[14]].map((n) => n * pitch);
+        const now = this.audioContext.currentTime;
+
+        for (let i = 0; i < phrase.length; i++) {
+            const dur = 0.55;
+            const startT = now + i * 0.12;
+            const voice = this._allocVoice(PRIORITY.milestone, dur);
+            this._shapeVoice(voice, { brightness: 0.9, resonance: 0.85 });
+            this._osc('triangle', phrase[i], voice, dur, startT);
+            this._osc('sine', phrase[i] * 2, voice, dur, startT);
+            this._env(voice, {
+                attack: 0.008,
+                decay: 0.42,
+                peak: this._softPeak(vol, 0.15),
+                startTime: startT
+            });
+            voice.endTime = startT + dur;
+            this._connectVoice(voice, 0.28);
+        }
+        this._duckMusic(0.18, 0.3);
+    }
+
+    _synthDemonRoar(vol, pitch = 1) {
+        const dur = 0.5;
+        const voice = this._allocVoice(PRIORITY.milestone, dur);
+        const now = this.audioContext.currentTime;
+
+        this._shapeVoice(voice, { brightness: 0.28, resonance: 1.4, filterType: 'bandpass' });
+        const carrier = this._osc('triangle', 70 * pitch, voice, dur);
+        const wobble = this.audioContext.createOscillator();
+        const wobbleGain = this.audioContext.createGain();
+        wobble.type = 'sine';
+        wobble.frequency.value = 23;
+        wobbleGain.gain.value = 16;
+        wobble.connect(wobbleGain).connect(carrier.frequency);
+        wobble.start(now);
+        wobble.stop(now + dur + 0.05);
+        voice.nodes.push(wobble, wobbleGain);
+
+        this._noiseSource(voice, dur, { type: 'lowpass', frequency: 500, q: 1.2, playbackRate: 0.6 });
+        this._env(voice, { attack: 0.02, decay: 0.42, peak: this._softPeak(vol, 0.16) });
+        this._connectVoice(voice, 0.16);
+        this._duckMusic(0.2, 0.28);
+    }
+
+    _synthGameOver(vol, pitch = 1) {
+        const notes = [SCALE[15], SCALE[13], SCALE[11], SCALE[10]].map((n) => n * pitch);
+        const now = this.audioContext.currentTime;
+        for (let i = 0; i < notes.length; i++) {
+            const dur = 0.85 - i * 0.1;
+            const startT = now + i * 0.16;
+            const voice = this._allocVoice(PRIORITY.milestone, dur);
+            this._shapeVoice(voice, { brightness: 0.44, resonance: 0.75 });
+            this._osc('triangle', notes[i], voice, dur, startT);
+            this._osc('sine', notes[i] * 0.5, voice, dur, startT);
+            this._env(voice, {
+                attack: 0.02,
+                decay: dur - 0.08,
+                peak: this._softPeak(vol, 0.18),
+                startTime: startT
+            });
+            voice.endTime = startT + dur;
+            this._connectVoice(voice, 0.26);
+        }
+        this._duckMusic(0.34, 0.7);
+    }
+
+    _synthUIHover(vol, pitch = 1) {
+        const dur = 0.045;
+        const voice = this._allocVoice(PRIORITY.ui, dur);
+        this._shapeVoice(voice, { brightness: 1, resonance: 0.6 });
+        this._osc('sine', SCALE[14] * pitch, voice, dur);
+        this._env(voice, { attack: 0.002, decay: 0.038, peak: this._softPeak(vol, 0.08) });
+        this._connectVoice(voice, 0.04);
+    }
+
+    _synthUISelect(vol, pitch = 1) {
+        const dur = 0.08;
+        const voice = this._allocVoice(PRIORITY.ui, dur);
+        const now = this.audioContext.currentTime;
+        this._shapeVoice(voice, { brightness: 0.92, resonance: 0.55 });
+        const osc = this._osc('triangle', SCALE[12] * pitch, voice, dur);
+        osc.frequency.setValueAtTime(SCALE[12] * pitch, now);
+        osc.frequency.setValueAtTime(SCALE[14] * pitch, now + 0.034);
+        this._env(voice, { attack: 0.003, decay: 0.06, peak: this._softPeak(vol, 0.1) });
+        this._connectVoice(voice, 0.05);
+    }
+
+    _synthDefault(vol, pitch = 1) {
+        const dur = 0.07;
+        const voice = this._allocVoice(PRIORITY.combat, dur);
+        this._shapeVoice(voice, { brightness: 0.55, resonance: 0.4 });
+        this._osc('triangle', this._scaleNote(1, Math.floor(Math.random() * 5)) * pitch, voice, dur);
+        this._env(voice, { attack: 0.003, decay: 0.05, peak: this._softPeak(vol, 0.08) });
+        this._connectVoice(voice, 0.04);
+    }
+
+    _playNormalizedSound(name, volume = 1, pitch = 1) {
+        const v = clamp(volume, 0.05, 2);
+        const p = clamp(pitch, 0.55, 1.75);
+
+        switch (name) {
+            case 'magicMissile':
+                this._synthMagicMissile(v, p);
+                break;
+            case 'whipCrack':
+                this._synthWhipCrack(v, p);
+                break;
+            case 'knifeThrowing':
+                this._synthKnifeThrow(v, p);
+                break;
+            case 'iceShardCast':
+                this._synthIceShard(v, p);
+                break;
+            case 'enemyDeath':
+                this._synthEnemyDeath(v, p);
+                break;
+            case 'experienceGain':
+                this._synthGemPickup(v, p);
+                break;
+            case 'levelUp':
+                this._synthLevelUp(v, p);
+                break;
+            case 'fireballLaunch':
+                this._synthFireballLaunch(v, p);
+                break;
+            case 'fireballExplosion':
+                this._synthFireballExplosion(v, p);
+                break;
+            case 'lightningStrike':
+                this._synthLightning(v, p, false);
+                break;
+            case 'lightningChain':
+                this._synthLightning(v, p, true);
+                break;
+            case 'garlicPulse':
+                this._synthGarlicPulse(v, p);
+                break;
+            case 'orbiterWhoosh':
+                this._synthOrbiterWhoosh(v, p);
+                break;
+            case 'boomerangThrow':
+                this._synthBoomerang(v, p);
+                break;
+            case 'bloodSplash':
+            case 'vampireBite':
+                this._synthBloodSplash(v, p);
+                break;
+            case 'criticalHit':
+                this._synthCriticalHit(v, p);
+                break;
+            case 'bossWarning':
+                this._synthBossWarning(v, p);
+                break;
+            case 'bossSpawn':
+                this._synthBossSpawn(v, p);
+                break;
+            case 'heartbeat':
+                this._synthHeartbeat(v, p);
+                break;
+            case 'victoryFanfare':
+                this._synthVictoryFanfare(v, p);
+                break;
+            case 'demonRoar':
+                this._synthDemonRoar(v, p);
+                break;
+            case 'gameOver':
+                this._synthGameOver(v, p);
+                break;
+            case 'uiHover':
+                this._synthUIHover(v, p);
+                break;
+            case 'uiSelect':
+                this._synthUISelect(v, p);
+                break;
+            case 'challengeBell':
+                this._synthBossWarning(v * 0.7, p * 1.1);
+                break;
+            case 'challengeComplete':
+                this._synthVictoryFanfare(v * 0.85, p);
+                break;
+            case 'challengeFail':
+                this._synthGameOver(v * 0.6, p * 0.95);
+                break;
+            default:
+                this._synthDefault(v, p);
+                break;
+        }
+    }
+
+    _normalizeSoundName(name) {
+        return SOUND_ALIASES[name] || name;
+    }
+
+    _getThrottle(name) {
+        return SOUND_THROTTLES[name] || this.throttleInterval;
+    }
+
+    // --- Core ECS Interface ---
+    playVampireSound(name, volume = 1, pitch = 1) {
+        if (!this.initialized || this.muted || !this.audioContext) return;
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().catch(() => {});
+        }
+
+        const normalized = this._normalizeSoundName(name);
+        const now = performance.now();
+        const lastPlayed = this.soundThrottle.get(normalized) || 0;
+        const throttle = this._getThrottle(normalized);
+        if (now - lastPlayed < throttle) return;
+        this.soundThrottle.set(normalized, now);
+
+        const scaledVolume = clamp(volume * (0.92 + pitch * 0.08), 0.05, 2);
+        this._playNormalizedSound(normalized, scaledVolume, pitch);
+    }
+
+    // --- ECS interface implementations ---
     playLayeredHitSound(damage, weaponType, critical = false, combo = 1) {
-        const baseDamage = Math.max(1, damage);
-        const intensity = Math.min(3.0, baseDamage * 0.02 + combo * 0.1);
-
-        // Base hit sound
+        const intensity = Math.min(1.8, 0.45 + damage * 0.007 + combo * 0.025);
         this.playWeaponHitSound(weaponType, intensity);
-
-        // Layer additional effects based on damage and combo
-        if (critical) {
-            managedSetTimeout(
-                () => {
-                    this.playCriticalHitLayer(intensity);
-                },
-                50,
-                this
-            );
-        }
-
-        if (combo > 5) {
-            managedSetTimeout(
-                () => {
-                    this.playComboLayer(combo, intensity);
-                },
-                100,
-                this
-            );
-        }
-
-        if (baseDamage > 100) {
-            managedSetTimeout(
-                () => {
-                    this.playMassiveDamageLayer(intensity);
-                },
-                75,
-                this
-            );
-        }
+        if (critical) this.playVampireSound('criticalHit', intensity * 0.9);
     }
 
     playWeaponHitSound(weaponType, intensity) {
-        const weaponSounds = {
-            magicMissile: { sound: 'magicHit', pitch: 1.1, volume: 0.4 },
-            whip: { sound: 'whipHit', pitch: 0.9, volume: 0.4 },
-            throwingKnife: { sound: 'bladeHit', pitch: 1.2, volume: 0.4 },
-            firearm: { sound: 'bulletHit', pitch: 1.0, volume: 0.4 }
-        };
-
-        const config = weaponSounds[weaponType] || weaponSounds['magicMissile'];
-        const volume = config.volume * intensity * 0.8;
-        const pitch = config.pitch + (intensity - 1.0) * 0.1;
-
-        this.playVampireSound(config.sound, volume, pitch);
+        this.playVampireSound(weaponType, intensity);
     }
 
-    playCriticalHitLayer(intensity) {
-        // Dramatic critical hit overlay
-        this.playVampireSound('criticalBoom', 0.4 * intensity, 0.8);
-
-        // Add metallic ring for emphasis
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('metalRing', 0.4 * intensity, 1.3);
-            },
-            100,
-            this
-        );
-    }
-
-    playComboLayer(combo, intensity) {
-        // Rising pitch based on combo level
-        const pitchBonus = Math.min(0.5, combo * 0.02);
-        const volumeBonus = Math.min(0.4, combo * 0.01);
-
-        this.playVampireSound('comboChime', 0.5 + volumeBonus, 1.0 + pitchBonus);
-    }
-
-    playMassiveDamageLayer(intensity) {
-        // Deep impact sound for massive damage
-        this.playVampireSound('massiveImpact', 0.45 * intensity, 0.7);
-    }
-
-    // Enhanced weapon firing sounds with variation
     playEnhancedWeaponFire(weaponType, level = 1, rapid = false) {
-        const levelIntensity = 1.0 + (level - 1) * 0.1;
-        const rapidPitchBonus = rapid ? 0.2 : 0;
-
-        switch (weaponType) {
-            case 'magicMissile':
-                this.playMagicFireSound(levelIntensity, rapidPitchBonus);
-                break;
-            case 'whip':
-                this.playWhipFireSound(levelIntensity, rapidPitchBonus);
-                break;
-            case 'throwingKnife':
-                this.playKnifeFireSound(levelIntensity, rapidPitchBonus);
-                break;
-            case 'firearm':
-                this.playFirearmSound(levelIntensity, rapidPitchBonus);
-                break;
-            case 'lightning':
-                this.playVampireSound('lightningStrike', 0.4 * levelIntensity, 1.0 + rapidPitchBonus);
-                break;
-            case 'aura':
-                this.playVampireSound('garlicPulse', 0.3 * levelIntensity, 0.9 + rapidPitchBonus);
-                break;
-            case 'holyBible':
-                this.playVampireSound('orbiterWhoosh', 0.4 * levelIntensity, 1.0 + rapidPitchBonus);
-                break;
-            case 'fireWand':
-                this.playVampireSound('fireballLaunch', 0.6 * levelIntensity, 1.0 + rapidPitchBonus);
-                break;
-            case 'boneBoomerang':
-                this.playVampireSound('boomerangThrow', 0.5 * levelIntensity, 1.0 + rapidPitchBonus);
-                break;
-            default:
-                this.playVampireSound('weaponFire', 0.4 * levelIntensity, 1.0 + rapidPitchBonus);
-                break;
-        }
+        const volume = rapid ? 0.58 : Math.min(1.1, 0.72 + level * 0.03);
+        this.playVampireSound(weaponType, volume, 0.97 + level * 0.015);
     }
 
-    playMagicFireSound(intensity, pitchBonus) {
-        // Magical charging sound
-        this.playVampireSound('magicCharge', 0.4 * intensity, 1.0 + pitchBonus);
-
-        // Main missile launch
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('magicMissile', 0.4 * intensity, 1.1 + pitchBonus);
-            },
-            80,
-            this
-        );
-
-        // Arcane whisper layer
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('arcaneWhisper', 0.3 * intensity, 1.3 + pitchBonus);
-            },
-            150,
-            this
-        );
-    }
-
-    playWhipFireSound(intensity, pitchBonus) {
-        // Whip swoosh
-        this.playVampireSound('whipSwoosh', 0.4 * intensity, 0.9 + pitchBonus);
-
-        // Crack sound
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('whipCrack', 0.4 * intensity, 1.0 + pitchBonus);
-            },
-            120,
-            this
-        );
-    }
-
-    playKnifeFireSound(intensity, pitchBonus) {
-        // Blade slice through air
-        this.playVampireSound('bladeWhoosh', 0.5 * intensity, 1.2 + pitchBonus);
-
-        // Metal glint
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('metalGlint', 0.3 * intensity, 1.4 + pitchBonus);
-            },
-            60,
-            this
-        );
-    }
-
-    playFirearmSound(intensity, pitchBonus) {
-        // Gunshot
-        this.playVampireSound('gunshot', 0.4 * intensity, 1.0 + pitchBonus);
-
-        // Shell casing drop
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('shellDrop', 0.3 * intensity, 0.8 + Math.random() * 0.4);
-            },
-            200 + Math.random() * 300,
-            this
-        );
-    }
-
-    // Dynamic music system based on game intensity
-    updateDynamicMusic(enemyCount, playerHealth) {
-        const healthPercent = playerHealth / 100; // Assuming max health is 100
-        const threatLevel = Math.min(1.0, enemyCount / 50); // Normalize enemy count
-
-        const oldIntensity = this.gameIntensity;
-        const targetIntensity = 1.0 - healthPercent * 0.5 + threatLevel * 0.7;
-        this.gameIntensity = Math.min(1.0, targetIntensity);
-
-        // Trigger musical transitions at key intensity thresholds
-        if (oldIntensity < 0.3 && this.gameIntensity >= 0.3) {
-            this.transitionToCombatMusic();
-        } else if (oldIntensity < 0.7 && this.gameIntensity >= 0.7) {
-            this.transitionToIntenseMusic();
-        } else if (oldIntensity >= 0.7 && this.gameIntensity < 0.5) {
-            this.transitionToNormalMusic();
-        }
-
-        // Update ambient sound intensity
-        this.updateAmbientSounds();
-    }
-
-    transitionToCombatMusic() {
-        if (this.currentMusic) {
-            this.fadeOut(this.currentMusic, 1500, () => {
-                this.playMusic('combatTheme', true);
-            });
-        } else {
-            this.playMusic('combatTheme', true);
-        }
-    }
-
-    transitionToIntenseMusic() {
-        if (this.currentMusic) {
-            this.fadeOut(this.currentMusic, 1000, () => {
-                this.playMusic('intenseTheme', true);
-            });
-        } else {
-            this.playMusic('intenseTheme', true);
-        }
-    }
-
-    transitionToNormalMusic() {
-        if (this.currentMusic) {
-            this.fadeOut(this.currentMusic, 2000, () => {
-                this.playMusic('ambientTheme', true);
-            });
-        }
-    }
-
-    updateAmbientSounds() {
-        const wind = this.activeLoopingSounds.get('windHowl');
-        if (wind?.update) {
-            wind.update(0.16 + this.gameIntensity * 0.04, 0.92 + this.gameIntensity * 0.03);
-        }
-
-        const drone = this.activeLoopingSounds.get('lowDrone');
-        if (drone?.update) {
-            drone.update(0.2 - this.gameIntensity * 0.03, 1.0 + this.gameIntensity * 0.015);
-        }
-
-        const pulse = this.activeLoopingSounds.get('ritualPulse');
-        if (pulse?.update) {
-            pulse.update(0.08 + this.gameIntensity * 0.03, 1.0 + this.gameIntensity * 0.02);
-        }
-
-        const heartbeat = this.activeLoopingSounds.get('heartbeat');
-        if (heartbeat?.update) {
-            heartbeat.update(0.24 + this.gameIntensity * 0.08, 1.0 + this.gameIntensity * 0.04);
-        }
-    }
-
-    // Enhanced enemy death sounds with variety
     playEnemyDeathSound(enemyType, overkill = false) {
-        const deathSounds = {
-            skeleton: { sound: 'boneBreak', pitch: 0.9, volume: 0.4 },
-            zombie: { sound: 'fleshTear', pitch: 0.8, volume: 0.4 },
-            vampire: { sound: 'vampireScream', pitch: 1.0, volume: 0.45 },
-            ghost: { sound: 'ghostWail', pitch: 1.2, volume: 0.4 },
-            demon: { sound: 'demonRoar', pitch: 0.7, volume: 0.5 },
-            elite: { sound: 'eliteDeath', pitch: 0.8, volume: 0.5 },
-            boss: { sound: 'bossDefeat', pitch: 0.6, volume: 0.6 }
-        };
-
-        const config = deathSounds[enemyType] || deathSounds['skeleton'];
-        let volume = config.volume;
-        let pitch = config.pitch;
-
-        // Modify for overkill
-        if (overkill) {
-            volume *= 1.3;
-            pitch *= 0.9;
-        }
-
-        this.playVampireSound(config.sound, volume, pitch);
-
-        // Add satisfying death layer
-        managedSetTimeout(
-            () => {
-                this.playVampireSound('deathSatisfaction', 0.4, 1.0 + Math.random() * 0.2);
-            },
-            100,
-            this
-        );
+        this.playVampireSound('enemyDeath', overkill ? 1.15 : 0.95, overkill ? 0.92 : 1);
     }
 
-    // Enhanced UI feedback sounds
     playEnhancedUISound(action, context = 'normal') {
-        const uiSounds = {
-            hover: { sound: 'uiHover', pitch: 1.1, volume: 0.3 },
-            select: { sound: 'uiSelect', pitch: 1.0, volume: 0.5 },
-            levelUp: { sound: 'levelUpFanfare', pitch: 1.0, volume: 0.5 },
-            weaponUpgrade: { sound: 'upgradeChime', pitch: 1.2, volume: 0.4 },
-            challengeStart: { sound: 'challengeBell', pitch: 1.1, volume: 0.5 },
-            challengeComplete: { sound: 'victoryFanfare', pitch: 1.0, volume: 0.5 },
-            error: { sound: 'errorBuzz', pitch: 0.8, volume: 0.4 }
-        };
-
-        const config = uiSounds[action];
-        if (!config) return;
-
-        let volume = config.volume;
-        let pitch = config.pitch;
-
-        // Context modifications
-        switch (context) {
-            case 'important':
-                volume *= 1.5;
-                pitch *= 1.1;
-                break;
-            case 'subtle':
-                volume *= 0.6;
-                break;
-        }
-
-        this.playVampireSound(config.sound, volume, pitch);
+        this.playVampireSound(action === 'hover' ? 'uiHover' : 'uiSelect', context === 'important' ? 1.1 : 1);
     }
 
-    // Missing methods for new systems
-    playWeaponEvolution() {
-        this.playVampireSound('weaponEvolution', 0.6);
+    playVampireBite() { this.playVampireSound('vampireBite'); }
+    playBloodSplash() { this.playVampireSound('bloodSplash'); }
+    playMagicMissile() { this.playVampireSound('magicMissile'); }
+    playWhipCrack() { this.playVampireSound('whipCrack'); }
+    playKnifeThrow() { this.playVampireSound('knifeThrowing'); }
+    playCriticalHit() { this.playVampireSound('criticalHit'); }
+    playEnemyDeath() { this.playVampireSound('enemyDeath'); }
+    playLevelUp() { this.playVampireSound('levelUp'); }
+    playExperienceGain() { this.playVampireSound('experienceGain'); }
+    playWeaponUpgrade() { this.playVampireSound('weaponUpgrade'); }
+    playMenuHover() { this.playVampireSound('menuHover'); }
+    playMenuSelect() { this.playVampireSound('menuSelect'); }
+    playGameOver() { this.playVampireSound('gameOver'); }
+    startVampireAmbient() { this.setGameIntensity(0.1); }
+    stopVampireAmbient() { this.setGameIntensity(0); }
+    playWeaponEvolution() { this.playVampireSound('weaponEvolution', 1.05); }
+    playAchievementUnlock(intensity = 1) { this.playVampireSound('achievementUnlock', intensity); }
+    playPowerUpCollect() { this.playVampireSound('powerUpCollect'); }
+    playLastStandActivation() { this.playVampireSound('bossWarning', 0.8); }
+
+    setGameIntensity(intensity) {
+        this.gameIntensity = clamp(intensity, 0, 1);
     }
 
-    playAchievementUnlock(intensity = 1) {
-        const volume = Math.min(0.6, 0.4 + intensity * 0.2);
-        this.playVampireSound('achievementUnlock', volume);
+    // Expose for AdaptiveMusicSystem to create music voices
+    getMusicVoice(priority, duration) {
+        return this._allocVoice(priority, duration, 'music');
     }
 
-    playPowerUpCollect() {
-        this.playVampireSound('powerUpCollect', 0.6);
+    connectMusicVoice(voice, wet = 0.18) {
+        this._connectVoice(voice, wet);
     }
 
-    // Performance monitoring
-    getPerformanceStats() {
-        return {
-            latency: 0, // Would need Web Audio API implementation
-            bufferUnderruns: 0,
-            activeAudioNodes: Object.keys(this.sounds).length + Object.keys(this.music).length
-        };
+    createMusicOsc(type, freq, voice, duration, when = this.audioContext?.currentTime || 0) {
+        return this._osc(type, freq, voice, duration, when);
+    }
+
+    get currentTime() {
+        return this.audioContext ? this.audioContext.currentTime : 0;
+    }
+
+    get scale() {
+        return SCALE;
+    }
+
+    get PRIORITY() {
+        return PRIORITY;
     }
 }

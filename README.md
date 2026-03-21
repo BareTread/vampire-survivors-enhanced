@@ -34,6 +34,17 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 - **Screen Shake Effects**: Different shake patterns for various events
 - **Health Bar Improvements**: Color-coded with glow effects
 
+### Audio — Anti-Fatigue Gothic Synth Engine
+
+- **100% Procedural**: All audio is synthesized with the Web Audio API — zero external files
+- **Split Mix Buses**: Dedicated SFX + music buses with automatic music ducking keep combat readable
+- **Voice-Pooled**: 16-voice pool with priority-based stealing prevents clipping during swarms
+- **Expanded Sound Families**: Weapons, bosses, pickups, and UI now use softer, distinct synthesis recipes instead of falling back to generic beeps
+- **Anti-Fatigue Tone Shaping**: Per-voice low-pass filtering darkens the mix automatically when the screen gets dense
+- **Sparse Adaptive Score**: Background music is now a restrained pulse-and-bloom underscore with intentional silence, not a constant arpeggio loop
+- **Emergent Gem Melody**: Collecting gems still walks the D minor pentatonic, but with gentler chime voicing
+- **Shorter Cathedral Reverb**: A tighter convolution reverb keeps the gothic atmosphere without washing out the mix
+
 ## 🚀 Performance Optimizations
 
 ### Engine Features
@@ -71,6 +82,7 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 src/core/
 ├── VampireSurvivorsGame.js  # Main game engine
 ├── ECS.js                   # Entity-Component-System framework
+├── AudioManager.js          # Split-bus anti-fatigue procedural audio engine (Web Audio API)
 ├── LayeredRenderer.js       # High-performance canvas layers
 ├── SpriteManager.js         # Procedural sprite generation
 ├── GraphicsUpgrade.js       # Advanced visual effects system
