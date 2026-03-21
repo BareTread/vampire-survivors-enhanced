@@ -13,16 +13,16 @@ export class EnemySystem {
         this.activeEnemies = [];
         this.maxActiveEnemies = 140;
 
-        // Spawning configuration - BALANCED FOR FUN
-        this.spawnRate = 1.5; // Starting enemies per second - gradual ramp-up
+        // Spawning configuration - tuned for earlier engagement
+        this.spawnRate = 1.8; // Starting enemies per second — default mode should feel active immediately
         this.spawnTimer = 0;
         this.spawnDistance = 350; // Balanced spawn distance for visibility
         this.despawnDistance = 600; // Distance at which to despawn enemies
 
-        // Wave system - SMOOTH PROGRESSION
+        // Wave system - tuned to reach real pressure sooner
         this.currentWave = 1;
         this.waveTimer = 0;
-        this.waveDuration = 45; // 45 seconds per wave - comfortable pacing
+        this.waveDuration = 40; // Slightly shorter than before so the run escalates earlier
         this.waveProgress = 0;
 
         // Difficulty scaling - PROGRESSIVE CHALLENGE
@@ -44,7 +44,7 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeTimer = 0;
         this.pressureSurgeActive = false;
-        this.nextSurgeTime = 180; // First surge at 3 minutes (was 2 min — collided with difficulty spike)
+        this.nextSurgeTime = 150; // First surge at 2.5 minutes so the run does not stay sleepy for too long
 
         // Elite aura tracking (max 1 aura elite per wave, unlocked after wave 8)
         this.auraEliteThisWave = false;
@@ -192,18 +192,18 @@ export class EnemySystem {
             this.difficultyMultiplier = Math.min(this.difficultyMultiplier * 1.15, 50.0);
         }
 
-        // BALANCED spawn rates for fun progression
-        let baseSpawnRate = 1.35;
+        // Spawn rates tuned to create pressure earlier without relying on unfair damage spikes
+        let baseSpawnRate = 1.75;
         let rawSpawnRate;
 
         if (timeMinutes <= 2) {
-            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 0.45;
+            rawSpawnRate = baseSpawnRate + (this.difficultyMultiplier - 1) * 0.7;
         } else if (timeMinutes <= 6) {
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.65) * 1.35;
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.7) * 1.6;
         } else if (timeMinutes <= 12) {
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.55) * 1.8;
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.6) * 2.0;
         } else {
-            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.5) * 2.2;
+            rawSpawnRate = baseSpawnRate + Math.pow(this.difficultyMultiplier - 1, 0.55) * 2.4;
         }
 
         if (this.pressureSurgeActive) {
@@ -212,10 +212,10 @@ export class EnemySystem {
 
         if (isFinite(rawSpawnRate) && rawSpawnRate > 0) {
             // Apply wave-type spawn multiplier
-            const waveTypeMultiplier = this.waveType === 'rest' ? 0.5
-                : this.waveType === 'rush' ? 1.6 : 1.0;
+            const waveTypeMultiplier = this.waveType === 'rest' ? 0.65
+                : this.waveType === 'rush' ? 1.75 : 1.0;
             rawSpawnRate *= waveTypeMultiplier;
-            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 8.5 : 6.0);
+            this.spawnRate = Math.min(rawSpawnRate, this.pressureSurgeActive ? 9.0 : 7.0);
         } else {
             this.spawnRate = baseSpawnRate;
         }
@@ -383,11 +383,17 @@ export class EnemySystem {
 
     spawnEnemyWave() {
         const timeMinutes = this.game.gameTime / 60;
-        const difficultyBonus = Math.min(Math.floor(Math.max(0, this.difficultyMultiplier - 1) / 4), 2);
-        const timeBonus = timeMinutes >= 8 ? Math.min(1 + Math.floor((timeMinutes - 8) / 6), 2) : 0;
+        const difficultyBonus = Math.min(Math.floor(Math.max(0, this.difficultyMultiplier - 1) / 3), 2);
+        const earlyPressureBonus = this.currentWave >= 2 ? 1 : 0;
+        const waveBonus = this.currentWave >= 5 ? 1 : 0;
+        const timeBonus = timeMinutes >= 6 ? Math.min(1 + Math.floor((timeMinutes - 6) / 5), 2) : 0;
         const surgeBonus = this.pressureSurgeActive ? 1 : 0;
         const availableSlots = Math.max(0, this.maxActiveEnemies - this.activeEnemies.length);
-        const spawnCount = Math.min(1 + difficultyBonus + timeBonus + surgeBonus, 5, availableSlots);
+        const spawnCount = Math.min(
+            1 + earlyPressureBonus + waveBonus + difficultyBonus + timeBonus + surgeBonus,
+            6,
+            availableSlots
+        );
 
         if (spawnCount <= 0) return;
 
@@ -742,7 +748,7 @@ export class EnemySystem {
             this.waveDuration = 35; // slightly shorter, intense
             this.enemySpeedMultiplier = 1.15; // enemies faster during rush
         } else {
-            this.waveDuration = 45; // standard
+            this.waveDuration = 40; // standard waves resolve sooner so challenge arrives earlier
             this.enemySpeedMultiplier = 1.0;
         }
 
@@ -809,14 +815,15 @@ export class EnemySystem {
     }
 
     /**
-     * Returns wave type for pacing rhythm: rest → rush → normal → normal → rest ...
-     * Rest waves (every 3rd wave) reduce pressure; rush waves (right after rest) spike it.
+     * Returns wave type for pacing rhythm once the run is established.
+     * Early waves stay normal on purpose so normal mode ramps into pressure
+     * instead of immediately alternating between rest/rush gimmicks.
      */
     getWaveType(waveNumber) {
-        if (waveNumber <= 1) return 'normal'; // Wave 1 is always normal
+        if (waveNumber <= 5) return 'normal';
         const mod = waveNumber % 5;
-        if (mod === 3) return 'rest';   // Waves 3, 8, 13, 18...
-        if (mod === 4) return 'rush';   // Waves 4, 9, 14, 19...
+        if (mod === 3) return 'rest';   // Waves 8, 13, 18...
+        if (mod === 4) return 'rush';   // Waves 9, 14, 19...
         return 'normal';
     }
 
@@ -1135,7 +1142,7 @@ export class EnemySystem {
         this.auraEliteThisWave = false;
         this.waveType = 'normal';
         this.enemySpeedMultiplier = 1.0;
-        this.waveDuration = 45;
+        this.waveDuration = 40;
     }
 
     /**

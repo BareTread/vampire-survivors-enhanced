@@ -289,12 +289,12 @@ describe('Balance audit', () => {
         expect(persistence.getUpgradeCosts().cooldown).toBe(130);
     });
 
-    test('damage upgrade per level is 2.5%', () => {
+    test('damage upgrade per level is 2%', () => {
         const game = { systems: {} };
         const persistence = new PersistenceSystem(game);
         persistence.data.upgrades.damage = 1;
         const mods = persistence.getUpgradeModifiers();
-        expect(mods.damage).toBeCloseTo(1.025, 3);
+        expect(mods.damage).toBeCloseTo(1.02, 3);
     });
 
     // UPDATESTATS IDEMPOTENCY

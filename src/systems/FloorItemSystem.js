@@ -2,9 +2,9 @@
  * FloorItemSystem — World-space collectible drops beyond XP gems & gold.
  *
  * Item types:
- *   health_orb     — Restores 15–25 % HP. Drops from elites/berserkers at ~20 %.
- *   vacuum         — Instantly pulls all gems to player. ~6 % from elites.
- *   rosary         — Destroys all on-screen enemies. ~0.5 % elite drop, boss-guaranteed.
+ *   health_orb     — Restores 15–25 % HP. Drops from elites/berserkers at a modest rate.
+ *   vacuum         — Instantly pulls all gems to player. Rare elite drop, boss reward.
+ *   rosary         — Destroys all on-screen enemies. Very rare elite drop.
  *   treasure_chest — Guaranteed boss drop. Opens for gold burst, stat boost, or weapon level.
  *
  * Integration points:
@@ -96,7 +96,7 @@ export class FloorItemSystem {
         const gold = this.game.systems.gold;
         const cam  = this.game.camera;
 
-        if (roll < 0.38 && gold) {
+        if (roll < 0.55 && gold) {
             // Gold burst: scatter coins at player position
             const value = 80 + Math.floor(Math.random() * 120);
             for (let i = 0; i < 8; i++) {
@@ -107,7 +107,7 @@ export class FloorItemSystem {
                 );
             }
             player.addDamageNumber(`+${value} Gold`, '#FFD700', '');
-        } else if (roll < 0.70) {
+        } else if (roll < 0.82) {
             // Random stat upgrade
             const stats = ['damage', 'speed', 'health', 'luck', 'area', 'cooldown'];
             const stat  = stats[Math.floor(Math.random() * stats.length)];
@@ -139,22 +139,22 @@ export class FloorItemSystem {
         if (this.items.length >= this.maxItems) return;
         if (!['elite', 'berserker', 'juggernaut', 'summoner'].includes(enemy.type)) return;
 
-        // Aura carriers guaranteed chest (flag set in EnemySystem)
-        if (enemy.auraType && Math.random() < 0.5) {
+        // Aura carriers are still rewarding, but less likely to snowball a run.
+        if (enemy.auraType && Math.random() < 0.35) {
             this.spawnItem(enemy.x, enemy.y, 'treasure_chest');
             return;
         }
 
         const roll = Math.random();
-        if      (roll < 0.005) this.spawnItem(enemy.x, enemy.y, 'rosary');
-        else if (roll < 0.060) this.spawnItem(enemy.x, enemy.y, 'vacuum');
-        else if (roll < 0.220) this.spawnItem(enemy.x, enemy.y, 'health_orb');
+        if      (roll < 0.002) this.spawnItem(enemy.x, enemy.y, 'rosary');
+        else if (roll < 0.035) this.spawnItem(enemy.x, enemy.y, 'vacuum');
+        else if (roll < 0.140) this.spawnItem(enemy.x, enemy.y, 'health_orb');
     }
 
     onBossDeath(bossX, bossY) {
         this.spawnItem(bossX,      bossY, 'treasure_chest');
         this.spawnItem(bossX + 55, bossY, 'health_orb');
-        this.spawnItem(bossX - 55, bossY, 'rosary');
+        this.spawnItem(bossX - 55, bossY, 'vacuum');
     }
 
     spawnItem(x, y, type) {

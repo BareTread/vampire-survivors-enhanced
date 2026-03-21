@@ -21,6 +21,7 @@ export class Player {
         this.level = 1;
         this.experience = 0;
         this.experienceToNext = 100;
+        this.levelUpHealRatio = 0.35; // Level-ups should stabilize a run, not fully reset all danger
 
         // Player stats (upgradeable)
         this.stats = {
@@ -473,8 +474,8 @@ export class Player {
         // New: 1.12^level growth for more reasonable progression
         this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
 
-        // Full heal on level up
-        this.health = this.maxHealth;
+        // Partial recovery on level up — strong enough to matter, not a full reset
+        this.heal(Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio)));
 
         // Enhanced level up effects
         this.createLevelUpEffects();
@@ -1478,9 +1479,9 @@ export class Player {
             // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
             this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
 
-            // Full heal on level up (blocked by no_heals challenge)
+            // Level-ups still recover health, but no longer erase all danger.
             if (!this.game.systems?.challenge?.hasModifier('no_heals')) {
-                this.health = this.maxHealth;
+                this.heal(Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio)));
             }
         }
 

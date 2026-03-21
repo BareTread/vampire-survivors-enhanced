@@ -149,14 +149,14 @@ describe('FloorItemSystem', () => {
         expect(sys.items).toHaveLength(0);
     });
 
-    test('onBossDeath always spawns 3 items (chest + orb + rosary)', () => {
+    test('onBossDeath always spawns 3 items (chest + orb + vacuum)', () => {
         const sys = new FloorItemSystem(makeGame());
         sys.onBossDeath(0, 0);
         expect(sys.items).toHaveLength(3);
         const types = sys.items.map((i) => i.type);
         expect(types).toContain('treasure_chest');
         expect(types).toContain('health_orb');
-        expect(types).toContain('rosary');
+        expect(types).toContain('vacuum');
     });
 
     test('reset clears all items', () => {
@@ -608,27 +608,31 @@ describe('WeaponEvolutionSystem', () => {
 describe('Wave pacing (EnemySystem.getWaveType)', () => {
     const getWaveType = EnemySystem.prototype.getWaveType;
 
-    test('wave 1 is always normal', () => {
+    test('waves 1-5 are always normal so the run ramps cleanly', () => {
         expect(getWaveType(1)).toBe('normal');
+        expect(getWaveType(2)).toBe('normal');
+        expect(getWaveType(3)).toBe('normal');
+        expect(getWaveType(4)).toBe('normal');
+        expect(getWaveType(5)).toBe('normal');
     });
 
-    test('rest waves occur at mod 3 (waves 3, 8, 13)', () => {
-        expect(getWaveType(3)).toBe('rest');
+    test('rest waves begin later at waves 8, 13, 18', () => {
         expect(getWaveType(8)).toBe('rest');
         expect(getWaveType(13)).toBe('rest');
+        expect(getWaveType(18)).toBe('rest');
     });
 
-    test('rush waves occur at mod 4 (waves 4, 9, 14)', () => {
-        expect(getWaveType(4)).toBe('rush');
+    test('rush waves follow rest waves at 9, 14, 19', () => {
         expect(getWaveType(9)).toBe('rush');
         expect(getWaveType(14)).toBe('rush');
+        expect(getWaveType(19)).toBe('rush');
     });
 
-    test('other waves are normal (waves 2, 5, 6, 7)', () => {
-        expect(getWaveType(2)).toBe('normal');
-        expect(getWaveType(5)).toBe('normal');
+    test('non-special later waves remain normal', () => {
         expect(getWaveType(6)).toBe('normal');
         expect(getWaveType(7)).toBe('normal');
+        expect(getWaveType(10)).toBe('normal');
+        expect(getWaveType(11)).toBe('normal');
     });
 });
 

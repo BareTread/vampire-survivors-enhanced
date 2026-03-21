@@ -31,12 +31,12 @@ export class PersistenceSystem {
 
             // Permanent upgrades (purchased from shop)
             upgrades: {
-                maxHealth: 0, // +5% per level
-                damage: 0, // +3% per level
-                moveSpeed: 0, // +2% per level
-                cooldown: 0, // -3% per level
-                xpGain: 0, // +10% per level
-                armor: 0, // +1 per level
+                maxHealth: 0, // +4% per level
+                damage: 0, // +2% per level
+                moveSpeed: 0, // +1.5% per level
+                cooldown: 0, // -2% per level
+                xpGain: 0, // +6% per level
+                armor: 0, // +0.75 per level
                 revival: 0, // +1 revive per level (max 1)
                 goldGain: 0 // +15% per level
             },
@@ -193,12 +193,12 @@ export class PersistenceSystem {
     getUpgradeModifiers() {
         const u = this.data.upgrades;
         return {
-            maxHealth: 1 + u.maxHealth * 0.05,
-            damage: 1 + u.damage * 0.025,
-            moveSpeed: 1 + u.moveSpeed * 0.02,
-            cooldown: 1 - u.cooldown * 0.03,
-            xpGain: 1 + u.xpGain * 0.1,
-            armor: u.armor,
+            maxHealth: 1 + u.maxHealth * 0.04,
+            damage: 1 + u.damage * 0.02,
+            moveSpeed: 1 + u.moveSpeed * 0.015,
+            cooldown: 1 - u.cooldown * 0.02,
+            xpGain: 1 + u.xpGain * 0.06,
+            armor: u.armor * 0.75,
             revival: u.revival,
             goldGain: 1 + u.goldGain * 0.15
         };
@@ -257,12 +257,12 @@ export class PersistenceSystem {
         const info = [];
 
         const descriptions = {
-            maxHealth: { name: 'Max Health', desc: '+5% per level', icon: '+' },
-            damage: { name: 'Damage', desc: '+3% per level', icon: 'D' },
-            moveSpeed: { name: 'Move Speed', desc: '+2% per level', icon: 'S' },
-            cooldown: { name: 'Cooldown', desc: '-3% per level', icon: 'C' },
-            xpGain: { name: 'XP Gain', desc: '+10% per level', icon: 'X' },
-            armor: { name: 'Armor', desc: '+1 per level', icon: 'A' },
+            maxHealth: { name: 'Max Health', desc: '+4% per level', icon: '+' },
+            damage: { name: 'Damage', desc: '+2% per level', icon: 'D' },
+            moveSpeed: { name: 'Move Speed', desc: '+1.5% per level', icon: 'S' },
+            cooldown: { name: 'Cooldown', desc: '-2% per level', icon: 'C' },
+            xpGain: { name: 'XP Gain', desc: '+6% per level', icon: 'X' },
+            armor: { name: 'Armor', desc: '+0.75 per level', icon: 'A' },
             revival: { name: 'Revival', desc: '+1 revive', icon: 'R' },
             goldGain: { name: 'Gold Gain', desc: '+15% per level', icon: 'G' }
         };

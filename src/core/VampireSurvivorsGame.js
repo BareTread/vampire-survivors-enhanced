@@ -1162,17 +1162,17 @@ export class VampireSurvivorsGame {
             }
         }
 
-        // Stat upgrades
+        // Stat upgrades — still valuable, but less generically run-winning than before
         const statUpgrades = [
-            { stat: 'damage', name: 'Damage +20%', description: 'Increase weapon damage' },
-            { stat: 'speed', name: 'Speed +15%', description: 'Move faster' },
-            { stat: 'health', name: 'Max Health +25%', description: 'Increase maximum health' },
-            { stat: 'luck', name: 'Luck +10%', description: 'Better experience and drops' },
-            { stat: 'area', name: 'Area +15%', description: 'Bigger projectiles and AoE radius' },
-            { stat: 'cooldown', name: 'Cooldown -10%', description: 'Weapons fire faster' }
+            { stat: 'damage', name: 'Damage +15%', description: 'Increase weapon damage' },
+            { stat: 'speed', name: 'Speed +10%', description: 'Move faster' },
+            { stat: 'health', name: 'Max Health +20%', description: 'Increase maximum health' },
+            { stat: 'luck', name: 'Luck +8%', description: 'Better experience and drops' },
+            { stat: 'area', name: 'Area +12%', description: 'Bigger projectiles and AoE radius' },
+            { stat: 'cooldown', name: 'Cooldown -8%', description: 'Weapons fire faster' }
         ];
 
-        for (const upgrade of statUpgrades) {
+        for (const upgrade of this.shuffleArray([...statUpgrades]).slice(0, 4)) {
             options.push({
                 type: 'stat_upgrade',
                 stat: upgrade.stat,
@@ -1288,24 +1288,24 @@ export class VampireSurvivorsGame {
     applyStatUpgrade(stat) {
         switch (stat) {
             case 'damage':
-                this.player.stats.damage *= 1.2;
+                this.player.stats.damage *= 1.15;
                 break;
             case 'speed':
-                this.player.stats.speed *= 1.15;
+                this.player.stats.speed *= 1.10;
                 break;
             case 'health':
                 const oldMaxHealth = this.player.maxHealth;
-                this.player.maxHealth = Math.floor(this.player.maxHealth * 1.25);
-                this.player.health += this.player.maxHealth - oldMaxHealth; // Heal for the difference
+                this.player.maxHealth = Math.floor(this.player.maxHealth * 1.20);
+                this.player.health += this.player.maxHealth - oldMaxHealth; // Heal for the difference only
                 break;
             case 'luck':
-                this.player.stats.luck *= 1.1;
+                this.player.stats.luck *= 1.08;
                 break;
             case 'area':
-                this.player.stats.area *= 1.15;
+                this.player.stats.area *= 1.12;
                 break;
             case 'cooldown':
-                this.player.stats.cooldown *= 0.92;
+                this.player.stats.cooldown *= 0.94;
                 break;
         }
 

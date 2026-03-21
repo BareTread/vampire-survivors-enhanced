@@ -37,11 +37,11 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(255,0,255,0.4)',
                     description: 'Homing missiles that pierce all enemies',
                     statMultipliers: {
-                        damage: 2.0,
-                        cooldown: 0.5, // Half cooldown
+                        damage: 1.7,
+                        cooldown: 0.7, // Still much faster, but no longer doubles the fire rate
                         piercing: 999, // Pierce everything
-                        speed: 1.5,
-                        projectiles: 2
+                        speed: 1.35,
+                        projectiles: 1.5
                     },
                     specialAbility: 'homing_pierce'
                 }
@@ -55,10 +55,10 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(220,20,60,0.4)',
                     description: 'Life-stealing whip with massive range',
                     statMultipliers: {
-                        damage: 1.8,
-                        range: 2.0,
-                        area: 1.8,
-                        duration: 1.5
+                        damage: 1.5,
+                        range: 1.6,
+                        area: 1.4,
+                        duration: 1.2
                     },
                     specialAbility: 'life_steal'
                 }
@@ -72,10 +72,10 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(0,255,255,0.4)',
                     description: 'A storm of blades that shreds everything',
                     statMultipliers: {
-                        projectiles: 5,
-                        speed: 1.6,
-                        damage: 1.3,
-                        piercing: 3
+                        projectiles: 2,
+                        speed: 1.35,
+                        damage: 1.15,
+                        piercing: 2
                     },
                     specialAbility: 'blade_storm'
                 }
@@ -89,9 +89,9 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(125,249,255,0.5)',
                     description: 'Chains to 12 enemies with stunning force',
                     statMultipliers: {
-                        damage: 2.2,
-                        range: 1.8,
-                        cooldown: 0.6
+                        damage: 1.8,
+                        range: 1.5,
+                        cooldown: 0.75
                     },
                     specialAbility: 'chain_stun',
                     specialStats: { maxChains: 12, stunDuration: 0.5 }
@@ -106,9 +106,9 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(148,0,211,0.35)',
                     description: 'Pulls enemies in and devours them',
                     statMultipliers: {
-                        damage: 2.5,
-                        range: 3.0,
-                        area: 2.5
+                        damage: 1.9,
+                        range: 2.2,
+                        area: 1.8
                     },
                     specialAbility: 'enemy_pull'
                 }
@@ -122,9 +122,9 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(139,0,0,0.4)',
                     description: '6 orbiters with explosive trails',
                     statMultipliers: {
-                        damage: 2.0,
-                        area: 1.5,
-                        duration: 2.0
+                        damage: 1.6,
+                        area: 1.35,
+                        duration: 1.5
                     },
                     specialAbility: 'explosive_orbit',
                     specialStats: { orbiterCount: 6 }
@@ -139,10 +139,10 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(255,69,0,0.5)',
                     description: 'Cataclysmic fireballs with permanent burns',
                     statMultipliers: {
-                        damage: 3.0,
-                        area: 2.0,
-                        duration: 3.0,
-                        cooldown: 0.7
+                        damage: 2.2,
+                        area: 1.5,
+                        duration: 2.0,
+                        cooldown: 0.8
                     },
                     specialAbility: 'permanent_burn'
                 }
@@ -156,10 +156,10 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(173,255,47,0.4)',
                     description: 'Triple boomerangs in a constant death spin',
                     statMultipliers: {
-                        damage: 2.0,
-                        projectiles: 3,
-                        speed: 1.8,
-                        range: 1.5
+                        damage: 1.7,
+                        projectiles: 2,
+                        speed: 1.5,
+                        range: 1.3
                     },
                     specialAbility: 'death_spin'
                 }
@@ -173,10 +173,10 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(179,229,255,0.5)',
                     description: 'Constant ice storm — 50% slow to all nearby enemies',
                     statMultipliers: {
-                        damage:     1.8,
-                        cooldown:   0.55,
-                        projectiles: 2,
-                        area:       1.6
+                        damage:     1.6,
+                        cooldown:   0.7,
+                        projectiles: 1.5,
+                        area:       1.35
                     },
                     specialStats: { freezeDuration: 4.5, aoeRadius: 140 },
                     specialAbility: 'blizzard_storm'
@@ -191,8 +191,8 @@ export class WeaponEvolutionSystem {
                     glowColor: 'rgba(76,29,149,0.5)',
                     description: 'Daggers chain through 5 enemies; each hit spawns a shadow clone',
                     statMultipliers: {
-                        damage:   2.2,
-                        cooldown: 0.6
+                        damage:   1.8,
+                        cooldown: 0.75
                     },
                     specialStats: { chainCount: 4, bleedChance: 0.9 },
                     specialAbility: 'phantom_chain'

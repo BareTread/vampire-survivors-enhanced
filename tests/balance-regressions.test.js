@@ -303,6 +303,18 @@ describe('Balance regressions', () => {
         expect(player.triggerLastSecondSave).toBeUndefined();
     });
 
+    test('level-up healing is partial instead of a full reset', () => {
+        const game = createPlayerGame();
+        const player = new Player(game, 0, 0);
+
+        player.health = 20;
+        player.experienceToNext = 100;
+        player.gainExperienceEnhanced(100);
+
+        expect(player.health).toBeGreaterThan(20);
+        expect(player.health).toBeLessThan(player.maxHealth);
+    });
+
     test('XP multipliers are additive with 2.5x hard cap', () => {
         const game = createPlayerGame({ xpGain: 2.0 });
         const player = new Player(game, 0, 0);

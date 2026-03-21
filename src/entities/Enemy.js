@@ -62,9 +62,9 @@ export class Enemy {
     initializeType(type) {
         const types = {
             basic: {
-                maxHealth: 25,
-                speed: 50,
-                damage: 10,
+                maxHealth: 28,
+                speed: 55,
+                damage: 11,
                 size: 8,
                 color: '#FF6B6B',
                 expReward: 5,
@@ -72,9 +72,9 @@ export class Enemy {
                 attackCooldown: 1.0
             },
             fast: {
-                maxHealth: 18,
-                speed: 100,
-                damage: 8,
+                maxHealth: 20,
+                speed: 110,
+                damage: 9,
                 size: 6,
                 color: '#4ECDC4',
                 expReward: 4,
@@ -82,9 +82,9 @@ export class Enemy {
                 attackCooldown: 0.8
             },
             tank: {
-                maxHealth: 60,
-                speed: 30,
-                damage: 25,
+                maxHealth: 70,
+                speed: 34,
+                damage: 27,
                 size: 14,
                 color: '#45B7D1',
                 expReward: 12,
@@ -92,9 +92,9 @@ export class Enemy {
                 attackCooldown: 2.0
             },
             ranged: {
-                maxHealth: 20,
-                speed: 45,
-                damage: 10,
+                maxHealth: 24,
+                speed: 50,
+                damage: 11,
                 size: 7,
                 color: '#F39C12',
                 expReward: 8,
@@ -102,9 +102,9 @@ export class Enemy {
                 attackCooldown: 2.0
             },
             elite: {
-                maxHealth: 100,
-                speed: 45,
-                damage: 30,
+                maxHealth: 110,
+                speed: 48,
+                damage: 32,
                 size: 16,
                 color: '#9B59B6',
                 expReward: 20,

@@ -119,6 +119,31 @@ describe('Enemy swarm pacing', () => {
 
         expect(enemySystem.chooseSpawnPattern()).toBe('swarm');
     });
+
+    test('spawn waves ramp up to 2 enemies by wave 2', () => {
+        const game = createEnemySystemGame();
+        game.gameTime = 50;
+        const enemySystem = new EnemySystem(game);
+        enemySystem.currentWave = 2;
+        enemySystem.maxActiveEnemies = 100;
+        enemySystem.activeEnemies = [];
+        enemySystem.spawnSingleEnemy = jest.fn();
+
+        enemySystem.spawnEnemyWave();
+
+        expect(enemySystem.spawnSingleEnemy).toHaveBeenCalledTimes(2);
+    });
+
+    test('first five waves stay normal before rest/rush pacing begins', () => {
+        const game = createEnemySystemGame();
+        const enemySystem = new EnemySystem(game);
+
+        expect(enemySystem.getWaveType(1)).toBe('normal');
+        expect(enemySystem.getWaveType(3)).toBe('normal');
+        expect(enemySystem.getWaveType(5)).toBe('normal');
+        expect(enemySystem.getWaveType(8)).toBe('rest');
+        expect(enemySystem.getWaveType(9)).toBe('rush');
+    });
 });
 
 describe('Enemy rendering detail', () => {

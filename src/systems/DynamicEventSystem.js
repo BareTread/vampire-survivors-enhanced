@@ -246,10 +246,10 @@ export class DynamicEventSystem {
         this.calmEyeActive = true;
         this.activeEvent = { type: 'calmEye', timer: 10, data: { gameTime } };
 
-        // Immediate 25% heal
+        // Immediate relief, but not such a large heal that it erases all pressure.
         const player = this.game.player;
         if (player) {
-            const healAmount = player.maxHealth * 0.25;
+            const healAmount = player.maxHealth * 0.15;
             player.health = Math.min(player.maxHealth, player.health + healAmount);
             globalDamageNumberPool.get(player.x, player.y - 20, `+${Math.round(healAmount)} HP`, '#88FFAA', true);
         }
@@ -349,11 +349,11 @@ export class DynamicEventSystem {
             }
         }
 
-        // XP gem explosion
+        // XP gem explosion — rewarding, but no longer a huge early snowball spike.
         const expSys = this.game.systems.experience;
-        const xpValue = 500 + Math.floor(gameTime * 10);
+        const xpValue = 200 + Math.floor(gameTime * 3);
         if (expSys && expSys.createGemExplosion) {
-            expSys.createGemExplosion(chest.x, chest.y, xpValue, 10, 18);
+            expSys.createGemExplosion(chest.x, chest.y, xpValue, 8, 14);
         } else if (expSys && expSys.createGem) {
             for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -391,20 +391,21 @@ export class DynamicEventSystem {
         if (this.activeEvent.timer <= 0) {
             this.bloodMoonActive = false;
 
-            // Survival reward: full heal + large XP
+            // Survival reward: meaningful recovery + moderate XP, not a full reset.
             const player = this.game.player;
             if (player && player.isAlive()) {
-                player.health = player.maxHealth;
+                const recovery = player.maxHealth * 0.4;
+                player.health = Math.min(player.maxHealth, player.health + recovery);
                 globalDamageNumberPool.get(player.x, player.y - 30, 'SURVIVED!', '#FF4444', true);
-                globalDamageNumberPool.get(player.x, player.y - 50, 'FULL HEAL', '#88FFAA', true);
+                globalDamageNumberPool.get(player.x, player.y - 50, `+${Math.round(recovery)} HP`, '#88FFAA', true);
 
                 const gameTime = this.game.systems.runTimer
                     ? this.game.systems.runTimer.runTime
                     : (this.game.gameTime || 0);
-                const xpReward = 1000 + Math.floor(gameTime * 5);
+                const xpReward = 300 + Math.floor(gameTime * 2.5);
                 const expSys = this.game.systems.experience;
                 if (expSys && expSys.createGemExplosion) {
-                    expSys.createGemExplosion(player.x, player.y, xpReward, 8, 15);
+                    expSys.createGemExplosion(player.x, player.y, xpReward, 6, 12);
                 } else if (expSys && expSys.createGem) {
                     expSys.createGem(player.x, player.y, xpReward);
                 }
