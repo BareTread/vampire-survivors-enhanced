@@ -4,6 +4,8 @@
  * In-game help and controls overlay
  */
 
+import { t } from '../i18n/index.js';
+
 export class HelpOverlay {
     constructor(game) {
         this.game = game;
@@ -36,53 +38,53 @@ export class HelpOverlay {
         
         this.element.innerHTML = `
             <h2 style="color: #FFD700; text-align: center; margin-bottom: 20px;">
-                🎮 Game Controls
+                🎮 ${t('help.title')}
             </h2>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Movement</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">${t('help.movement')}</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
-                    <span style="color: #AAA;">WASD / Arrows</span>
-                    <span>Move character</span>
-                    <span style="color: #AAA;">Mouse</span>
-                    <span>Aim direction</span>
+                    <span style="color: #AAA;">${t('help.moveKeys')}</span>
+                    <span>${t('help.moveAction')}</span>
+                    <span style="color: #AAA;">${t('help.mouse')}</span>
+                    <span>${t('help.aimAction')}</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Game Controls</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">${t('help.gameControls')}</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
-                    <span style="color: #AAA;">ESC</span>
-                    <span>Pause/Resume</span>
-                    <span style="color: #AAA;">F1</span>
-                    <span>Settings Menu</span>
-                    <span style="color: #AAA;">1-5</span>
-                    <span>Select upgrade option</span>
+                    <span style="color: #AAA;">${t('help.esc')}</span>
+                    <span>${t('help.pauseAction')}</span>
+                    <span style="color: #AAA;">${t('help.f1')}</span>
+                    <span>${t('help.settingsAction')}</span>
+                    <span style="color: #AAA;">${t('help.keys15')}</span>
+                    <span>${t('help.upgradeAction')}</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Debug Tools</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">${t('help.debugTools')}</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
-                    <span style="color: #AAA;">Shift + D</span>
-                    <span>Projectile Debug Overlay</span>
-                    <span style="color: #AAA;">F4 / G</span>
-                    <span>General Debug Info</span>
-                    <span style="color: #AAA;">F5</span>
-                    <span>Progression Telemetry</span>
-                    <span style="color: #AAA;">F2</span>
-                    <span>Performance Dashboard</span>
+                    <span style="color: #AAA;">${t('help.shiftD')}</span>
+                    <span>${t('help.debugProjectile')}</span>
+                    <span style="color: #AAA;">${t('help.f4g')}</span>
+                    <span>${t('help.debugInfo')}</span>
+                    <span style="color: #AAA;">${t('help.f5')}</span>
+                    <span>${t('help.telemetry')}</span>
+                    <span style="color: #AAA;">${t('help.f2')}</span>
+                    <span>${t('help.performance')}</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Tips</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">${t('help.tips')}</h3>
                 <ul style="margin: 0; padding-left: 20px; color: #CCC;">
-                    <li>Weapons auto-fire at nearest enemies</li>
-                    <li>Collect green gems to level up</li>
-                    <li>Survive as long as possible!</li>
-                    <li>Enemies get stronger over time</li>
-                    <li>Critical hits deal 2x damage</li>
+                    <li>${t('help.tip1')}</li>
+                    <li>${t('help.tip2')}</li>
+                    <li>${t('help.tip3')}</li>
+                    <li>${t('help.tip4')}</li>
+                    <li>${t('help.tip5')}</li>
                 </ul>
             </div>
             
@@ -96,7 +98,7 @@ export class HelpOverlay {
                     border-radius: 5px;
                     cursor: pointer;
                     font-weight: bold;
-                ">Close (H)</button>
+                ">${t('help.closeButton')}</button>
             </div>
         `;
         

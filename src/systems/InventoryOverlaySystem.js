@@ -11,6 +11,8 @@
  * Game continues to render underneath but update is paused (timeScale = 0).
  */
 
+import { t } from '../i18n/index.js';
+
 export class InventoryOverlaySystem {
     constructor(game) {
         this.game = game;
@@ -89,11 +91,11 @@ export class InventoryOverlaySystem {
         ctx.font = 'bold 28px "Cinzel", Georgia, serif';
         ctx.fillStyle = '#FFD700';
         ctx.textAlign = 'center';
-        ctx.fillText('BUILD INVENTORY', w / 2, 45);
+        ctx.fillText(t('inventory.title'), w / 2, 45);
 
         ctx.font = '13px monospace';
         ctx.fillStyle = '#888';
-        ctx.fillText('Press TAB to close', w / 2, 65);
+        ctx.fillText(t('inventory.pressTab'), w / 2, 65);
 
         // === WEAPONS SECTION ===
         let yOffset = 90;
@@ -132,7 +134,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderWeaponsSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '⚔️ WEAPONS', w, startY);
+        let y = this._renderSectionHeader(ctx, t('inventory.weapons'), w, startY);
         const player = this.game.player;
         const weapons = Array.from(player.weapons.values());
 
@@ -140,7 +142,7 @@ export class InventoryOverlaySystem {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No weapons equipped', this.padding + 8, y + 16);
+            ctx.fillText(t('inventory.noWeapons'), this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -223,7 +225,7 @@ export class InventoryOverlaySystem {
             ctx.font = 'bold 9px monospace';
             ctx.fillStyle = '#FFD700';
             ctx.textAlign = 'right';
-            ctx.fillText('EVOLVED', x + cw - 10, y + 58);
+            ctx.fillText(t('inventory.evolved'), x + cw - 10, y + 58);
             ctx.textAlign = 'left';
         }
 
@@ -238,13 +240,13 @@ export class InventoryOverlaySystem {
     }
 
     _renderPassivesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🛡️ PASSIVE ITEMS', w, startY);
+        let y = this._renderSectionHeader(ctx, t('inventory.passiveItems'), w, startY);
         const passiveSystem = this.game.systems.passiveItems;
         if (!passiveSystem || passiveSystem.items.size === 0) {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No passive items', this.padding + 8, y + 16);
+            ctx.fillText(t('inventory.noPassiveItems'), this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -277,12 +279,12 @@ export class InventoryOverlaySystem {
             ctx.fillStyle = '#4ADE80';
             ctx.textAlign = 'left';
             const passiveNames = {
-                spinach: '💪 Spinach',
-                empty_tome: '📖 Empty Tome',
-                duplicator: '✨ Duplicator',
-                attractorb: '🧲 Attractorb',
-                armor: '🛡️ Armor',
-                wings: '🦅 Wings'
+                spinach: t('inventory.spinach'),
+                empty_tome: t('inventory.emptyTome'),
+                duplicator: t('inventory.duplicator'),
+                attractorb: t('inventory.attractorb'),
+                armor: t('inventory.armor'),
+                wings: t('inventory.wings')
             };
             ctx.fillText(passiveNames[id] || id, x + 6, iy + 15);
 
@@ -298,13 +300,13 @@ export class InventoryOverlaySystem {
     }
 
     _renderSynergiesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🔗 ACTIVE SYNERGIES', w, startY);
+        let y = this._renderSectionHeader(ctx, t('inventory.activeSynergies'), w, startY);
         const synergySystem = this.game.systems.synergy;
         if (!synergySystem || synergySystem.activeSynergies.size === 0) {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No synergies active — combine weapons + passives!', this.padding + 8, y + 16);
+            ctx.fillText(t('inventory.noSynergies'), this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -337,7 +339,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderEvolutionHints(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🌟 EVOLUTION RECIPES', w, startY);
+        let y = this._renderSectionHeader(ctx, t('inventory.evolutionRecipes'), w, startY);
         const evoSystem = this.game.systems.weaponEvolution;
         if (!evoSystem) return y;
 
@@ -361,20 +363,20 @@ export class InventoryOverlaySystem {
             let status;
             let statusColor;
             if (isEvolved) {
-                status = '✅ EVOLVED';
+                status = t('inventory.evolved');
                 statusColor = '#FFD700';
             } else if (info.isEligible) {
-                status = '⚡ READY!';
+                status = t('inventory.ready');
                 statusColor = '#4ADE80';
             } else {
                 const parts = [];
-                parts.push(hasMax ? '✅ Max Level' : `⬜ Lv ${weapon.level}/${weapon.maxLevel}`);
+                parts.push(hasMax ? t('inventory.maxLevel') : `⬜ Lv ${weapon.level}/${weapon.maxLevel}`);
                 const passiveNames = {
-                    spinach: 'Spinach', empty_tome: 'Empty Tome', duplicator: 'Duplicator',
-                    attractorb: 'Attractorb', armor: 'Armor', wings: 'Wings'
+                    spinach: '菠菜', empty_tome: '虚空之书', duplicator: '复制器',
+                    attractorb: '磁铁球', armor: '护甲', wings: '翅膀'
                 };
                 const passiveName = passiveNames[info.requiredPassive] || info.requiredPassive;
-                parts.push(hasItem ? `✅ ${passiveName}` : `⬜ Need ${passiveName}`);
+                parts.push(hasItem ? `✅ ${passiveName}` : t('inventory.needPassive', { name: passiveName }));
                 status = parts.join('  ·  ');
                 statusColor = '#AAA';
             }
@@ -398,7 +400,7 @@ export class InventoryOverlaySystem {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('Equip weapons to see evolution paths', this.padding + 8, y + 16);
+            ctx.fillText(t('inventory.equipWeapons'), this.padding + 8, y + 16);
         }
 
         return y + 4 + Math.max(hintCount, 1) * 30;

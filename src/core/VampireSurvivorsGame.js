@@ -54,30 +54,31 @@ import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
 import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
+import { t, initLocale } from '../i18n/index.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
-    magic_missile: { name: 'Magic Missile', description: 'Automatically fires homing projectiles at nearby enemies' },
-    whip: { name: 'Whip', description: 'Strikes in an arc, hitting multiple enemies' },
-    throwing_knife: { name: 'Throwing Knife', description: 'Fast projectiles that pierce through enemies' },
+    magic_missile: { name: t('weapons.magicMissile'), description: t('weapons.magicMissileDesc') },
+    whip: { name: t('weapons.whip'), description: t('weapons.whipDesc') },
+    throwing_knife: { name: t('weapons.throwingKnife'), description: t('weapons.throwingKnifeDesc') },
     lightning_chain: {
-        name: 'Lightning Chain',
-        description: 'Strikes the nearest enemy with lightning that chains to nearby foes'
+        name: t('weapons.lightningChain'),
+        description: t('weapons.lightningChainDesc')
     },
-    garlic_aura: { name: 'Garlic Aura', description: 'Damages nearby enemies with a pulsing aura of garlic essence' },
+    garlic_aura: { name: t('weapons.garlicAura'), description: t('weapons.garlicAuraDesc') },
     holy_bible: {
-        name: 'Holy Bible',
-        description: 'Orbiting crosses that circle the player, damaging enemies on contact'
+        name: t('weapons.holyBible'),
+        description: t('weapons.holyBibleDesc')
     },
-    fire_wand: { name: 'Fire Wand', description: 'Launches fireballs that explode on impact, leaving burning ground' },
+    fire_wand: { name: t('weapons.fireWand'), description: t('weapons.fireWandDesc') },
     bone_boomerang: {
-        name: 'Bone Boomerang',
-        description: 'Thrown bone that returns to the player, hitting enemies both ways'
+        name: t('weapons.boneBoomerang'),
+        description: t('weapons.boneBoomerangDesc')
     },
-    ice_shard: { name: 'Ice Shard', description: 'Slow ice projectiles that freeze enemies on impact' },
+    ice_shard: { name: t('weapons.iceShard'), description: t('weapons.iceShardDesc') },
     shadow_dagger: {
-        name: 'Shadow Dagger',
-        description: 'Teleports a shadow blade to the nearest enemy for massive burst damage'
+        name: t('weapons.shadowDagger'),
+        description: t('weapons.shadowDaggerDesc')
     }
 };
 
@@ -233,6 +234,8 @@ export class VampireSurvivorsGame {
 
         this.setupInput();
         this.setupUI();
+
+        initLocale();
     }
 
     setupInput() {
@@ -548,14 +551,14 @@ export class VampireSurvivorsGame {
 
     getPowerUpName(type) {
         const names = {
-            health: 'Health',
-            invincible: 'Invincibility',
-            speedBoost: 'Speed',
-            damageBoost: 'Damage',
-            magnetBoost: 'Magnet',
-            fireRate: 'Fire Rate'
+            health: t('weapons.powerupHealth'),
+            invincible: t('weapons.powerupInvincibility'),
+            speedBoost: t('weapons.powerupSpeed'),
+            damageBoost: t('weapons.powerupDamage'),
+            magnetBoost: t('weapons.powerupMagnet'),
+            fireRate: t('weapons.powerupFireRate')
         };
-        return names[type] || 'Power-up';
+        return names[type] || t('weapons.powerupDefault');
     }
 
     getPowerUpPickupHint(type) {
@@ -1126,8 +1129,8 @@ export class VampireSurvivorsGame {
                 options.push({
                     type: 'weapon_upgrade',
                     weaponId: weapon.id,
-                    name: `${weapon.name} (Level ${weapon.level + 1})`,
-                    description: `Upgrade ${weapon.name}`
+                    name: `${weapon.name} (Lv ${weapon.level + 1})`,
+                    description: t('weapons.upgradeWeapon', { name: weapon.name })
                 });
             }
         }
@@ -1164,12 +1167,12 @@ export class VampireSurvivorsGame {
 
         // Stat upgrades — still valuable, but less generically run-winning than before
         const statUpgrades = [
-            { stat: 'damage', name: 'Damage +15%', description: 'Increase weapon damage' },
-            { stat: 'speed', name: 'Speed +10%', description: 'Move faster' },
-            { stat: 'health', name: 'Max Health +20%', description: 'Increase maximum health' },
-            { stat: 'luck', name: 'Luck +8%', description: 'Better experience and drops' },
-            { stat: 'area', name: 'Area +12%', description: 'Bigger projectiles and AoE radius' },
-            { stat: 'cooldown', name: 'Cooldown -8%', description: 'Weapons fire faster' }
+            { stat: 'damage', name: t('weapons.damageUp'), description: t('weapons.damageUpDesc') },
+            { stat: 'speed', name: t('weapons.speedUp'), description: t('weapons.speedUpDesc') },
+            { stat: 'health', name: t('weapons.healthUp'), description: t('weapons.healthUpDesc') },
+            { stat: 'luck', name: t('weapons.luckUp'), description: t('weapons.luckUpDesc') },
+            { stat: 'area', name: t('weapons.areaUp'), description: t('weapons.areaUpDesc') },
+            { stat: 'cooldown', name: t('weapons.cooldownUp'), description: t('weapons.cooldownUpDesc') }
         ];
 
         for (const upgrade of this.shuffleArray([...statUpgrades]).slice(0, 4)) {
@@ -1220,7 +1223,7 @@ export class VampireSurvivorsGame {
             case 'weapon_upgrade': {
                 const weapon = this.player.weapons.get(option.weaponId);
                 if (!weapon || weapon.level >= weapon.maxLevel) {
-                    this.showToast('Option no longer available', '#FF6666', 1200);
+                    this.showToast(t('weapons.optionUnavailable'), '#FF6666', 1200);
                     return; // Don't close UI — let player pick another
                 }
                 this.player.upgradeWeapon(option.weaponId);
@@ -1231,11 +1234,11 @@ export class VampireSurvivorsGame {
             }
             case 'new_weapon': {
                 if (this.player.weapons.size >= this.player.maxWeapons) {
-                    this.showToast('Weapon slots full', '#FF6666', 1200);
+                    this.showToast(t('weapons.weaponSlotsFull'), '#FF6666', 1200);
                     return;
                 }
                 if (Array.from(this.player.weapons.values()).some(w => w.id === option.weaponType)) {
-                    this.showToast('Already have this weapon', '#FF6666', 1200);
+                    this.showToast(t('weapons.alreadyHaveWeapon'), '#FF6666', 1200);
                     return;
                 }
                 const WeaponClass = this.weaponClasses.get(option.weaponType);
@@ -1263,7 +1266,7 @@ export class VampireSurvivorsGame {
                     const canEvolve = this.systems.weaponEvolution.getEvolutionOptions()
                         .some(e => e.weaponId === option.weaponId);
                     if (!canEvolve) {
-                        this.showToast('Evolution no longer available', '#FF6666', 1200);
+                        this.showToast(t('weapons.evolutionUnavailable'), '#FF6666', 1200);
                         return;
                     }
                     this.systems.weaponEvolution.evolveWeapon(option.weaponId);

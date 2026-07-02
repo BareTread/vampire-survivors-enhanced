@@ -1,4 +1,5 @@
 import { CHARACTERS } from '../data/characters.js';
+import { t } from '../i18n/index.js';
 
 /**
  * TitleScreenSystem - Canvas-rendered title screen with menu navigation, upgrade shop,
@@ -296,13 +297,17 @@ export class TitleScreenSystem {
             const isSelected = i === this.selectedIndex;
             const isHovered = i === this.hoveredIndex;
             const label = this.menuItems[i];
-
-            // Gold balance next to UPGRADES
-            let displayLabel = label;
-            if (label === 'UPGRADES') {
-                const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
-                displayLabel = `UPGRADES  [${gold} Gold]`;
-            }
+            const menuLabelMap = {
+                'PLAY': t('menu.play'),
+                'ENDLESS': t('menu.endless'),
+                'CHARACTERS': t('menu.characters'),
+                'UPGRADES': t('menu.upgradesGold', { gold: this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0 }),
+                'CHALLENGES': t('menu.challenges'),
+                'STATISTICS': t('menu.statistics'),
+                'CODEX': t('menu.codex'),
+                'SETTINGS': t('menu.settings')
+            };
+            const displayLabel = menuLabelMap[label] || label;
 
             // Adaptive font: scale down slightly on smaller screens
             const baseFontSize = Math.min(26, Math.max(18, menuSpacing * 0.46));
@@ -358,7 +363,7 @@ export class TitleScreenSystem {
         ctx.font = '13px Arial, sans-serif';
         ctx.fillStyle = 'rgba(200, 200, 220, 0.4)';
         ctx.textAlign = 'center';
-        ctx.fillText('Arrow Keys / Mouse to navigate  |  Enter / Click to select', w / 2, h - 14);
+        ctx.fillText(t('menu.controls'), w / 2, h - 14);
 
         // 8. Overlays
         if (this.game.gameState === 'upgrades') this.renderUpgrades(ctx);
@@ -401,7 +406,7 @@ export class TitleScreenSystem {
         ctx.shadowBlur = 12;
         ctx.font = `bold ${Math.min(24, w * 0.025)}px 'Cinzel', 'Times New Roman', serif`;
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('ENHANCED', w / 2, y + 42);
+        ctx.fillText(t('menu.subtitle'), w / 2, y + 42);
 
         ctx.restore();
     }
@@ -421,7 +426,7 @@ export class TitleScreenSystem {
         ctx.fillStyle = 'rgba(160, 160, 180, 0.45)';
 
         const timeStr = this.formatTime(records.longestSurvival);
-        const line = `Best: ${timeStr}  ·  Kills: ${records.highestKillCount}  ·  Lv ${records.maxLevel}  ·  ${records.totalRuns} Runs`;
+        const line = t('menu.personalBest', { time: timeStr, kills: records.highestKillCount, level: records.maxLevel, runs: records.totalRuns });
         ctx.fillText(line, w / 2, y);
         ctx.restore();
     }
@@ -563,13 +568,13 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('UPGRADE SHOP', w / 2, panelY + 36);
+        ctx.fillText(t('upgrades.title'), w / 2, panelY + 36);
 
         // Gold balance
         const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
         ctx.font = 'bold 18px Arial, sans-serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText(`Gold: ${gold}`, w / 2, panelY + 66);
+        ctx.fillText(t('upgrades.gold', { gold }), w / 2, panelY + 66);
 
         // Upgrade list
         this._upgradeRects = [];
@@ -629,10 +634,10 @@ export class TitleScreenSystem {
             ctx.font = 'bold 14px Arial, sans-serif';
             if (u.cost === null) {
                 ctx.fillStyle = '#4ade80';
-                ctx.fillText('MAX', listX + listW - 10, iy + (itemH - 4) / 2);
+                ctx.fillText(t('upgrades.max'), listX + listW - 10, iy + (itemH - 4) / 2);
             } else {
                 ctx.fillStyle = u.canAfford ? '#FFD700' : '#FF6B6B';
-                ctx.fillText(`${u.cost}g`, listX + listW - 10, iy + (itemH - 4) / 2);
+                ctx.fillText(t('upgrades.cost', { cost: u.cost }), listX + listW - 10, iy + (itemH - 4) / 2);
             }
         }
 
@@ -653,7 +658,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText(t('upgrades.back'), w / 2, backY + backH / 2);
     }
 
     // ---- Render: Character Select ----
@@ -701,7 +706,7 @@ export class TitleScreenSystem {
         
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('CHOOSE YOUR CHAMPION', w / 2, panelY + 45);
+        ctx.fillText(t('characters.title'), w / 2, panelY + 45);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
@@ -849,7 +854,7 @@ export class TitleScreenSystem {
 
             ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
             ctx.fillStyle = 'rgba(140, 140, 160, 0.7)';
-            ctx.fillText('CHARACTER LOCKED', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
+            ctx.fillText(t('characters.locked'), rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
 
             ctx.font = '15px Arial, sans-serif';
             ctx.fillStyle = 'rgba(215, 164, 92, 0.9)';
@@ -935,7 +940,7 @@ export class TitleScreenSystem {
             // Left column: Weapon
             ctx.font = 'bold 14px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
-            ctx.fillText('STARTING WEAPON', detailsX, flexY);
+            ctx.fillText(t('characters.startingWeapon'), detailsX, flexY);
 
             ctx.font = 'bold 18px Arial, sans-serif';
             ctx.fillStyle = '#87CEEB'; // Sky blue
@@ -946,7 +951,7 @@ export class TitleScreenSystem {
             const statsX = detailsX + detailsW * 0.45;
             ctx.font = 'bold 14px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
-            ctx.fillText('PASSIVE BONUSES', statsX, flexY);
+            ctx.fillText(t('characters.passiveBonuses'), statsX, flexY);
 
             const modY = flexY + 25;
             ctx.font = '15px Arial, sans-serif';
@@ -955,7 +960,7 @@ export class TitleScreenSystem {
             
             if (entries.length === 0) {
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-                ctx.fillText('None', statsX, modY);
+                ctx.fillText(t('characters.none'), statsX, modY);
             } else {
                 for (const [stat, val] of entries) {
                     const isPositive = val >= 1 || stat === 'projectiles';
@@ -980,7 +985,7 @@ export class TitleScreenSystem {
                 ctx.textAlign = 'right';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
                 ctx.shadowBlur = 10;
-                ctx.fillText('✓ EQUIPPED', rightX + rightPaneW - 45, badgeY);
+                ctx.fillText(t('characters.equipped'), rightX + rightPaneW - 45, badgeY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
@@ -1002,7 +1007,7 @@ export class TitleScreenSystem {
                 ctx.stroke();
 
                 ctx.fillStyle = '#FFD700';
-                ctx.fillText('Press ENTER to Equip', rightX + rightPaneW - 45 - 20, badgeY - 5);
+                ctx.fillText(t('characters.equip'), rightX + rightPaneW - 45 - 20, badgeY - 5);
             }
         }
 
@@ -1031,7 +1036,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 16px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        ctx.fillText(t('characters.returnToMenu'), w / 2, backY + backH / 2 + 1);
     }
 
     /**
@@ -1357,7 +1362,7 @@ export class TitleScreenSystem {
         if (success) {
             this.upgradeList = persistence.getUpgradeInfo();
             this.playSelectSound();
-            this.game.showToast(`Upgraded ${u.name}!`, '#4ade80', 1200);
+            this.game.showToast(t('upgrades.upgraded', { name: u.name }), '#4ade80', 1200);
         }
     }
 
@@ -1373,7 +1378,7 @@ export class TitleScreenSystem {
 
         persistence.setSelectedCharacter(char.id);
         this.playSelectSound();
-        this.game.showToast(`Selected ${char.name}!`, char.color, 1200);
+        this.game.showToast(t('common.selected', { name: char.name }), char.color, 1200);
     }
 
     // ---- Render: Statistics Dashboard ----
@@ -1404,13 +1409,13 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('STATISTICS', w / 2, panelY + 36);
+        ctx.fillText(t('stats.title'), w / 2, panelY + 36);
 
         const persistence = this.game.systems.persistence;
         if (!persistence) {
             ctx.font = '16px Arial, sans-serif';
             ctx.fillStyle = this.theme.accentMuted;
-            ctx.fillText('No data available', w / 2, h / 2);
+            ctx.fillText(t('stats.noData'), w / 2, h / 2);
             return;
         }
 
@@ -1424,16 +1429,16 @@ export class TitleScreenSystem {
         ctx.textAlign = 'left';
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('RUN TOTALS', colLeft, startY);
+        ctx.fillText(t('stats.runTotals'), colLeft, startY);
 
         // Left column stats
         ctx.font = '14px Arial, sans-serif';
         const leftStats = [
-            ['Total Runs', records.totalRuns],
-            ['Total Playtime', this.formatPlaytime(records.totalPlayTime || 0)],
-            ['Total Kills', this.formatNumber(records.totalKills || 0)],
-            ['Total Gold Earned', this.formatNumber(records.totalGoldEarned || 0)],
-            ['Total Damage Dealt', this.formatNumber(records.totalDamageDealt || 0)]
+            [t('stats.totalRuns'), records.totalRuns],
+            [t('stats.totalPlaytime'), this.formatPlaytime(records.totalPlayTime || 0)],
+            [t('stats.totalKills'), this.formatNumber(records.totalKills || 0)],
+            [t('stats.totalGoldEarned'), this.formatNumber(records.totalGoldEarned || 0)],
+            [t('stats.totalDamageDealt'), this.formatNumber(records.totalDamageDealt || 0)]
         ];
 
         for (let i = 0; i < leftStats.length; i++) {
@@ -1449,16 +1454,16 @@ export class TitleScreenSystem {
         // Right column header
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('PERSONAL BESTS', colRight, startY);
+        ctx.fillText(t('stats.personalBests'), colRight, startY);
 
         // Right column stats
         ctx.font = '14px Arial, sans-serif';
         const rightStats = [
-            ['Best Survival', this.formatTime(records.longestSurvival || 0)],
-            ['Most Kills', this.formatNumber(records.highestKillCount || 0)],
-            ['Highest Level', records.maxLevel || 0],
-            ['Highest Combo', records.highestCombo || 0],
-            ['Most Gold (run)', this.formatNumber(records.mostGoldSingleRun || 0)]
+            [t('stats.bestSurvival'), this.formatTime(records.longestSurvival || 0)],
+            [t('stats.mostKills'), this.formatNumber(records.highestKillCount || 0)],
+            [t('stats.highestLevel'), records.maxLevel || 0],
+            [t('stats.highestCombo'), records.highestCombo || 0],
+            [t('stats.mostGold'), this.formatNumber(records.mostGoldSingleRun || 0)]
         ];
 
         for (let i = 0; i < rightStats.length; i++) {
@@ -1476,7 +1481,7 @@ export class TitleScreenSystem {
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
         ctx.textAlign = 'center';
-        ctx.fillText('FAVORITE WEAPON', w / 2, weaponY);
+        ctx.fillText(t('stats.favoriteWeapon'), w / 2, weaponY);
 
         const usage = records.weaponUsage || {};
         let favWeapon = null;
@@ -1493,13 +1498,13 @@ export class TitleScreenSystem {
             const weaponName = favWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
             ctx.fillStyle = '#FFD700';
             ctx.fillText(
-                `${weaponName}  (picked ${favCount} time${favCount !== 1 ? 's' : ''})`,
+                t('stats.pickedTimes', { count: favCount }),
                 w / 2,
                 weaponY + lineH
             );
         } else {
             ctx.fillStyle = 'rgba(160, 160, 180, 0.6)';
-            ctx.fillText('No weapons used yet', w / 2, weaponY + lineH);
+            ctx.fillText(t('stats.noWeapons'), w / 2, weaponY + lineH);
         }
 
         // Back button
@@ -1519,7 +1524,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText(t('upgrades.back'), w / 2, backY + backH / 2);
     }
 
     // ---- Render: Challenge Modifiers ----
@@ -1552,22 +1557,22 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('CHALLENGE MODIFIERS', w / 2, panelY + 36);
+        ctx.fillText(t('challenges.title'), w / 2, panelY + 36);
 
         // Unlock check
         const unlocked = challenge.isUnlocked();
         if (!unlocked) {
             ctx.font = '16px Arial, sans-serif';
             ctx.fillStyle = 'rgba(200, 160, 120, 0.8)';
-            ctx.fillText('\u{1F512}  Survive 15 minutes to unlock challenges', w / 2, h / 2 - 10);
+            ctx.fillText(t('challenges.locked'), w / 2, h / 2 - 10);
             ctx.font = '13px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 140, 120, 0.6)';
-            ctx.fillText('Challenges add difficulty modifiers in exchange for bonus gold', w / 2, h / 2 + 20);
+            ctx.fillText(t('challenges.lockedHint'), w / 2, h / 2 + 20);
         } else {
             // Subheader
             ctx.font = '13px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-            ctx.fillText('Select up to 3 modifiers for bonus gold  |  Click / Enter to toggle', w / 2, panelY + 62);
+            ctx.fillText(t('challenges.selectHint'), w / 2, panelY + 62);
 
             // Modifier list
             this._challengeRects = [];
@@ -1628,7 +1633,7 @@ export class TitleScreenSystem {
                 ctx.textAlign = 'right';
                 ctx.font = 'bold 14px Arial, sans-serif';
                 ctx.fillStyle = '#FFD700';
-                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% Gold`, listX + listW - 12, iy + (itemH - 4) / 2);
+                ctx.fillText(t('challenges.gold', { pct: Math.round(mod.goldBonus * 100) }), listX + listW - 12, iy + (itemH - 4) / 2);
                 ctx.textAlign = 'left';
             }
 
@@ -1650,18 +1655,18 @@ export class TitleScreenSystem {
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
                 ctx.shadowBlur = 10;
-                ctx.fillText(`GOLD MULTIPLIER: ${pendingMult.toFixed(1)}×`, w / 2, totalY);
+                ctx.fillText(t('challenges.goldMultiplier', { mult: pendingMult.toFixed(1) }), w / 2, totalY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-                ctx.fillText('No modifiers selected', w / 2, totalY);
+                ctx.fillText(t('challenges.noModifiers'), w / 2, totalY);
             }
 
             // Active count
             ctx.font = '12px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-            ctx.fillText(`${pending.size} / ${challenge.maxActive} selected`, w / 2, totalY + 22);
+            ctx.fillText(t('challenges.selected', { count: pending.size, max: challenge.maxActive }), w / 2, totalY + 22);
         }
 
         // Back button
@@ -1681,7 +1686,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText(t('upgrades.back'), w / 2, backY + backH / 2);
     }
 
     // ---- Render: Codex / Bestiary ----
@@ -1721,16 +1726,16 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('CODEX', w / 2, panelY + 40);
+        ctx.fillText(t('codex.title'), w / 2, panelY + 40);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Category tabs
         const tabs = [
-            { key: 'enemies', label: 'Enemies', icon: '\u{1F480}' },
-            { key: 'weapons', label: 'Weapons', icon: '\u{2694}' },
-            { key: 'evolutions', label: 'Evolutions', icon: '\u{2B50}' },
-            { key: 'synergies', label: 'Synergies', icon: '\u{1F517}' }
+            { key: 'enemies', label: t('codex.enemies'), icon: '\u{1F480}' },
+            { key: 'weapons', label: t('codex.weapons'), icon: '\u{2694}' },
+            { key: 'evolutions', label: t('codex.evolutions'), icon: '\u{2B50}' },
+            { key: 'synergies', label: t('codex.synergies'), icon: '\u{1F517}' }
         ];
         const tabW = (panelW - 60) / tabs.length;
         const tabY = panelY + 70;
@@ -1843,7 +1848,7 @@ export class TitleScreenSystem {
 
                 ctx.font = '11px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-                ctx.fillText(`Seen ${item.count}x`, cx + 8, cy + 42);
+                ctx.fillText(t('codex.seen', { count: item.count }), cx + 8, cy + 42);
             } else {
                 ctx.font = 'bold 20px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(80, 70, 100, 0.5)';
@@ -1864,7 +1869,7 @@ export class TitleScreenSystem {
             ctx.textAlign = 'center';
             ctx.font = '12px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-            ctx.fillText(`Overall Completion: ${totalDisc}/${totalAll} (${overallPct}%)`, w / 2, panelY + panelH - 72);
+            ctx.fillText(t('codex.overallCompletion', { discovered: totalDisc, total: totalAll, pct: overallPct }), w / 2, panelY + panelH - 72);
         }
 
         // Back button
@@ -1884,7 +1889,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        ctx.fillText(t('characters.returnToMenu'), w / 2, backY + backH / 2 + 1);
     }
 
     handleCodexInput(k) {
@@ -1959,22 +1964,22 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('SETTINGS', w / 2, panelY + 38);
+        ctx.fillText(t('settings.title'), w / 2, panelY + 38);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Settings items definition
         const items = [
-            { key: 'masterVolume', label: 'Master Volume', type: 'slider', icon: '\u{1F50A}' },
-            { key: 'musicVolume', label: 'Music Volume', type: 'slider', icon: '\u{1F3B5}' },
-            { key: 'sfxVolume', label: 'SFX Volume', type: 'slider', icon: '\u{1F3B6}' },
-            { key: 'particleEffects', label: 'Particle Effects', type: 'toggle', icon: '\u{2728}' },
-            { key: 'screenShake', label: 'Screen Shake', type: 'toggle', icon: '\u{1F4F3}' },
-            { key: 'damageNumbers', label: 'Damage Numbers', type: 'toggle', icon: '\u{1F4A5}' },
-            { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: '\u{26A1}' },
-            { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: '\u{2699}' },
-            { key: 'showFPS', label: 'Show FPS', type: 'toggle', icon: '\u{1F4CA}' },
-            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: '\u{23F8}' }
+            { key: 'masterVolume', label: t('settings.masterVolume'), type: 'slider', icon: '\u{1F50A}' },
+            { key: 'musicVolume', label: t('settings.musicVolume'), type: 'slider', icon: '\u{1F3B5}' },
+            { key: 'sfxVolume', label: t('settings.sfxVolume'), type: 'slider', icon: '\u{1F3B6}' },
+            { key: 'particleEffects', label: t('settings.particleEffects'), type: 'toggle', icon: '\u{2728}' },
+            { key: 'screenShake', label: t('settings.screenShake'), type: 'toggle', icon: '\u{1F4F3}' },
+            { key: 'damageNumbers', label: t('settings.damageNumbers'), type: 'toggle', icon: '\u{1F4A5}' },
+            { key: 'lowFXMode', label: t('settings.lowFXMode'), type: 'toggle', icon: '\u{26A1}' },
+            { key: 'autoQuality', label: t('settings.autoQuality'), type: 'toggle', icon: '\u{2699}' },
+            { key: 'showFPS', label: t('settings.showFPS'), type: 'toggle', icon: '\u{1F4CA}' },
+            { key: 'pauseOnFocusLoss', label: t('settings.pauseOnFocusLoss'), type: 'toggle', icon: '\u{23F8}' }
         ];
 
         const itemH = 36;
@@ -2084,7 +2089,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 12px Arial, sans-serif';
         ctx.fillStyle = '#DAA520';
-        ctx.fillText('Reset to Defaults', resetX + resetW / 2, resetY + resetH / 2 + 1);
+        ctx.fillText(t('settings.resetDefaults'), resetX + resetW / 2, resetY + resetH / 2 + 1);
 
         // Back button
         const backW = 140;
@@ -2103,7 +2108,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 12px Arial, sans-serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - Back', backX + backW / 2, backY + backH / 2 + 1);
+        ctx.fillText(t('settings.back'), backX + backW / 2, backY + backH / 2 + 1);
     }
 
     handleSettingsInput(k) {
@@ -2235,7 +2240,7 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.35)';
         ctx.shadowBlur = 18;
-        ctx.fillText('PAUSED', w / 2, panelY + 50);
+        ctx.fillText(t('pause.title'), w / 2, panelY + 50);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
@@ -2257,7 +2262,7 @@ export class TitleScreenSystem {
         ctx.fillText(`Lv ${level}  ·  Wave ${wave}  ·  ${this.formatTime(elapsed)}`, w / 2, panelY + 100);
 
         // Menu items
-        const pauseItems = ['RESUME', 'SETTINGS', 'RETURN TO MENU'];
+        const pauseItems = [t('pause.resume'), t('pause.settings'), t('pause.returnToMenu')];
         const itemH = 48;
         const itemGap = 8;
         const itemsStartY = panelY + 128;
@@ -2314,11 +2319,11 @@ export class TitleScreenSystem {
         ctx.font = '12px Arial, sans-serif';
         ctx.fillStyle = 'rgba(180, 180, 200, 0.35)';
         ctx.textAlign = 'center';
-        ctx.fillText('ESC to resume', w / 2, panelY + panelH - 18);
+        ctx.fillText(t('pause.escToResume'), w / 2, panelY + panelH - 18);
     }
 
     handlePauseInput(k) {
-        const items = ['RESUME', 'SETTINGS', 'RETURN TO MENU'];
+        const items = [t('pause.resume'), t('pause.settings'), t('pause.returnToMenu')];
         const len = items.length;
 
         if (k === 'arrowup') {

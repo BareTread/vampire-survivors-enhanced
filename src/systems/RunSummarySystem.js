@@ -1,4 +1,5 @@
 import { CHARACTERS } from '../data/characters.js';
+import { t } from '../i18n/index.js';
 
 /**
  * RunSummarySystem - Canvas-rendered post-death run statistics screen.
@@ -31,24 +32,24 @@ export class RunSummarySystem {
         this.statDefs = [
             {
                 key: 'survivalTime',
-                label: 'TIME SURVIVED',
+                label: t('summary.timeSurvived'),
                 format: 'time',
                 recordKey: 'longestSurvival',
                 icon: '\u23F1'
             },
-            { key: 'kills', label: 'ENEMIES SLAIN', format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
-            { key: 'level', label: 'LEVEL REACHED', format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
-            { key: 'combo', label: 'BEST COMBO', format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
+            { key: 'kills', label: t('summary.enemiesSlain'), format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
+            { key: 'level', label: t('summary.levelReached'), format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
+            { key: 'combo', label: t('summary.bestCombo'), format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
             {
                 key: 'goldEarned',
-                label: 'GOLD EARNED',
+                label: t('summary.goldEarned'),
                 format: 'number',
                 recordKey: 'mostGoldSingleRun',
                 icon: '\uD83D\uDCB0'
             },
             {
                 key: 'damageDealt',
-                label: 'DAMAGE DEALT',
+                label: t('summary.damageDealt'),
                 format: 'number',
                 recordKey: 'totalDamageDealt',
                 icon: '\u2694'
@@ -185,15 +186,15 @@ export class RunSummarySystem {
         ctx.shadowBlur = 30;
         ctx.font = `bold ${fontSize}px 'Cinzel', 'Times New Roman', serif`;
         ctx.fillStyle = '#FF3333';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText(t('summary.fallenInBattle'), w / 2, headerY);
         ctx.shadowBlur = 15;
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText(t('summary.fallenInBattle'), w / 2, headerY);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Lighter text on top
         ctx.fillStyle = '#FF8888';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText(t('summary.fallenInBattle'), w / 2, headerY);
 
         // Character name and title
         const charId = this.game.systems.persistence ? this.game.systems.persistence.getSelectedCharacter() : 'antonio';
@@ -212,7 +213,7 @@ export class RunSummarySystem {
             ctx.fillStyle = '#FF6666';
             ctx.globalAlpha = 0.95;
             const killerName = this.runData.killedBy.name.charAt(0).toUpperCase() + this.runData.killedBy.name.slice(1);
-            ctx.fillText(`\u2620 Killed by: ${killerName}`, w / 2, headerY + (character ? 50 : 30));
+            ctx.fillText(t('summary.killedBy', { name: killerName }), w / 2, headerY + (character ? 50 : 30));
             ctx.globalAlpha = 1;
         }
 
@@ -292,7 +293,7 @@ export class RunSummarySystem {
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
                 ctx.shadowBlur = 8;
-                ctx.fillText('\u2605 NEW RECORD', badgeX, badgeY);
+                ctx.fillText(t('summary.newRecord'), badgeX, badgeY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
                 ctx.restore();
@@ -315,7 +316,7 @@ export class RunSummarySystem {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#AAAACC';
             const remaining = nextMilestone - kills;
-            ctx.fillText(`${remaining} kills away from ${this.formatNumber(nextMilestone)} milestone`, w / 2, statsStartY + panelH + 6);
+            ctx.fillText(t('summary.killsAway', { remaining, milestone: this.formatNumber(nextMilestone) }), w / 2, statsStartY + panelH + 6);
             ctx.globalAlpha = 1;
         }
 
@@ -327,7 +328,7 @@ export class RunSummarySystem {
             ctx.font = '11px Arial, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(150, 150, 170, 0.6)';
-            ctx.fillText('ARSENAL', w / 2, weaponsY);
+            ctx.fillText(t('summary.arsenal'), w / 2, weaponsY);
 
             // Weapon name pills
             const names = this.runData.weaponsUsed.map((id) => this.formatWeaponName(id));
@@ -366,7 +367,7 @@ export class RunSummarySystem {
             ctx.font = '12px Arial, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillStyle = '#AAAACC';
-            ctx.fillText('R - Play Again    M - Main Menu    ESC - Main Menu', w / 2, buttonsY + 54);
+            ctx.fillText(t('summary.controls'), w / 2, buttonsY + 54);
             ctx.globalAlpha = 1;
         }
 
@@ -382,8 +383,8 @@ export class RunSummarySystem {
         const startX = (w - totalW) / 2;
 
         const buttons = [
-            { label: 'PLAY AGAIN', baseColor: [60, 160, 70], accent: '#4CAF50' },
-            { label: 'MAIN MENU', baseColor: [100, 50, 140], accent: '#8844AA' }
+            { label: t('summary.playAgain'), baseColor: [60, 160, 70], accent: '#4CAF50' },
+            { label: t('summary.mainMenu'), baseColor: [100, 50, 140], accent: '#8844AA' }
         ];
 
         for (let i = 0; i < buttons.length; i++) {

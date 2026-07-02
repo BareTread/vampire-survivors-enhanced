@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 
 /**
@@ -32,10 +33,10 @@ export class WeaponEvolutionSystem {
                 'magic_missile',
                 {
                     requiredPassive: 'empty_tome',
-                    evolvedName: 'Soul Missile',
+                    evolvedName: t('evolution.soulMissile'),
                     evolvedColor: '#FF00FF',
                     glowColor: 'rgba(255,0,255,0.4)',
-                    description: 'Homing missiles that pierce all enemies',
+                    description: t('evolution.soulMissileDesc'),
                     statMultipliers: {
                         damage: 1.7,
                         cooldown: 0.7, // Still much faster, but no longer doubles the fire rate
@@ -50,10 +51,10 @@ export class WeaponEvolutionSystem {
                 'whip',
                 {
                     requiredPassive: 'spinach',
-                    evolvedName: 'Bloody Tear',
+                    evolvedName: t('evolution.bloodyTear'),
                     evolvedColor: '#DC143C',
                     glowColor: 'rgba(220,20,60,0.4)',
-                    description: 'Life-stealing whip with massive range',
+                    description: t('evolution.bloodyTearDesc'),
                     statMultipliers: {
                         damage: 1.5,
                         range: 1.6,
@@ -67,10 +68,10 @@ export class WeaponEvolutionSystem {
                 'throwing_knife',
                 {
                     requiredPassive: 'duplicator',
-                    evolvedName: 'Thousand Edge',
+                    evolvedName: t('evolution.thousandEdge'),
                     evolvedColor: '#00FFFF',
                     glowColor: 'rgba(0,255,255,0.4)',
-                    description: 'A storm of blades that shreds everything',
+                    description: t('evolution.thousandEdgeDesc'),
                     statMultipliers: {
                         projectiles: 2,
                         speed: 1.35,
@@ -84,10 +85,10 @@ export class WeaponEvolutionSystem {
                 'lightning_chain',
                 {
                     requiredPassive: 'duplicator',
-                    evolvedName: 'Thunder Loop',
+                    evolvedName: t('evolution.thunderLoop'),
                     evolvedColor: '#7DF9FF',
                     glowColor: 'rgba(125,249,255,0.5)',
-                    description: 'Chains to 12 enemies with stunning force',
+                    description: t('evolution.thunderLoopDesc'),
                     statMultipliers: {
                         damage: 1.8,
                         range: 1.5,
@@ -101,10 +102,10 @@ export class WeaponEvolutionSystem {
                 'garlic_aura',
                 {
                     requiredPassive: 'attractorb',
-                    evolvedName: 'Soul Eater',
+                    evolvedName: t('evolution.soulEater'),
                     evolvedColor: '#9400D3',
                     glowColor: 'rgba(148,0,211,0.35)',
-                    description: 'Pulls enemies in and devours them',
+                    description: t('evolution.soulEaterDesc'),
                     statMultipliers: {
                         damage: 1.9,
                         range: 2.2,
@@ -117,10 +118,10 @@ export class WeaponEvolutionSystem {
                 'holy_bible',
                 {
                     requiredPassive: 'armor',
-                    evolvedName: 'Unholy Vespers',
+                    evolvedName: t('evolution.unholyVespers'),
                     evolvedColor: '#8B0000',
                     glowColor: 'rgba(139,0,0,0.4)',
-                    description: '6 orbiters with explosive trails',
+                    description: t('evolution.unholyVespersDesc'),
                     statMultipliers: {
                         damage: 1.6,
                         area: 1.35,
@@ -134,10 +135,10 @@ export class WeaponEvolutionSystem {
                 'fire_wand',
                 {
                     requiredPassive: 'spinach',
-                    evolvedName: 'Hellfire',
+                    evolvedName: t('evolution.hellfire'),
                     evolvedColor: '#FF4500',
                     glowColor: 'rgba(255,69,0,0.5)',
-                    description: 'Cataclysmic fireballs with permanent burns',
+                    description: t('evolution.hellfireDesc'),
                     statMultipliers: {
                         damage: 2.2,
                         area: 1.5,
@@ -151,10 +152,10 @@ export class WeaponEvolutionSystem {
                 'bone_boomerang',
                 {
                     requiredPassive: 'wings',
-                    evolvedName: 'Death Spiral',
+                    evolvedName: t('evolution.deathSpiral'),
                     evolvedColor: '#ADFF2F',
                     glowColor: 'rgba(173,255,47,0.4)',
-                    description: 'Triple boomerangs in a constant death spin',
+                    description: t('evolution.deathSpiralDesc'),
                     statMultipliers: {
                         damage: 1.7,
                         projectiles: 2,
@@ -168,10 +169,10 @@ export class WeaponEvolutionSystem {
                 'ice_shard',
                 {
                     requiredPassive: 'empty_tome',
-                    evolvedName: 'Blizzard',
+                    evolvedName: t('evolution.blizzard'),
                     evolvedColor: '#B3E5FF',
                     glowColor: 'rgba(179,229,255,0.5)',
-                    description: 'Constant ice storm — 50% slow to all nearby enemies',
+                    description: t('evolution.blizzardDesc'),
                     statMultipliers: {
                         damage:     1.6,
                         cooldown:   0.7,
@@ -186,10 +187,10 @@ export class WeaponEvolutionSystem {
                 'shadow_dagger',
                 {
                     requiredPassive: 'wings',
-                    evolvedName: 'Phantom Assassin',
+                    evolvedName: t('evolution.phantomAssassin'),
                     evolvedColor: '#4C1D95',
                     glowColor: 'rgba(76,29,149,0.5)',
-                    description: 'Daggers chain through 5 enemies; each hit spawns a shadow clone',
+                    description: t('evolution.phantomAssassinDesc'),
                     statMultipliers: {
                         damage:   1.8,
                         cooldown: 0.75
@@ -374,7 +375,7 @@ export class WeaponEvolutionSystem {
         // 3. Floating evolution text
         if (globalDamageNumberPool) {
             globalDamageNumberPool.spawn(player.x, player.y - 30, recipe.evolvedName, recipe.evolvedColor);
-            globalDamageNumberPool.spawn(player.x, player.y - 50, 'EVOLVED!', '#FFD700');
+            globalDamageNumberPool.spawn(player.x, player.y - 50, t('evolution.evolved'), '#FFD700');
         }
 
         // 4. Audio cue

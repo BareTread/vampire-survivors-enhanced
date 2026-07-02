@@ -1,3 +1,5 @@
+import { t } from '../i18n/index.js';
+
 /**
  * MicroChallengeSystem — Short In-Run Challenges with Rewards
  * 
@@ -53,8 +55,8 @@ export class MicroChallengeSystem {
                     const target = 15 + Math.floor(Math.random() * 20); // 15-34
                     const time = 10 + Math.floor(Math.random() * 6);    // 10-15s
                     return {
-                        name: `Kill ${target} enemies`,
-                        description: `Slay ${target} foes within ${time}s`,
+                        name: t('microChallenge.killEnemies', { target }),
+                        description: t('microChallenge.slayFoes', { target, time }),
                         type: 'kill_spree',
                         target,
                         timeLimit: time,
@@ -67,8 +69,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const time = 15 + Math.floor(Math.random() * 16); // 15-30s
                     return {
-                        name: `Untouchable (${time}s)`,
-                        description: `Survive ${time}s without taking damage`,
+                        name: t('microChallenge.untouchable', { time }),
+                        description: t('microChallenge.surviveNoDamage', { time }),
                         type: 'survive_nodamage',
                         target: time,
                         timeLimit: time,
@@ -81,8 +83,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 8 + Math.floor(Math.random() * 13); // 8-20
                     return {
-                        name: `Combo ×${target}`,
-                        description: `Reach a ${target}-hit combo`,
+                        name: t('microChallenge.combo', { target }),
+                        description: t('microChallenge.reachCombo', { target }),
                         type: 'combo_reach',
                         target,
                         timeLimit: 20,
@@ -95,8 +97,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 3 + Math.floor(Math.random() * 5); // 3-7
                     return {
-                        name: `Sharpshooter`,
-                        description: `Land ${target} perfect aim shots`,
+                        name: t('microChallenge.sharpshooter'),
+                        description: t('microChallenge.landShots', { target }),
                         type: 'precision',
                         target,
                         timeLimit: 25,
@@ -109,8 +111,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 30 + Math.floor(Math.random() * 30); // 30-59
                     return {
-                        name: `Exterminator`,
-                        description: `Kill ${target} enemies (no time limit)`,
+                        name: t('microChallenge.exterminator'),
+                        description: t('microChallenge.killNoLimit', { target }),
                         type: 'total_kills',
                         target,
                         timeLimit: 45,
@@ -123,8 +125,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 5 + Math.floor(Math.random() * 6); // 5-10
                     return {
-                        name: `Blitz`,
-                        description: `Kill ${target} enemies in 5 seconds`,
+                        name: t('microChallenge.blitz'),
+                        description: t('microChallenge.killInTime', { target }),
                         type: 'speed_kills',
                         target,
                         timeLimit: 5,
@@ -198,7 +200,7 @@ export class MicroChallengeSystem {
 
         // Toast
         if (this.game.showToast) {
-            this.game.showToast(`⚔ Challenge: ${this.activeChallenge.name}`, '#FF8C00', 2000);
+            this.game.showToast(t('microChallenge.challenge', { name: this.activeChallenge.name }), '#FF8C00', 2000);
         }
     }
 
@@ -222,7 +224,7 @@ export class MicroChallengeSystem {
 
         // Toast
         if (this.game.showToast) {
-            this.game.showToast('✅ Challenge Complete! XP ×1.5!', '#00FF88', 2500);
+            this.game.showToast(t('microChallenge.complete'), '#00FF88', 2500);
         }
 
         this.activeChallenge = null;
@@ -390,7 +392,7 @@ export class MicroChallengeSystem {
             ctx.font = '11px Arial';
             ctx.textAlign = 'left';
             if (c.type === 'survive_nodamage') {
-                ctx.fillText(`${Math.floor(c.progress)}/${c.target}s survived`, x + 12, y + 35);
+                ctx.fillText(t('microChallenge.survived', { progress: Math.floor(c.progress), target: c.target }), x + 12, y + 35);
             } else {
                 ctx.fillText(`${c.progress}/${c.target}`, x + 12, y + 35);
             }

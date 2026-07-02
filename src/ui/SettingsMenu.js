@@ -1,4 +1,6 @@
 // Settings menu with volume, effects, and performance controls
+import { t } from '../i18n/index.js';
+
 export class SettingsMenu {
     constructor(game) {
         this.game = game;
@@ -99,95 +101,95 @@ export class SettingsMenu {
         
         this.menuElement.innerHTML = `
             <div class="settings-header">
-                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">Settings</h2>
+                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">${t('settingsMenu.title')}</h2>
                 <button class="close-btn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; color: #FFD700; font-size: 24px; cursor: pointer;">×</button>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🔊 Audio</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.audio')}</h3>
                 
                 <div class="setting-item">
-                    <label for="masterVolume">Master Volume: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
+                    <label for="masterVolume">${t('settingsMenu.masterVolume')}: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
                     <input type="range" id="masterVolume" min="0" max="1" step="0.1" value="${this.settings.masterVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="musicVolume">Music Volume: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
+                    <label for="musicVolume">${t('settingsMenu.musicVolume')}: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
                     <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="${this.settings.musicVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="sfxVolume">SFX Volume: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
+                    <label for="sfxVolume">${t('settingsMenu.sfxVolume')}: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
                     <input type="range" id="sfxVolume" min="0" max="1" step="0.1" value="${this.settings.sfxVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">✨ Visual Effects</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.visualEffects')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="particleEffects" ${this.settings.particleEffects ? 'checked' : ''}>
-                        Particle Effects
+                        ${t('settingsMenu.particleEffects')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="screenShake" ${this.settings.screenShake ? 'checked' : ''}>
-                        Screen Shake
+                        ${t('settingsMenu.screenShake')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="damageNumbers" ${this.settings.damageNumbers ? 'checked' : ''}>
-                        Damage Numbers
+                        ${t('settingsMenu.damageNumbers')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="lowFXMode" ${this.settings.lowFXMode ? 'checked' : ''}>
-                        Low Effects Mode
+                        ${t('settingsMenu.lowFXMode')}
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Reduces visual effects for better performance</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.lowFXHint')}</small>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">⚡ Performance</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.performance')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="autoQuality" ${this.settings.autoQuality ? 'checked' : ''}>
-                        Auto Quality Adjustment
+                        ${t('settingsMenu.autoQuality')}
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Automatically reduces quality when FPS drops</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.autoQualityHint')}</small>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="showFPS" ${this.settings.showFPS ? 'checked' : ''}>
-                        Show FPS Counter
+                        ${t('settingsMenu.showFPS')}
                     </label>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🎮 Gameplay</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.gameplay')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="pauseOnFocusLoss" ${this.settings.pauseOnFocusLoss ? 'checked' : ''}>
-                        Pause When Window Loses Focus
+                        ${t('settingsMenu.pauseOnFocusLoss')}
                     </label>
                 </div>
             </div>
             
             <div class="settings-actions" style="text-align: center; margin-top: 25px;">
-                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">Reset to Defaults</button>
-                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Close</button>
+                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">${t('settingsMenu.resetDefaults')}</button>
+                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">${t('settingsMenu.close')}</button>
             </div>
         `;
         

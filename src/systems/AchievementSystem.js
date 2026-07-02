@@ -29,6 +29,8 @@
  * - The notification system uses a queue to avoid overlapping popups
  */
 
+import { t } from '../i18n/index.js';
+
 export class AchievementSystem {
     constructor(game) {
         this.game = game;
@@ -51,85 +53,85 @@ export class AchievementSystem {
         this.achievements = [
             {
                 id: 'first_blood',
-                name: '🗡️ First Blood',
-                description: 'Kill your first enemy',
+                name: t('achievements.firstBlood'), 
+                description: t('achievements.firstBloodDesc'),
                 condition: (s) => s.totalKills >= 1,
                 unlocked: false
             },
             {
                 id: 'century_kill',
-                name: '💀 Century Slayer',
-                description: 'Kill 100 enemies in a single run',
+                name: t('achievements.centurySlayer'),
+                description: t('achievements.centurySlayerDesc'),
                 condition: (s) => s.totalKills >= 100,
                 unlocked: false
             },
             {
                 id: 'massacre',
-                name: '☠️ Massacre',
-                description: 'Kill 500 enemies in a single run',
+                name: t('achievements.massacre'),
+                description: t('achievements.massacreDesc'),
                 condition: (s) => s.totalKills >= 500,
                 unlocked: false
             },
             {
                 id: 'apocalypse',
-                name: '🔥 Apocalypse',
-                description: 'Kill 1000 enemies in a single run',
+                name: t('achievements.apocalypse'),
+                description: t('achievements.apocalypseDesc'),
                 condition: (s) => s.totalKills >= 1000,
                 unlocked: false
             },
             {
                 id: 'combo_initiate',
-                name: '⚡ Combo Initiate',
-                description: 'Reach a 10-hit combo',
+                name: t('achievements.comboInitiate'),
+                description: t('achievements.comboInitiateDesc'),
                 condition: (s) => s.maxCombo >= 10,
                 unlocked: false
             },
             {
                 id: 'combo_king',
-                name: '👑 Combo King',
-                description: 'Reach a 25-hit combo',
+                name: t('achievements.comboKing'),
+                description: t('achievements.comboKingDesc'),
                 condition: (s) => s.maxCombo >= 25,
                 unlocked: false
             },
             {
                 id: 'combo_legend',
-                name: '🌟 Combo Legend',
-                description: 'Reach a 50-hit combo',
+                name: t('achievements.comboLegend'),
+                description: t('achievements.comboLegendDesc'),
                 condition: (s) => s.maxCombo >= 50,
                 unlocked: false
             },
             {
                 id: 'wave_survivor_5',
-                name: '🌊 Wave Runner',
-                description: 'Survive 5 waves',
+                name: t('achievements.waveRunner'),
+                description: t('achievements.waveRunnerDesc'),
                 condition: (s) => s.wavesCompleted >= 5,
                 unlocked: false
             },
             {
                 id: 'wave_survivor_10',
-                name: '🏔️ Wave Master',
-                description: 'Survive 10 waves',
+                name: t('achievements.waveMaster'),
+                description: t('achievements.waveMasterDesc'),
                 condition: (s) => s.wavesCompleted >= 10,
                 unlocked: false
             },
             {
                 id: 'near_death',
-                name: '💔 Death\'s Door',
-                description: 'Survive a near-death moment',
+                name: t('achievements.deathsDoor'),
+                description: t('achievements.deathsDoorDesc'),
                 condition: (s) => s.nearDeathSurvivals >= 1,
                 unlocked: false
             },
             {
                 id: 'marksman',
-                name: '🎯 Marksman',
-                description: 'Land 10 perfect aim shots',
+                name: t('achievements.marksman'),
+                description: t('achievements.marksmanDesc'),
                 condition: (s) => s.perfectAimShots >= 10,
                 unlocked: false
             },
             {
                 id: 'endurance_5',
-                name: '⏰ Endurance',
-                description: 'Survive for 5 minutes',
+                name: t('achievements.endurance'),
+                description: t('achievements.enduranceDesc'),
                 condition: (s) => s.survivalTime >= 300,
                 unlocked: false
             }
@@ -350,7 +352,7 @@ export class AchievementSystem {
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 10px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('🏆 ACHIEVEMENT UNLOCKED', x + boxWidth / 2, y + 18);
+            ctx.fillText(t('achievements.unlocked'), x + boxWidth / 2, y + 18);
 
             // Achievement name
             ctx.fillStyle = '#FFFFFF';
