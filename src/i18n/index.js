@@ -15,7 +15,7 @@ import { zhCN } from './zh-CN.js';
 const locales = { 'zh-CN': zhCN };
 
 /** 当前语言 */
-let currentLocale = 'en';
+let currentLocale = 'zh-CN';
 
 /** 语言变更回调列表 */
 const localeChangeCallbacks = [];
