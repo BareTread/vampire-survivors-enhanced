@@ -17,6 +17,19 @@ const locales = { 'zh-CN': zhCN };
 /** 当前语言 */
 let currentLocale = 'en';
 
+/** 语言变更回调列表 */
+const localeChangeCallbacks = [];
+
+/**
+ * 注册语言变更回调
+ * @param {function} callback - 语言变更时调用
+ */
+export function onLocaleChange(callback) {
+    if (typeof callback === 'function' && !localeChangeCallbacks.includes(callback)) {
+        localeChangeCallbacks.push(callback);
+    }
+}
+
 /**
  * 获取翻译文本
  * @param {string} key - 翻译键，支持点号分隔的嵌套键
@@ -50,6 +63,10 @@ export function setLocale(locale) {
         try {
             localStorage.setItem('vs_locale', locale);
         } catch (e) { /* ignore */ }
+        // 通知所有回调
+        for (const cb of localeChangeCallbacks) {
+            try { cb(locale); } catch (e) { /* ignore */ }
+        }
     }
 }
 

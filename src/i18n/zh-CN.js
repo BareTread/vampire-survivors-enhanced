@@ -174,6 +174,24 @@ export const zhCN = {
         gameplay: '🎮 游戏',
         lowFXHint: '降低视觉效果以提高性能',
         autoQualityHint: '帧率下降时自动降低画质',
+        // 按键绑定标签
+        keyMoveUp: '向上移动',
+        keyMoveDown: '向下移动',
+        keyMoveLeft: '向左移动',
+        keyMoveRight: '向右移动',
+        keyPause: '暂停',
+        keySettings: '设置',
+        keyPerformance: '性能',
+        keyDebug: '调试',
+        keyHelp: '帮助',
+        keyInventory: '背包',
+        keyLevelUp1: '升级选项 #1',
+        keyLevelUp2: '升级选项 #2',
+        keyLevelUp3: '升级选项 #3',
+        keyLevelUp4: '升级选项 #4',
+        keyLevelUp5: '升级选项 #5',
+        keyRestart: '重新开始',
+        keyMainMenu: '主菜单',
     },
 
     // ===== HTML设置菜单 =====
@@ -197,6 +215,10 @@ export const zhCN = {
         gameplay: '🎮 游戏',
         pauseOnFocusLoss: '窗口失去焦点时暂停',
         resetDefaults: '恢复默认设置',
+        language: '语言',
+        keyBindings: '按键绑定',
+        resetKeyBindings: '重置按键绑定',
+        pressing: '请按键...',
     },
 
     // ===== 暂停菜单 =====

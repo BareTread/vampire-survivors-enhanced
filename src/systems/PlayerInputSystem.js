@@ -10,6 +10,7 @@
 
 import { BaseSystem } from './BaseSystem.js';
 import { LoggerInstance as Logger } from '../core/ErrorHandler.js';
+import { isActionKey } from '../core/KeyBindings.js';
 
 export class PlayerInputSystem extends BaseSystem {
     onInit() {
@@ -35,11 +36,22 @@ export class PlayerInputSystem extends BaseSystem {
         input.moveX = 0;
         input.moveY = 0;
 
-        // Process keyboard input
-        if (input.isKeyPressed('w') || input.isKeyPressed('arrowup')) input.moveY = -1;
-        if (input.isKeyPressed('s') || input.isKeyPressed('arrowdown')) input.moveY = 1;
-        if (input.isKeyPressed('a') || input.isKeyPressed('arrowleft')) input.moveX = -1;
-        if (input.isKeyPressed('d') || input.isKeyPressed('arrowright')) input.moveX = 1;
+        // Process keyboard input using configurable key bindings
+        const pressedKeys = input.getPressedKeys ? input.getPressedKeys() : [];
+        if (pressedKeys.length > 0) {
+            for (const key of pressedKeys) {
+                if (isActionKey('moveUp', key)) input.moveY = -1;
+                if (isActionKey('moveDown', key)) input.moveY = 1;
+                if (isActionKey('moveLeft', key)) input.moveX = -1;
+                if (isActionKey('moveRight', key)) input.moveX = 1;
+            }
+        } else {
+            // Fallback to legacy isKeyPressed API
+            if (input.isKeyPressed('w') || input.isKeyPressed('arrowup')) input.moveY = -1;
+            if (input.isKeyPressed('s') || input.isKeyPressed('arrowdown')) input.moveY = 1;
+            if (input.isKeyPressed('a') || input.isKeyPressed('arrowleft')) input.moveX = -1;
+            if (input.isKeyPressed('d') || input.isKeyPressed('arrowright')) input.moveX = 1;
+        }
 
         // Normalize diagonal movement
         const movement = input.getMovementVector();
