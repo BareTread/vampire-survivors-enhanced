@@ -54,30 +54,32 @@ import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
 import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
+import { t, initLocale } from '../i18n/index.js';
+import { isActionKey } from './KeyBindings.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
-    magic_missile: { name: 'Magic Missile', description: 'Automatically fires homing projectiles at nearby enemies' },
-    whip: { name: 'Whip', description: 'Strikes in an arc, hitting multiple enemies' },
-    throwing_knife: { name: 'Throwing Knife', description: 'Fast projectiles that pierce through enemies' },
+    magic_missile: { name: t('weapons.magicMissile'), description: t('weapons.magicMissileDesc') },
+    whip: { name: t('weapons.whip'), description: t('weapons.whipDesc') },
+    throwing_knife: { name: t('weapons.throwingKnife'), description: t('weapons.throwingKnifeDesc') },
     lightning_chain: {
-        name: 'Lightning Chain',
-        description: 'Strikes the nearest enemy with lightning that chains to nearby foes'
+        name: t('weapons.lightningChain'),
+        description: t('weapons.lightningChainDesc')
     },
-    garlic_aura: { name: 'Garlic Aura', description: 'Damages nearby enemies with a pulsing aura of garlic essence' },
+    garlic_aura: { name: t('weapons.garlicAura'), description: t('weapons.garlicAuraDesc') },
     holy_bible: {
-        name: 'Holy Bible',
-        description: 'Orbiting crosses that circle the player, damaging enemies on contact'
+        name: t('weapons.holyBible'),
+        description: t('weapons.holyBibleDesc')
     },
-    fire_wand: { name: 'Fire Wand', description: 'Launches fireballs that explode on impact, leaving burning ground' },
+    fire_wand: { name: t('weapons.fireWand'), description: t('weapons.fireWandDesc') },
     bone_boomerang: {
-        name: 'Bone Boomerang',
-        description: 'Thrown bone that returns to the player, hitting enemies both ways'
+        name: t('weapons.boneBoomerang'),
+        description: t('weapons.boneBoomerangDesc')
     },
-    ice_shard: { name: 'Ice Shard', description: 'Slow ice projectiles that freeze enemies on impact' },
+    ice_shard: { name: t('weapons.iceShard'), description: t('weapons.iceShardDesc') },
     shadow_dagger: {
-        name: 'Shadow Dagger',
-        description: 'Teleports a shadow blade to the nearest enemy for massive burst damage'
+        name: t('weapons.shadowDagger'),
+        description: t('weapons.shadowDaggerDesc')
     }
 };
 
@@ -233,6 +235,8 @@ export class VampireSurvivorsGame {
 
         this.setupInput();
         this.setupUI();
+
+        initLocale();
     }
 
     setupInput() {
@@ -548,14 +552,14 @@ export class VampireSurvivorsGame {
 
     getPowerUpName(type) {
         const names = {
-            health: 'Health',
-            invincible: 'Invincibility',
-            speedBoost: 'Speed',
-            damageBoost: 'Damage',
-            magnetBoost: 'Magnet',
-            fireRate: 'Fire Rate'
+            health: t('weapons.powerupHealth'),
+            invincible: t('weapons.powerupInvincibility'),
+            speedBoost: t('weapons.powerupSpeed'),
+            damageBoost: t('weapons.powerupDamage'),
+            magnetBoost: t('weapons.powerupMagnet'),
+            fireRate: t('weapons.powerupFireRate')
         };
-        return names[type] || 'Power-up';
+        return names[type] || t('weapons.powerupDefault');
     }
 
     getPowerUpPickupHint(type) {
@@ -571,142 +575,186 @@ export class VampireSurvivorsGame {
     }
 
     handleKeyDown(key) {
-        switch (key.toLowerCase()) {
-            case 'escape':
-                if (
-                    this.gameState === 'upgrades' ||
-                    this.gameState === 'characters' ||
-                    this.gameState === 'challenges' ||
-                    this.gameState === 'statistics' ||
-                    this.gameState === 'codex' ||
-                    this.gameState === 'settings'
-                ) {
-                    this.gameState = 'menu';
-                } else if (this.gameState === 'summary') {
-                    this.returnToMenu();
-                } else if (this.gameState === 'playing') {
-                    this.pauseGame();
-                } else if (this.gameState === 'paused') {
-                    // Don't resume if DOM settings overlay is open (ESC closes that first)
-                    if (!this.settingsMenu?.isVisible) {
-                        this.systems.titleScreen.handlePauseInput('escape');
+        const lowerKey = key.toLowerCase();
+
+        // Pause / Escape
+        if (isActionKey('pause', lowerKey)) {
+            if (
+                this.gameState === 'upgrades' ||
+                this.gameState === 'characters' ||
+                this.gameState === 'challenges' ||
+                this.gameState === 'statistics' ||
+                this.gameState === 'codex' ||
+                this.gameState === 'settings'
+            ) {
+                this.gameState = 'menu';
+            } else if (this.gameState === 'summary') {
+                this.returnToMenu();
+            } else if (this.gameState === 'playing') {
+                this.pauseGame();
+            } else if (this.gameState === 'paused') {
+                // Don't resume if DOM settings overlay is open (ESC closes that first)
+                if (!this.settingsMenu?.isVisible) {
+                    this.systems.titleScreen.handlePauseInput('escape');
+                }
+            }
+            // Also close inventory if open
+            if (this.systems.inventory?.visible) {
+                this.systems.inventory.hide();
+            }
+            return;
+        }
+
+        // Settings
+        if (isActionKey('settings', lowerKey)) {
+            this.settingsMenu.toggle();
+            return;
+        }
+
+        // Performance dashboard
+        if (isActionKey('performance', lowerKey)) {
+            if (this.performanceDashboard) {
+                this.performanceDashboard.toggle();
+            }
+            return;
+        }
+
+        // Restart
+        if (isActionKey('restart', lowerKey)) {
+            if (this.gameState === 'summary') {
+                this.restartGame();
+            }
+            return;
+        }
+
+        // Main Menu
+        if (isActionKey('mainMenu', lowerKey)) {
+            if (this.inputManager.keys['shift']) {
+                // Debug: Activate global magnet and magnet boost for quick testing
+                if (this.player && this.systems && this.systems.experience) {
+                    this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
+                    this.systems.experience.magnetizeAllGems();
+                    if (typeof this.systems.experience.activateGlobalMagnet === 'function') {
+                        this.systems.experience.activateGlobalMagnet(12.0);
                     }
+                    console.log('🧲 Debug: Global magnet activated for 12s');
                 }
-                // Also close inventory if open
-                if (this.systems.inventory?.visible) {
-                    this.systems.inventory.hide();
-                }
-                break;
-            case 'f1':
-                // Toggle settings menu
-                this.settingsMenu.toggle();
-                break;
-            case 'f2':
-                // Toggle performance dashboard
-                if (this.performanceDashboard) {
-                    this.performanceDashboard.toggle();
-                }
-                break;
-            case 'r':
-                if (this.gameState === 'summary') {
-                    this.restartGame();
-                }
-                break;
-            case 'm':
-                if (this.inputManager.keys['shift']) {
-                    // Debug: Activate global magnet and magnet boost for quick testing
-                    if (this.player && this.systems && this.systems.experience) {
-                        this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
-                        this.systems.experience.magnetizeAllGems();
-                        if (typeof this.systems.experience.activateGlobalMagnet === 'function') {
-                            this.systems.experience.activateGlobalMagnet(12.0);
-                        }
-                        console.log('🧲 Debug: Global magnet activated for 12s');
-                    }
-                } else if (this.gameState === 'summary') {
-                    this.returnToMenu();
-                }
-                break;
-            case 'd':
-                // Toggle projectile debugger (D key to avoid F3 browser find)
-                if (this.inputManager.keys['shift']) {
-                    this.projectileDebugger.toggle();
-                }
-                break;
-            case 'h':
-                // Toggle help overlay
-                this.helpOverlay.toggle();
-                break;
-            case 'tab':
-                // Toggle build inventory overlay
-                if (this.gameState === 'playing' || this.systems.inventory?.visible) {
-                    this.systems.inventory.toggle();
-                }
-                break;
-            case 'f4':
-            case 'g':
-            case 'G':
-                this.showDebug = !this.showDebug;
-                if (document.getElementById('debug-info')) {
-                    document.getElementById('debug-info').style.display = this.showDebug ? 'block' : 'none';
-                }
-                console.log('Debug overlay:', this.showDebug ? 'ON' : 'OFF');
-                break;
-            case 'f5':
-                // Toggle progression telemetry
-                this.progressionTelemetry.enabled = !this.progressionTelemetry.enabled;
-                console.log(`📊 Progression Telemetry: ${this.progressionTelemetry.enabled ? 'ENABLED' : 'DISABLED'}`);
-                break;
-            case ' ':
-            case 'enter':
-                if (
-                    this.gameState === 'menu' ||
-                    this.gameState === 'upgrades' ||
-                    this.gameState === 'characters' ||
-                    this.gameState === 'challenges' ||
-                    this.gameState === 'statistics' ||
-                    this.gameState === 'codex' ||
-                    this.gameState === 'settings'
-                ) {
-                    this.systems.titleScreen.handleInput(key);
-                } else if (this.gameState === 'paused') {
-                    this.systems.titleScreen.handlePauseInput(key.toLowerCase());
-                } else if (this.gameState === 'summary') {
-                    this.systems.runSummary.handleInput(key);
-                }
-                break;
-            case 'arrowup':
-            case 'arrowdown':
-            case 'arrowleft':
-            case 'arrowright':
-                if (
-                    this.gameState === 'menu' ||
-                    this.gameState === 'upgrades' ||
-                    this.gameState === 'characters' ||
-                    this.gameState === 'challenges' ||
-                    this.gameState === 'statistics' ||
-                    this.gameState === 'codex' ||
-                    this.gameState === 'settings'
-                ) {
-                    this.systems.titleScreen.handleInput(key);
-                } else if (this.gameState === 'paused') {
-                    this.systems.titleScreen.handlePauseInput(key.toLowerCase());
-                } else if (this.gameState === 'summary') {
-                    this.systems.runSummary.handleInput(key);
-                }
-                break;
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-                if (this.levelUpActive) {
-                    const optionIndex = parseInt(key) - 1;
-                    if (optionIndex < this.levelUpOptions.length) {
-                        this.selectLevelUpOption(optionIndex);
-                    }
-                }
-                break;
+            } else if (this.gameState === 'summary') {
+                this.returnToMenu();
+            }
+            return;
+        }
+
+        // Debug
+        if (isActionKey('debug', lowerKey)) {
+            if (this.inputManager.keys['shift']) {
+                this.projectileDebugger.toggle();
+            }
+            return;
+        }
+
+        // Help
+        if (isActionKey('help', lowerKey)) {
+            this.helpOverlay.toggle();
+            return;
+        }
+
+        // Inventory
+        if (isActionKey('inventory', lowerKey)) {
+            if (this.gameState === 'playing' || this.systems.inventory?.visible) {
+                this.systems.inventory.toggle();
+            }
+            return;
+        }
+
+        // Debug toggle (legacy F4/G)
+        if (lowerKey === 'f4' || lowerKey === 'g') {
+            this.showDebug = !this.showDebug;
+            if (document.getElementById('debug-info')) {
+                document.getElementById('debug-info').style.display = this.showDebug ? 'block' : 'none';
+            }
+            console.log('Debug overlay:', this.showDebug ? 'ON' : 'OFF');
+            return;
+        }
+
+        // F5: Toggle progression telemetry
+        if (lowerKey === 'f5') {
+            this.progressionTelemetry.enabled = !this.progressionTelemetry.enabled;
+            console.log(`📊 Progression Telemetry: ${this.progressionTelemetry.enabled ? 'ENABLED' : 'DISABLED'}`);
+            return;
+        }
+
+        // Space / Enter: Confirm
+        if (lowerKey === ' ' || lowerKey === 'enter') {
+            if (
+                this.gameState === 'menu' ||
+                this.gameState === 'upgrades' ||
+                this.gameState === 'characters' ||
+                this.gameState === 'challenges' ||
+                this.gameState === 'statistics' ||
+                this.gameState === 'codex' ||
+                this.gameState === 'settings'
+            ) {
+                this.systems.titleScreen.handleInput(key);
+            } else if (this.gameState === 'paused') {
+                this.systems.titleScreen.handlePauseInput(key.toLowerCase());
+            } else if (this.gameState === 'summary') {
+                this.systems.runSummary.handleInput(key);
+            }
+            return;
+        }
+
+        // Arrow keys: Navigation
+        if (lowerKey === 'arrowup' || lowerKey === 'arrowdown' ||
+            lowerKey === 'arrowleft' || lowerKey === 'arrowright') {
+            if (
+                this.gameState === 'menu' ||
+                this.gameState === 'upgrades' ||
+                this.gameState === 'characters' ||
+                this.gameState === 'challenges' ||
+                this.gameState === 'statistics' ||
+                this.gameState === 'codex' ||
+                this.gameState === 'settings'
+            ) {
+                this.systems.titleScreen.handleInput(key);
+            } else if (this.gameState === 'paused') {
+                this.systems.titleScreen.handlePauseInput(key.toLowerCase());
+            } else if (this.gameState === 'summary') {
+                this.systems.runSummary.handleInput(key);
+            }
+            return;
+        }
+
+        // Level up options (1-5 keys)
+        if (isActionKey('levelUp1', lowerKey)) {
+            if (this.levelUpActive) {
+                this.selectLevelUpOption(0);
+            }
+            return;
+        }
+        if (isActionKey('levelUp2', lowerKey)) {
+            if (this.levelUpActive) {
+                this.selectLevelUpOption(1);
+            }
+            return;
+        }
+        if (isActionKey('levelUp3', lowerKey)) {
+            if (this.levelUpActive) {
+                this.selectLevelUpOption(2);
+            }
+            return;
+        }
+        if (isActionKey('levelUp4', lowerKey)) {
+            if (this.levelUpActive) {
+                this.selectLevelUpOption(3);
+            }
+            return;
+        }
+        if (isActionKey('levelUp5', lowerKey)) {
+            if (this.levelUpActive) {
+                this.selectLevelUpOption(4);
+            }
+            return;
         }
     }
 
@@ -1126,8 +1174,8 @@ export class VampireSurvivorsGame {
                 options.push({
                     type: 'weapon_upgrade',
                     weaponId: weapon.id,
-                    name: `${weapon.name} (Level ${weapon.level + 1})`,
-                    description: `Upgrade ${weapon.name}`
+                    name: `${weapon.name} (Lv ${weapon.level + 1})`,
+                    description: t('weapons.upgradeWeapon', { name: weapon.name })
                 });
             }
         }
@@ -1164,12 +1212,12 @@ export class VampireSurvivorsGame {
 
         // Stat upgrades — still valuable, but less generically run-winning than before
         const statUpgrades = [
-            { stat: 'damage', name: 'Damage +15%', description: 'Increase weapon damage' },
-            { stat: 'speed', name: 'Speed +10%', description: 'Move faster' },
-            { stat: 'health', name: 'Max Health +20%', description: 'Increase maximum health' },
-            { stat: 'luck', name: 'Luck +8%', description: 'Better experience and drops' },
-            { stat: 'area', name: 'Area +12%', description: 'Bigger projectiles and AoE radius' },
-            { stat: 'cooldown', name: 'Cooldown -8%', description: 'Weapons fire faster' }
+            { stat: 'damage', name: t('weapons.damageUp'), description: t('weapons.damageUpDesc') },
+            { stat: 'speed', name: t('weapons.speedUp'), description: t('weapons.speedUpDesc') },
+            { stat: 'health', name: t('weapons.healthUp'), description: t('weapons.healthUpDesc') },
+            { stat: 'luck', name: t('weapons.luckUp'), description: t('weapons.luckUpDesc') },
+            { stat: 'area', name: t('weapons.areaUp'), description: t('weapons.areaUpDesc') },
+            { stat: 'cooldown', name: t('weapons.cooldownUp'), description: t('weapons.cooldownUpDesc') }
         ];
 
         for (const upgrade of this.shuffleArray([...statUpgrades]).slice(0, 4)) {
@@ -1220,7 +1268,7 @@ export class VampireSurvivorsGame {
             case 'weapon_upgrade': {
                 const weapon = this.player.weapons.get(option.weaponId);
                 if (!weapon || weapon.level >= weapon.maxLevel) {
-                    this.showToast('Option no longer available', '#FF6666', 1200);
+                    this.showToast(t('weapons.optionUnavailable'), '#FF6666', 1200);
                     return; // Don't close UI — let player pick another
                 }
                 this.player.upgradeWeapon(option.weaponId);
@@ -1231,11 +1279,11 @@ export class VampireSurvivorsGame {
             }
             case 'new_weapon': {
                 if (this.player.weapons.size >= this.player.maxWeapons) {
-                    this.showToast('Weapon slots full', '#FF6666', 1200);
+                    this.showToast(t('weapons.weaponSlotsFull'), '#FF6666', 1200);
                     return;
                 }
                 if (Array.from(this.player.weapons.values()).some(w => w.id === option.weaponType)) {
-                    this.showToast('Already have this weapon', '#FF6666', 1200);
+                    this.showToast(t('weapons.alreadyHaveWeapon'), '#FF6666', 1200);
                     return;
                 }
                 const WeaponClass = this.weaponClasses.get(option.weaponType);
@@ -1263,7 +1311,7 @@ export class VampireSurvivorsGame {
                     const canEvolve = this.systems.weaponEvolution.getEvolutionOptions()
                         .some(e => e.weaponId === option.weaponId);
                     if (!canEvolve) {
-                        this.showToast('Evolution no longer available', '#FF6666', 1200);
+                        this.showToast(t('weapons.evolutionUnavailable'), '#FF6666', 1200);
                         return;
                     }
                     this.systems.weaponEvolution.evolveWeapon(option.weaponId);

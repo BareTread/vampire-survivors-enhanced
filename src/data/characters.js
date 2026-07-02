@@ -1,3 +1,5 @@
+import { t } from '../i18n/index.js';
+
 /**
  * Character definitions for the character selection system.
  * Each character has unique starting weapon, stat modifiers, and unlock conditions.
@@ -5,11 +7,11 @@
 export const CHARACTERS = [
     {
         id: 'antonio',
-        name: 'Antonio',
-        title: 'The Vampire Hunter',
+        name: t('characters.antonio'),
+        title: t('characters.antonioTitle'),
         color: '#4A90E2',
         startingWeapon: 'whip',
-        description: 'Balanced fighter with bonus damage.',
+        description: t('characters.antonioDesc'),
         statModifiers: { damage: 1.10 },
         unlocked: true,
         unlockCondition: null,
@@ -17,98 +19,98 @@ export const CHARACTERS = [
     },
     {
         id: 'imelda',
-        name: 'Imelda',
-        title: 'The Scholar',
+        name: t('characters.imelda'),
+        title: t('characters.imeldaTitle'),
         color: '#B060E0',
         startingWeapon: 'magic_missile',
-        description: 'Gains experience faster. Fragile but powerful.',
+        description: t('characters.imeldaDesc'),
         statModifiers: { luck: 1.15, health: 0.90 },
         unlocked: false,
         unlockCondition: 'maxLevel >= 15',
-        unlockDesc: 'Reach level 15 in a single run'
+        unlockDesc: t('characters.unlockImelda')
     },
     {
         id: 'gennaro',
-        name: 'Gennaro',
-        title: 'The Rogue',
+        name: t('characters.gennaro'),
+        title: t('characters.gennaroTitle'),
         color: '#E06040',
         startingWeapon: 'throwing_knife',
-        description: 'Fast and deadly. Extra projectile from the start.',
+        description: t('characters.gennaroDesc'),
         statModifiers: { speed: 1.12, projectiles: 1 },
         unlocked: false,
         unlockCondition: 'highestKillCount >= 500',
-        unlockDesc: 'Slay 500 enemies in a single run'
+        unlockDesc: t('characters.unlockGennaro')
     },
     {
         id: 'mortimer',
-        name: 'Mortimer',
-        title: 'The Pyromancer',
+        name: t('characters.mortimer'),
+        title: t('characters.mortimerTitle'),
         color: '#FF6B35',
         startingWeapon: 'fire_wand',
-        description: 'Master of fire. Larger explosions but sluggish.',
+        description: t('characters.mortimerDesc'),
         statModifiers: { area: 1.20, speed: 0.95 },
         unlocked: false,
         unlockCondition: 'longestSurvival >= 600',
-        unlockDesc: 'Survive for 10 minutes'
+        unlockDesc: t('characters.unlockMortimer')
     },
     {
         id: 'sera',
-        name: 'Sera',
-        title: 'The Guardian',
+        name: t('characters.sera'),
+        title: t('characters.seraTitle'),
         color: '#50C878',
         startingWeapon: 'garlic_aura',
-        description: 'Resilient defender with natural toughness.',
+        description: t('characters.seraDesc'),
         statModifiers: { health: 1.15, damage: 0.95 },
         unlocked: false,
         unlockCondition: 'totalKills >= 1000',
-        unlockDesc: 'Kill 1,000 enemies across all runs'
+        unlockDesc: t('characters.unlockSera')
     },
     {
         id: 'dante',
-        name: 'Dante',
-        title: 'The Storm Caller',
+        name: t('characters.dante'),
+        title: t('characters.danteTitle'),
         color: '#7DF9FF',
         startingWeapon: 'lightning_chain',
-        description: 'Rapid-fire chains. Lower damage, faster cooldowns.',
+        description: t('characters.danteDesc'),
         statModifiers: { cooldown: 0.85, damage: 0.92 },
         unlocked: false,
         unlockCondition: 'highestCombo >= 50',
-        unlockDesc: 'Achieve a 50-hit combo'
+        unlockDesc: t('characters.unlockDante')
     },
     {
         id: 'luna',
-        name: 'Luna',
-        title: 'The Priestess',
+        name: t('characters.luna'),
+        title: t('characters.lunaTitle'),
         color: '#C084FC',
         startingWeapon: 'holy_bible',
-        description: 'Blessed by the moon. Extra projectile and luck.',
+        description: t('characters.lunaDesc'),
         statModifiers: { projectiles: 1, luck: 1.10 },
         unlocked: false,
         unlockCondition: 'totalRuns >= 10',
-        unlockDesc: 'Complete 10 runs'
+        unlockDesc: t('characters.unlockLuna')
     },
     {
         id: 'viktor',
-        name: 'Viktor',
-        title: 'The Cryomancer',
+        name: t('characters.viktor'),
+        title: t('characters.viktorTitle'),
         color: '#00BFFF',
         startingWeapon: 'ice_shard',
-        description: 'Freeze zones ripple wider. Moves cautiously through the cold.',
+        description: t('characters.viktorDesc'),
         statModifiers: { area: 1.15, speed: 0.90 },
         unlocked: false,
         unlockCondition: 'longestSurvival >= 900',
-        unlockDesc: 'Survive for 15 minutes'
+        unlockDesc: t('characters.unlockViktor')
     },
     {
         id: 'nyx',
-        name: 'Nyx',
-        title: 'The Assassin',
+        name: t('characters.nyx'),
+        title: t('characters.nyxTitle'),
         color: '#7C3AED',
         startingWeapon: 'shadow_dagger',
-        description: 'Lethal precision. Glass cannon — high damage, low health.',
+        description: t('characters.nyxDesc'),
         statModifiers: { damage: 1.15, health: 0.85 },
         unlocked: false,
         unlockCondition: 'highestKillCount >= 1000',
-        unlockDesc: 'Kill 1,000 enemies in a single run'
+        unlockDesc: t('characters.unlockNyx')
     }
 ];

@@ -20,6 +20,8 @@
  *
  * GoldSystem.renderHUD() is suppressed when this HUD is active.
  */
+import { t } from '../i18n/index.js';
+
 export class CanvasHUD {
 
     // ─── Design tokens ──────────────────────────────────────────────────
@@ -287,16 +289,16 @@ export class CanvasHUD {
         ctx.fillStyle   = C.waveColor;
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(`∙  Wave ${wave}`, PX + 78, PY + 37);
+        ctx.fillText(`∙  ${t('hud.wave')} ${wave}`, PX + 78, PY + 37);
 
         // Wave pacing badge (rest / rush)
         if (waveType !== 'normal') {
-            const badgeLabel = waveType === 'rest' ? 'REST' : 'RUSH';
+            const badgeLabel = waveType === 'rest' ? t('hud.rest') : t('hud.rush');
             const badgeColor = waveType === 'rest' ? '#44CC88' : '#FF6644';
             ctx.font = `bold 7px "Courier New", monospace`;
             const tw = ctx.measureText(badgeLabel).width;
             const bw = tw + 8, bh = 11;
-            const bx = PX + 72 + ctx.measureText(`∙  Wave ${wave}`).width + 6;
+            const bx = PX + 72 + ctx.measureText(`∙  ${t('hud.wave')} ${wave}`).width + 6;
             const by = PY + 35;
 
             ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -449,7 +451,7 @@ export class CanvasHUD {
         // "GOLD" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.goldDim;
-        ctx.fillText('GOLD', PX + 30, goldY);
+        ctx.fillText(t('hud.gold'), PX + 30, goldY);
         // Value right-aligned
         ctx.font      = `bold 19px "Courier New", monospace`;
         ctx.fillStyle = C.gold;
@@ -464,7 +466,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.bank;
             ctx.textAlign   = 'right';
             ctx.textBaseline = 'top';
-            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 10);
+            ctx.fillText(t('hud.bank', { gold: bank }), PX + PW - 8, goldY + 10);
         }
 
         // ── Kills row ────────────────────────────────────────
@@ -482,7 +484,7 @@ export class CanvasHUD {
         // "KILLS" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.killsDim;
-        ctx.fillText('KILLS', PX + 30, killsY);
+        ctx.fillText(t('hud.kills'), PX + 30, killsY);
         // Value (scales on milestone)
         const kScale = 1 + 0.14 * this.killFlash;
         ctx.save();
@@ -505,11 +507,11 @@ export class CanvasHUD {
         if (!player.powerUps) return;
 
         const configs = [
-            { key: 'invincible',  label: 'INVINCIBLE', icon: '◊', color: '#FFD700' },
-            { key: 'speedBoost',  label: 'SPEED',      icon: '»', color: '#00E5FF' },
-            { key: 'damageBoost', label: 'DAMAGE',     icon: '☄', color: '#FF6622' },
-            { key: 'fireRate',    label: 'FIRE RATE',  icon: '‹›', color: '#EE44FF' },
-            { key: 'magnetBoost', label: 'MAGNET',     icon: '◎', color: '#44FF99' },
+            { key: 'invincible',  label: t('hud.invincible'), icon: '◊', color: '#FFD700' },
+            { key: 'speedBoost',  label: t('hud.speed'),      icon: '»', color: '#00E5FF' },
+            { key: 'damageBoost', label: t('hud.damage'),     icon: '☄', color: '#FF6622' },
+            { key: 'fireRate',    label: t('hud.fireRate'),  icon: '‹›', color: '#EE44FF' },
+            { key: 'magnetBoost', label: t('hud.magnet'),     icon: '◎', color: '#44FF99' },
         ];
 
         const active = [];
@@ -658,7 +660,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText('WEAPONS', PX + PAD, rowY);
+            ctx.fillText(t('hud.weapons'), PX + PAD, rowY);
             rowY += LH;
 
             for (let i = 0; i < weapons.length; i++) {
@@ -674,7 +676,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText('ITEMS', PX + PAD, rowY);
+            ctx.fillText(t('hud.items'), PX + PAD, rowY);
             rowY += LH;
 
             for (let i = 0; i < passives.length; i++) {
@@ -896,7 +898,7 @@ export class CanvasHUD {
         ctx.fillStyle   = 'rgba(170, 140, 70, 0.65)';
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText('MAP', MX + 4, MY + 3);
+        ctx.fillText(t('hud.map'), MX + 4, MY + 3);
 
         ctx.restore();
     }

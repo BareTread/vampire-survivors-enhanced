@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 import { CHARACTERS } from '../data/characters.js';
 
 /**
@@ -257,14 +258,14 @@ export class PersistenceSystem {
         const info = [];
 
         const descriptions = {
-            maxHealth: { name: 'Max Health', desc: '+4% per level', icon: '+' },
-            damage: { name: 'Damage', desc: '+2% per level', icon: 'D' },
-            moveSpeed: { name: 'Move Speed', desc: '+1.5% per level', icon: 'S' },
-            cooldown: { name: 'Cooldown', desc: '-2% per level', icon: 'C' },
-            xpGain: { name: 'XP Gain', desc: '+6% per level', icon: 'X' },
-            armor: { name: 'Armor', desc: '+0.75 per level', icon: 'A' },
-            revival: { name: 'Revival', desc: '+1 revive', icon: 'R' },
-            goldGain: { name: 'Gold Gain', desc: '+15% per level', icon: 'G' }
+            maxHealth: { name: t('upgrades.maxHealth'), desc: t('upgrades.maxHealthDesc'), icon: '❤' },
+            damage: { name: t('upgrades.damage'), desc: t('upgrades.damageDesc'), icon: '⚔' },
+            moveSpeed: { name: t('upgrades.moveSpeed'), desc: t('upgrades.moveSpeedDesc'), icon: '👟' },
+            cooldown: { name: t('upgrades.cooldown'), desc: t('upgrades.cooldownDesc'), icon: '⏱' },
+            xpGain: { name: t('upgrades.xpGain'), desc: t('upgrades.xpGainDesc'), icon: '📈' },
+            armor: { name: t('upgrades.armor'), desc: t('upgrades.armorDesc'), icon: '🛡' },
+            revival: { name: t('upgrades.revival'), desc: t('upgrades.revivalDesc'), icon: '💖' },
+            goldGain: { name: t('upgrades.goldGain'), desc: t('upgrades.goldGainDesc'), icon: '💰' }
         };
 
         for (const [id, meta] of Object.entries(descriptions)) {

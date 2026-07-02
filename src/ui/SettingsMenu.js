@@ -1,4 +1,7 @@
 // Settings menu with volume, effects, and performance controls
+import { t, getLocale, setLocale, onLocaleChange } from '../i18n/index.js';
+import { getBindings, getDefaultBindings, setBinding, resetAllBindings, formatKeyName, ACTION_LABELS } from '../core/KeyBindings.js';
+
 export class SettingsMenu {
     constructor(game) {
         this.game = game;
@@ -16,7 +19,9 @@ export class SettingsMenu {
             lowFXMode: false,
             showFPS: false,
             autoQuality: true,
-            pauseOnFocusLoss: true
+            pauseOnFocusLoss: true,
+            language: getLocale(),
+            keyBindings: getBindings(),
         };
         
         // UI elements
@@ -99,95 +104,133 @@ export class SettingsMenu {
         
         this.menuElement.innerHTML = `
             <div class="settings-header">
-                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">Settings</h2>
+                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">${t('settingsMenu.title')}</h2>
                 <button class="close-btn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; color: #FFD700; font-size: 24px; cursor: pointer;">×</button>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🔊 Audio</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.audio')}</h3>
                 
                 <div class="setting-item">
-                    <label for="masterVolume">Master Volume: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
+                    <label for="masterVolume">${t('settingsMenu.masterVolume')}: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
                     <input type="range" id="masterVolume" min="0" max="1" step="0.1" value="${this.settings.masterVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="musicVolume">Music Volume: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
+                    <label for="musicVolume">${t('settingsMenu.musicVolume')}: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
                     <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="${this.settings.musicVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="sfxVolume">SFX Volume: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
+                    <label for="sfxVolume">${t('settingsMenu.sfxVolume')}: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
                     <input type="range" id="sfxVolume" min="0" max="1" step="0.1" value="${this.settings.sfxVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">✨ Visual Effects</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.visualEffects')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="particleEffects" ${this.settings.particleEffects ? 'checked' : ''}>
-                        Particle Effects
+                        ${t('settingsMenu.particleEffects')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="screenShake" ${this.settings.screenShake ? 'checked' : ''}>
-                        Screen Shake
+                        ${t('settingsMenu.screenShake')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="damageNumbers" ${this.settings.damageNumbers ? 'checked' : ''}>
-                        Damage Numbers
+                        ${t('settingsMenu.damageNumbers')}
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="lowFXMode" ${this.settings.lowFXMode ? 'checked' : ''}>
-                        Low Effects Mode
+                        ${t('settingsMenu.lowFXMode')}
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Reduces visual effects for better performance</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.lowFXHint')}</small>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">⚡ Performance</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.performance')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="autoQuality" ${this.settings.autoQuality ? 'checked' : ''}>
-                        Auto Quality Adjustment
+                        ${t('settingsMenu.autoQuality')}
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Automatically reduces quality when FPS drops</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.autoQualityHint')}</small>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="showFPS" ${this.settings.showFPS ? 'checked' : ''}>
-                        Show FPS Counter
+                        ${t('settingsMenu.showFPS')}
                     </label>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🎮 Gameplay</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.gameplay')}</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="pauseOnFocusLoss" ${this.settings.pauseOnFocusLoss ? 'checked' : ''}>
-                        Pause When Window Loses Focus
+                        ${t('settingsMenu.pauseOnFocusLoss')}
                     </label>
                 </div>
             </div>
             
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">🌐 ${t('settingsMenu.language')}</h3>
+                
+                <div class="setting-item">
+                    <select id="languageSelect" style="
+                        background: #3c2415;
+                        color: #F5DEB3;
+                        border: 1px solid #8B4513;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        width: 100%;
+                        cursor: pointer;
+                    ">
+                        <option value="en" ${this.settings.language === 'en' ? 'selected' : ''}>English</option>
+                        <option value="zh-CN" ${this.settings.language === 'zh-CN' ? 'selected' : ''}>中文</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">⌨ ${t('settingsMenu.keyBindings')}</h3>
+                <div id="keyBindingList" style="display: flex; flex-direction: column; gap: 6px;">
+                    ${this.renderKeyBindingItems()}
+                </div>
+                <div style="text-align: center; margin-top: 12px;">
+                    <button id="resetKeyBindings" style="
+                        background: #8B4513;
+                        color: white;
+                        border: none;
+                        padding: 6px 14px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">${t('settingsMenu.resetKeyBindings')}</button>
+                </div>
+            </div>
+            
             <div class="settings-actions" style="text-align: center; margin-top: 25px;">
-                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">Reset to Defaults</button>
-                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Close</button>
+                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">${t('settingsMenu.resetDefaults')}</button>
+                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">${t('settingsMenu.close')}</button>
             </div>
         `;
         
@@ -294,6 +337,49 @@ export class SettingsMenu {
             }
         };
         document.addEventListener('keydown', this._handlers.onDocKeydown);
+
+        // Language select
+        const langSelect = this.menuElement.querySelector('#languageSelect');
+        if (langSelect) {
+            this._handlers.onLangChange = (e) => {
+                const newLocale = e.target.value;
+                setLocale(newLocale);
+                this.settings.language = newLocale;
+                this.saveSettings();
+                this.refreshMenu();
+            };
+            langSelect.addEventListener('change', this._handlers.onLangChange);
+        }
+
+        // Key binding clicks
+        this._handlers.keyBindingClicks = new Map();
+        const kbButtons = this.menuElement.querySelectorAll('.kb-rebind-btn');
+        this._elements.kbButtons = Array.from(kbButtons);
+        kbButtons.forEach(btn => {
+            const action = btn.dataset.action;
+            const handler = (e) => {
+                e.stopPropagation();
+                this.startRebinding(action);
+            };
+            this._handlers.keyBindingClicks.set(action, handler);
+            btn.addEventListener('click', handler);
+        });
+
+        // Reset key bindings
+        const resetKB = this.menuElement.querySelector('#resetKeyBindings');
+        if (resetKB) {
+            this._handlers.onResetKB = () => {
+                resetAllBindings();
+                this.settings.keyBindings = getBindings();
+                this.saveSettings();
+                this.refreshKeyBindingList();
+            };
+            resetKB.addEventListener('click', this._handlers.onResetKB);
+        }
+
+        // Register locale change callback to refresh menu
+        this._localeChangeHandler = () => this.refreshMenu();
+        onLocaleChange(this._localeChangeHandler);
     }
     
     show() {
@@ -546,6 +632,20 @@ export class SettingsMenu {
             if (this._handlers.onWindowFocus) window.removeEventListener('focus', this._handlers.onWindowFocus);
             this.focusHandlerBound = false;
         }
+
+        // Remove language and key binding listeners
+        if (this._handlers.onLangChange && this._elements.langSelect) {
+            this._elements.langSelect.removeEventListener('change', this._handlers.onLangChange);
+        }
+        if (this._handlers.keyBindingClicks && this._elements.kbButtons) {
+            this._handlers.keyBindingClicks.forEach((handler, action) => {
+                const btn = this._elements.kbButtons.find(b => b.dataset.action === action);
+                if (btn) btn.removeEventListener('click', handler);
+            });
+        }
+        if (this._handlers.onResetKB && this._elements.resetKB) {
+            this._elements.resetKB.removeEventListener('click', this._handlers.onResetKB);
+        }
         
         // Remove overlay from DOM last
         if (this.overlay && this.overlay.parentNode) {
@@ -555,5 +655,302 @@ export class SettingsMenu {
         // Clear refs
         this._handlers = {};
         this._elements = {};
+    }
+
+    // ===== Key Binding Methods =====
+
+    renderKeyBindingItems() {
+        const bindings = this.settings.keyBindings;
+        let html = '';
+        for (const [action, keys] of Object.entries(bindings)) {
+            const label = this.getKeyBindingLabel(action);
+            const currentKeys = keys.map(k => formatKeyName(k)).join(' / ');
+            html += `
+                <div class="kb-item" style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 6px 10px;
+                    background: rgba(139, 69, 19, 0.3);
+                    border-radius: 4px;
+                ">
+                    <span>${label}</span>
+                    <button class="kb-rebind-btn" data-action="${action}" style="
+                        min-width: 80px;
+                        background: ${this.rebindingAction === action ? '#B8860B' : '#8B4513'};
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 10px;
+                        cursor: pointer;
+                    ">${this.rebindingAction === action ? t('settingsMenu.pressing') : currentKeys}</button>
+                </div>
+            `;
+        }
+        return html;
+    }
+
+    getKeyBindingLabel(action) {
+        const labels = {
+            moveUp: t('settings.keyMoveUp'),
+            moveDown: t('settings.keyMoveDown'),
+            moveLeft: t('settings.keyMoveLeft'),
+            moveRight: t('settings.keyMoveRight'),
+            pause: t('settings.keyPause'),
+            settings: t('settings.keySettings'),
+            performance: t('settings.keyPerformance'),
+            debug: t('settings.keyDebug'),
+            help: t('settings.keyHelp'),
+            inventory: t('settings.keyInventory'),
+            levelUp1: t('settings.keyLevelUp1'),
+            levelUp2: t('settings.keyLevelUp2'),
+            levelUp3: t('settings.keyLevelUp3'),
+            levelUp4: t('settings.keyLevelUp4'),
+            levelUp5: t('settings.keyLevelUp5'),
+            restart: t('settings.keyRestart'),
+            mainMenu: t('settings.keyMainMenu'),
+        };
+        if (labels[action]) return labels[action];
+        if (ACTION_LABELS[action]) {
+            return t(`settings.${action}`) || ACTION_LABELS[action];
+        }
+        return action;
+    }
+
+    startRebinding(action) {
+        this.rebindingAction = action;
+        this.refreshKeyBindingList();
+
+        const handler = (e) => {
+            e.preventDefault();
+            const key = e.key.toLowerCase();
+            this.settings.keyBindings[this.rebindingAction] = [key];
+            setBinding(this.rebindingAction, [key]);
+            this.settings.keyBindings = getBindings();
+            this.rebindingAction = null;
+            document.removeEventListener('keydown', handler);
+            this.saveSettings();
+            this.refreshKeyBindingList();
+        };
+
+        document.addEventListener('keydown', handler);
+    }
+
+    refreshKeyBindingList() {
+        const container = this.menuElement.querySelector('#keyBindingList');
+        if (container) {
+            container.innerHTML = this.renderKeyBindingItems();
+            // Rebind events
+            this._handlers.keyBindingClicks = this._handlers.keyBindingClicks || new Map();
+            this._elements.kbButtons = this._elements.kbButtons || [];
+            this._elements.kbButtons.forEach(btn => {
+                const action = btn.dataset.action;
+                if (this._handlers.keyBindingClicks.has(action)) {
+                    const oldHandler = this._handlers.keyBindingClicks.get(action);
+                    btn.removeEventListener('click', oldHandler);
+                }
+            });
+            const newButtons = Array.from(this.menuElement.querySelectorAll('.kb-rebind-btn'));
+            this._elements.kbButtons = newButtons;
+            newButtons.forEach(btn => {
+                const action = btn.dataset.action;
+                const handler = (e) => {
+                    e.stopPropagation();
+                    this.startRebinding(action);
+                };
+                this._handlers.keyBindingClicks.set(action, handler);
+                btn.addEventListener('click', handler);
+            });
+        }
+    }
+
+    refreshMenu() {
+        // Recreate entire menu to get all translated text
+        this.menuElement.innerHTML = `
+            <div class="settings-header">
+                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">${t('settingsMenu.title')}</h2>
+                <button class="close-btn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; color: #FFD700; font-size: 24px; cursor: pointer;">×</button>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.audio')}</h3>
+
+                <div class="setting-item">
+                    <label for="masterVolume">${t('settingsMenu.masterVolume')}: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
+                    <input type="range" id="masterVolume" min="0" max="1" step="0.1" value="${this.settings.masterVolume}" style="width: 100%; margin-top: 5px;">
+                </div>
+
+                <div class="setting-item">
+                    <label for="musicVolume">${t('settingsMenu.musicVolume')}: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
+                    <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="${this.settings.musicVolume}" style="width: 100%; margin-top: 5px;">
+                </div>
+
+                <div class="setting-item">
+                    <label for="sfxVolume">${t('settingsMenu.sfxVolume')}: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
+                    <input type="range" id="sfxVolume" min="0" max="1" step="0.1" value="${this.settings.sfxVolume}" style="width: 100%; margin-top: 5px;">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.visualEffects')}</h3>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="particleEffects" ${this.settings.particleEffects ? 'checked' : ''}>
+                        ${t('settingsMenu.particleEffects')}
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="screenShake" ${this.settings.screenShake ? 'checked' : ''}>
+                        ${t('settingsMenu.screenShake')}
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="damageNumbers" ${this.settings.damageNumbers ? 'checked' : ''}>
+                        ${t('settingsMenu.damageNumbers')}
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="lowFXMode" ${this.settings.lowFXMode ? 'checked' : ''}>
+                        ${t('settingsMenu.lowFXMode')}
+                    </label>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.lowFXHint')}</small>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.performance')}</h3>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="autoQuality" ${this.settings.autoQuality ? 'checked' : ''}>
+                        ${t('settingsMenu.autoQuality')}
+                    </label>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">${t('settingsMenu.autoQualityHint')}</small>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="showFPS" ${this.settings.showFPS ? 'checked' : ''}>
+                        ${t('settingsMenu.showFPS')}
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">${t('settingsMenu.gameplay')}</h3>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="pauseOnFocusLoss" ${this.settings.pauseOnFocusLoss ? 'checked' : ''}>
+                        ${t('settingsMenu.pauseOnFocusLoss')}
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">🌐 ${t('settingsMenu.language')}</h3>
+
+                <div class="setting-item">
+                    <select id="languageSelect" style="
+                        background: #3c2415;
+                        color: #F5DEB3;
+                        border: 1px solid #8B4513;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        width: 100%;
+                        cursor: pointer;
+                    ">
+                        <option value="en" ${this.settings.language === 'en' ? 'selected' : ''}>English</option>
+                        <option value="zh-CN" ${this.settings.language === 'zh-CN' ? 'selected' : ''}>中文</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="color: #DAA520; margin-bottom: 15px;">⌨ ${t('settingsMenu.keyBindings')}</h3>
+                <div id="keyBindingList" style="display: flex; flex-direction: column; gap: 6px;">
+                    ${this.renderKeyBindingItems()}
+                </div>
+                <div style="text-align: center; margin-top: 12px;">
+                    <button id="resetKeyBindings" style="
+                        background: #8B4513;
+                        color: white;
+                        border: none;
+                        padding: 6px 14px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">${t('settingsMenu.resetKeyBindings')}</button>
+                </div>
+            </div>
+
+            <div class="settings-actions" style="text-align: center; margin-top: 25px;">
+                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">${t('settingsMenu.resetDefaults')}</button>
+                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">${t('settingsMenu.close')}</button>
+            </div>
+        `;
+
+        // Re-apply styling to items
+        const settingItems = this.menuElement.querySelectorAll('.setting-item');
+        settingItems.forEach(item => {
+            item.style.cssText = `
+                margin-bottom: 15px;
+                padding: 10px;
+                background: rgba(139, 69, 19, 0.2);
+                border-radius: 5px;
+            `;
+        });
+
+        const checkboxes = this.menuElement.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.style.marginRight = '8px';
+        });
+
+        const ranges = this.menuElement.querySelectorAll('input[type="range"]');
+        ranges.forEach(range => {
+            range.style.cssText = `
+                -webkit-appearance: none;
+                background: #8B4513;
+                outline: none;
+                border-radius: 5px;
+                height: 6px;
+                width: 100%;
+            `;
+        });
+
+        // Re-bind events
+        this.bindEvents();
+        this.updateUI();
+    }
+
+    resetToDefaults() {
+        // Default settings
+        this.settings = {
+            masterVolume: 0.7,
+            musicVolume: 0.5,
+            sfxVolume: 0.8,
+            particleEffects: true,
+            screenShake: true,
+            damageNumbers: true,
+            lowFXMode: false,
+            autoQuality: true,
+            showFPS: false,
+            pauseOnFocusLoss: true,
+            language: getLocale(),
+            keyBindings: getDefaultBindings(),
+        };
+        resetAllBindings();
+        setLocale(this.settings.language);
+        this.saveSettings();
+        this.apply();
+        this.refreshMenu();
     }
 }

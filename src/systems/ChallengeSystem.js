@@ -12,6 +12,9 @@
  *
  * Modifier application happens in startGame() via applyToRun(player).
  */
+
+import { t } from '../i18n/index.js';
+
 export class ChallengeSystem {
     constructor(game) {
         this.game = game;
@@ -29,11 +32,11 @@ export class ChallengeSystem {
         this.modifiers = [
             {
                 id:          'glass_cannon',
-                name:        'Glass Cannon',
+                name:        t('challenges.glassCannon'),
                 icon:        '💀',
                 color:       '#FF4444',
                 goldBonus:   0.50,  // +50% gold
-                description: 'Player HP is halved',
+                description: t('challenges.glassCannonDesc'),
                 apply:       (player) => {
                     player.maxHealth = Math.ceil(player.maxHealth * 0.5);
                     player.health    = player.maxHealth;
@@ -41,11 +44,11 @@ export class ChallengeSystem {
             },
             {
                 id:          'swarm',
-                name:        'Swarm',
+                name:        t('challenges.swarm'),
                 icon:        '🐾',
                 color:       '#FF8800',
                 goldBonus:   0.30,
-                description: '2× enemy spawn rate',
+                description: t('challenges.swarmDesc'),
                 apply:       () => {
                     if (this.game.systems.enemy)
                         this.game.systems.enemy.spawnRateMultiplier = 2.0;
@@ -53,20 +56,20 @@ export class ChallengeSystem {
             },
             {
                 id:          'no_heals',
-                name:        'No Heals',
+                name:        t('challenges.noHeals'),
                 icon:        '🚫',
                 color:       '#FF6644',
                 goldBonus:   0.40,
-                description: 'Level-up no longer heals to full',
+                description: t('challenges.noHealsDesc'),
                 apply:       () => { /* read via hasModifier in selectLevelUpOption */ }
             },
             {
                 id:          'speed_demon',
-                name:        'Speed Demon',
+                name:        t('challenges.speedDemon'),
                 icon:        '⚡',
                 color:       '#FFDD00',
                 goldBonus:   0.25,
-                description: 'All enemies move 30% faster',
+                description: t('challenges.speedDemonDesc'),
                 apply:       () => {
                     if (this.game.systems.enemy)
                         this.game.systems.enemy.enemySpeedMultiplier = 1.30;
@@ -74,20 +77,20 @@ export class ChallengeSystem {
             },
             {
                 id:          'famine',
-                name:        'Famine',
+                name:        t('challenges.famine'),
                 icon:        '💀',
                 color:       '#AA8833',
                 goldBonus:   0.35,
-                description: 'XP gems worth 50% less',
+                description: t('challenges.famineDesc'),
                 apply:       () => { /* read via hasModifier in ExperienceSystem */ }
             },
             {
                 id:          'iron_will',
-                name:        'Iron Will',
+                name:        t('challenges.ironWill'),
                 icon:        '🛡️',
                 color:       '#8888AA',
                 goldBonus:   0.60,
-                description: 'No passive items may be picked up',
+                description: t('challenges.ironWillDesc'),
                 apply:       () => { /* read via hasModifier in generateLevelUpOptions */ }
             }
         ];
