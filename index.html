@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
         <meta http-equiv="Expires" content="0" />
-        <title>🧛 Vampire Survivors</title>
+        <title>🧛 吸血鬼幸存者</title>
         <link rel="icon" href="data:," />
         <style>
             * {
@@ -122,14 +122,14 @@
 
         <!-- Performance Monitor (F2 to toggle) -->
         <div id="performanceMonitor">
-            <div>FPS: <span id="fpsDisplay">60</span></div>
-            <div>Entities: <span id="entityDisplay">0</span></div>
-            <div>Memory: <span id="memoryDisplay">0MB</span></div>
+            <div>帧率: <span id="fpsDisplay">60</span></div>
+            <div>实体数: <span id="entityDisplay">0</span></div>
+            <div>内存: <span id="memoryDisplay">0MB</span></div>
         </div>
 
         <!-- Loading Screen -->
         <div id="loadingScreen">
-            <h1>🧛 Vampire Survivors</h1>
+            <h1>🧛 吸血鬼幸存者</h1>
             <div class="loading-spinner"></div>
         </div>
 
@@ -226,7 +226,7 @@
                         const ctx = canvas.getContext('2d');
                         ctx.fillStyle = '#FF0000';
                         ctx.font = '24px Arial';
-                        ctx.fillText('Failed to load game. Check console for errors.', 50, 50);
+                        ctx.fillText('游戏加载失败。请查看控制台获取错误信息。', 50, 50);
                     }
                 });
 

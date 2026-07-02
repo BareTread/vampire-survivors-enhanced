@@ -89,11 +89,11 @@ export class InventoryOverlaySystem {
         ctx.font = 'bold 28px "Cinzel", Georgia, serif';
         ctx.fillStyle = '#FFD700';
         ctx.textAlign = 'center';
-        ctx.fillText('BUILD INVENTORY', w / 2, 45);
+        ctx.fillText('装备库', w / 2, 45);
 
         ctx.font = '13px monospace';
         ctx.fillStyle = '#888';
-        ctx.fillText('Press TAB to close', w / 2, 65);
+        ctx.fillText('按 TAB 关闭', w / 2, 65);
 
         // === WEAPONS SECTION ===
         let yOffset = 90;
@@ -132,7 +132,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderWeaponsSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '⚔️ WEAPONS', w, startY);
+        let y = this._renderSectionHeader(ctx, '⚔️ 武器', w, startY);
         const player = this.game.player;
         const weapons = Array.from(player.weapons.values());
 
@@ -140,7 +140,7 @@ export class InventoryOverlaySystem {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No weapons equipped', this.padding + 8, y + 16);
+            ctx.fillText('未装备武器', this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -215,7 +215,7 @@ export class InventoryOverlaySystem {
         if (isMax) {
             ctx.font = 'bold 10px monospace';
             ctx.fillStyle = '#4ADE80';
-            ctx.fillText('MAX', x + 12, y + 58);
+            ctx.fillText('已满级', x + 12, y + 58);
         }
 
         // Evolved badge
@@ -223,7 +223,7 @@ export class InventoryOverlaySystem {
             ctx.font = 'bold 9px monospace';
             ctx.fillStyle = '#FFD700';
             ctx.textAlign = 'right';
-            ctx.fillText('EVOLVED', x + cw - 10, y + 58);
+            ctx.fillText('已进化', x + cw - 10, y + 58);
             ctx.textAlign = 'left';
         }
 
@@ -238,13 +238,13 @@ export class InventoryOverlaySystem {
     }
 
     _renderPassivesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🛡️ PASSIVE ITEMS', w, startY);
+        let y = this._renderSectionHeader(ctx, '🛡️ 被动道具', w, startY);
         const passiveSystem = this.game.systems.passiveItems;
         if (!passiveSystem || passiveSystem.items.size === 0) {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No passive items', this.padding + 8, y + 16);
+            ctx.fillText('无被动道具', this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -298,13 +298,13 @@ export class InventoryOverlaySystem {
     }
 
     _renderSynergiesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🔗 ACTIVE SYNERGIES', w, startY);
+        let y = this._renderSectionHeader(ctx, '🔗 激活协同', w, startY);
         const synergySystem = this.game.systems.synergy;
         if (!synergySystem || synergySystem.activeSynergies.size === 0) {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('No synergies active — combine weapons + passives!', this.padding + 8, y + 16);
+            ctx.fillText('暂无协同效果 — 组合武器和被动道具！', this.padding + 8, y + 16);
             return y + 30;
         }
 
@@ -337,7 +337,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderEvolutionHints(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🌟 EVOLUTION RECIPES', w, startY);
+        let y = this._renderSectionHeader(ctx, '🌟 进化配方', w, startY);
         const evoSystem = this.game.systems.weaponEvolution;
         if (!evoSystem) return y;
 
@@ -398,7 +398,7 @@ export class InventoryOverlaySystem {
             ctx.font = '13px monospace';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'left';
-            ctx.fillText('Equip weapons to see evolution paths', this.padding + 8, y + 16);
+            ctx.fillText('装备武器以查看进化路径', this.padding + 8, y + 16);
         }
 
         return y + 4 + Math.max(hintCount, 1) * 30;

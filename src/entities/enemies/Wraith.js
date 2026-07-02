@@ -285,7 +285,7 @@ export class Wraith extends Enemy {
         // Only attack if player is within actual attack range
         if (distance <= this.attackRange) {
             // Spectral touch attack - phases through defenses
-            player.takeDamage(this.damage, { type: 'wraith', name: 'Wraith' });
+            player.takeDamage(this.damage, { type: 'wraith', name: '怨灵' });
 
             // Create spectral attack effect
             this.createSpectralAttackEffect();
@@ -397,7 +397,7 @@ export class Wraith extends Enemy {
         });
 
         // Show "IMMUNE" text
-        this.addDamageNumber('IMMUNE', '#FFFFFF');
+        this.addDamageNumber('免疫', '#FFFFFF');
     }
 
     playWraithSound(soundName) {

@@ -29,11 +29,11 @@ export class ChallengeSystem {
         this.modifiers = [
             {
                 id:          'glass_cannon',
-                name:        'Glass Cannon',
+                name:        '玻璃大炮',
                 icon:        '💀',
                 color:       '#FF4444',
                 goldBonus:   0.50,  // +50% gold
-                description: 'Player HP is halved',
+                description: '玩家生命值减半',
                 apply:       (player) => {
                     player.maxHealth = Math.ceil(player.maxHealth * 0.5);
                     player.health    = player.maxHealth;
@@ -41,11 +41,11 @@ export class ChallengeSystem {
             },
             {
                 id:          'swarm',
-                name:        'Swarm',
+                name:        '蜂拥而至',
                 icon:        '🐾',
                 color:       '#FF8800',
                 goldBonus:   0.30,
-                description: '2× enemy spawn rate',
+                description: '敌人生成率×2',
                 apply:       () => {
                     if (this.game.systems.enemy)
                         this.game.systems.enemy.spawnRateMultiplier = 2.0;
@@ -53,20 +53,20 @@ export class ChallengeSystem {
             },
             {
                 id:          'no_heals',
-                name:        'No Heals',
+                name:        '禁止治疗',
                 icon:        '🚫',
                 color:       '#FF6644',
                 goldBonus:   0.40,
-                description: 'Level-up no longer heals to full',
+                description: '升级不再恢复满血',
                 apply:       () => { /* read via hasModifier in selectLevelUpOption */ }
             },
             {
                 id:          'speed_demon',
-                name:        'Speed Demon',
+                name:        '速度狂魔',
                 icon:        '⚡',
                 color:       '#FFDD00',
                 goldBonus:   0.25,
-                description: 'All enemies move 30% faster',
+                description: '所有敌人移速提升30%',
                 apply:       () => {
                     if (this.game.systems.enemy)
                         this.game.systems.enemy.enemySpeedMultiplier = 1.30;
@@ -74,20 +74,20 @@ export class ChallengeSystem {
             },
             {
                 id:          'famine',
-                name:        'Famine',
+                name:        '饥荒',
                 icon:        '💀',
                 color:       '#AA8833',
                 goldBonus:   0.35,
-                description: 'XP gems worth 50% less',
+                description: '经验宝石价值减半',
                 apply:       () => { /* read via hasModifier in ExperienceSystem */ }
             },
             {
                 id:          'iron_will',
-                name:        'Iron Will',
+                name:        '钢铁意志',
                 icon:        '🛡️',
                 color:       '#8888AA',
                 goldBonus:   0.60,
-                description: 'No passive items may be picked up',
+                description: '无法拾取被动道具',
                 apply:       () => { /* read via hasModifier in generateLevelUpOptions */ }
             }
         ];

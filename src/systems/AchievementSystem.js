@@ -51,85 +51,85 @@ export class AchievementSystem {
         this.achievements = [
             {
                 id: 'first_blood',
-                name: '🗡️ First Blood',
-                description: 'Kill your first enemy',
+                name: '🗡️ 初次击杀',
+                description: '击杀第一个敌人',
                 condition: (s) => s.totalKills >= 1,
                 unlocked: false
             },
             {
                 id: 'century_kill',
-                name: '💀 Century Slayer',
-                description: 'Kill 100 enemies in a single run',
+                name: '💀 百人斩',
+                description: '单局击杀100个敌人',
                 condition: (s) => s.totalKills >= 100,
                 unlocked: false
             },
             {
                 id: 'massacre',
-                name: '☠️ Massacre',
-                description: 'Kill 500 enemies in a single run',
+                name: '☠️ 大屠杀',
+                description: '单局击杀500个敌人',
                 condition: (s) => s.totalKills >= 500,
                 unlocked: false
             },
             {
                 id: 'apocalypse',
-                name: '🔥 Apocalypse',
-                description: 'Kill 1000 enemies in a single run',
+                name: '🔥 末日审判',
+                description: '单局击杀1000个敌人',
                 condition: (s) => s.totalKills >= 1000,
                 unlocked: false
             },
             {
                 id: 'combo_initiate',
-                name: '⚡ Combo Initiate',
-                description: 'Reach a 10-hit combo',
+                name: '⚡ 连击入门',
+                description: '达成10连击',
                 condition: (s) => s.maxCombo >= 10,
                 unlocked: false
             },
             {
                 id: 'combo_king',
-                name: '👑 Combo King',
-                description: 'Reach a 25-hit combo',
+                name: '👑 连击之王',
+                description: '达成25连击',
                 condition: (s) => s.maxCombo >= 25,
                 unlocked: false
             },
             {
                 id: 'combo_legend',
-                name: '🌟 Combo Legend',
-                description: 'Reach a 50-hit combo',
+                name: '🌟 连击传奇',
+                description: '达成50连击',
                 condition: (s) => s.maxCombo >= 50,
                 unlocked: false
             },
             {
                 id: 'wave_survivor_5',
-                name: '🌊 Wave Runner',
-                description: 'Survive 5 waves',
+                name: '🌊 波次行者',
+                description: '生存5波',
                 condition: (s) => s.wavesCompleted >= 5,
                 unlocked: false
             },
             {
                 id: 'wave_survivor_10',
-                name: '🏔️ Wave Master',
-                description: 'Survive 10 waves',
+                name: '🏔️ 波次大师',
+                description: '生存10波',
                 condition: (s) => s.wavesCompleted >= 10,
                 unlocked: false
             },
             {
                 id: 'near_death',
-                name: '💔 Death\'s Door',
-                description: 'Survive a near-death moment',
+                name: '💔 鬼门关',
+                description: '在濒死状态下存活',
                 condition: (s) => s.nearDeathSurvivals >= 1,
                 unlocked: false
             },
             {
                 id: 'marksman',
-                name: '🎯 Marksman',
-                description: 'Land 10 perfect aim shots',
+                name: '🎯 神射手',
+                description: '完成10次精准射击',
                 condition: (s) => s.perfectAimShots >= 10,
                 unlocked: false
             },
             {
                 id: 'endurance_5',
-                name: '⏰ Endurance',
-                description: 'Survive for 5 minutes',
+                name: '⏰ 坚韧不拔',
+                description: '生存5分钟',
                 condition: (s) => s.survivalTime >= 300,
                 unlocked: false
             }
@@ -350,7 +350,7 @@ export class AchievementSystem {
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 10px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('🏆 ACHIEVEMENT UNLOCKED', x + boxWidth / 2, y + 18);
+            ctx.fillText('🏆 成就解锁!', x + boxWidth / 2, y + 18);
 
             // Achievement name
             ctx.fillStyle = '#FFFFFF';

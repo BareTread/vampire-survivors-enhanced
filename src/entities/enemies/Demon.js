@@ -349,7 +349,7 @@ export class Demon extends Enemy {
                     const capPercent = 0.50 + Math.min(gameTimeMin / 5, 1.0) * 0.20; // 0.50→0.70
                     areaDmg = Math.min(areaDmg, Math.floor(player.maxHealth * capPercent));
                 }
-                player.takeDamage(Math.max(10, areaDmg), { type: 'demon', name: 'Demon AoE' });
+                player.takeDamage(Math.max(10, areaDmg), { type: 'demon', name: '恶魔范围攻击' });
             }
         }
 
@@ -412,7 +412,7 @@ export class Demon extends Enemy {
         if (!player || !player.isAlive()) return;
 
         // Claw attack with knockback
-        player.takeDamage(this.damage, { type: 'demon', name: 'Demon' });
+        player.takeDamage(this.damage, { type: 'demon', name: '恶魔' });
 
         // Apply knockback
         const dx = player.x - this.x;

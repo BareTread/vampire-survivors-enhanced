@@ -24,15 +24,15 @@ class VampireGameBootstrap {
             this.setupCanvas();
 
             // Update loading status
-            this.updateLoadingStatus('Loading core systems...', 20);
+            this.updateLoadingStatus('正在加载核心系统...', 20);
 
             // Initialize core systems
             await this.initializeSystems();
-            this.updateLoadingStatus('Loading game...', 60);
+            this.updateLoadingStatus('正在加载游戏...', 60);
 
             // Initialize game
             await this.initializeGame();
-            this.updateLoadingStatus('Ready!', 100);
+            this.updateLoadingStatus('准备就绪！', 100);
 
             // Hide loading screen
             setTimeout(() => this.hideLoadingScreen(), 500);
@@ -206,14 +206,14 @@ class VampireGameBootstrap {
         loadingScreen.innerHTML = `
             <div style="text-align: center;">
                 <h1 style="font-size: 3rem; margin-bottom: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
-                    🧛 VAMPIRE SURVIVORS
+                    🧛 吸血鬼幸存者
                 </h1>
                 <div style="width: 300px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 10px; overflow: hidden; margin-bottom: 1rem;">
                     <div id="loadingProgress" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #feca57); transition: width 0.3s ease;"></div>
                 </div>
-                <p id="loadingStatus" style="font-size: 1.2rem; margin: 0;">Initializing...</p>
+                <p id="loadingStatus" style="font-size: 1.2rem; margin: 0;">初始化中...</p>
                 <p style="font-size: 0.9rem; margin-top: 2rem; opacity: 0.8;">
-                    Survive the endless horde! WASD to move, auto-attacks enabled.
+                    在无尽的怪物潮中生存！WASD移动，武器自动攻击。
                 </p>
             </div>
         `;
@@ -258,8 +258,8 @@ class VampireGameBootstrap {
 
         errorScreen.innerHTML = `
             <div style="text-align: center; max-width: 500px; padding: 2rem;">
-                <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">❌ Error</h1>
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Failed to load the game:</p>
+                <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">❌ 错误</h1>
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">游戏加载失败：</p>
                 <p style="font-size: 1rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 5px; margin-bottom: 2rem;">
                     ${error.message}
                 </p>
@@ -274,7 +274,7 @@ class VampireGameBootstrap {
                     cursor: pointer;
                     transition: transform 0.2s ease;
                 " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                    🔄 Reload Game
+                    🔄 重新加载游戏
                 </button>
             </div>
         `;

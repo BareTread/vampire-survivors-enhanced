@@ -18,8 +18,8 @@ export class IceShard extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id:            'ice_shard',
-            name:          'Ice Shard',
-            description:   'Slow ice projectiles that freeze enemies on impact',
+            name:          '冰晶碎片',
+            description:   '缓慢冰弹，命中冻结敌人',
             type:          'projectile',
             damage:        14,
             cooldown:      1.5,

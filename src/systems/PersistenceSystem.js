@@ -257,14 +257,14 @@ export class PersistenceSystem {
         const info = [];
 
         const descriptions = {
-            maxHealth: { name: 'Max Health', desc: '+4% per level', icon: '+' },
-            damage: { name: 'Damage', desc: '+2% per level', icon: 'D' },
-            moveSpeed: { name: 'Move Speed', desc: '+1.5% per level', icon: 'S' },
-            cooldown: { name: 'Cooldown', desc: '-2% per level', icon: 'C' },
-            xpGain: { name: 'XP Gain', desc: '+6% per level', icon: 'X' },
-            armor: { name: 'Armor', desc: '+0.75 per level', icon: 'A' },
-            revival: { name: 'Revival', desc: '+1 revive', icon: 'R' },
-            goldGain: { name: 'Gold Gain', desc: '+15% per level', icon: 'G' }
+            maxHealth: { name: '最大生命', desc: '每级+4%', icon: '+' },
+            damage: { name: '伤害', desc: '每级+2%', icon: 'D' },
+            moveSpeed: { name: '移速', desc: '每级+1.5%', icon: 'S' },
+            cooldown: { name: '冷却', desc: '每级-2%', icon: 'C' },
+            xpGain: { name: '经验获取', desc: '每级+6%', icon: 'X' },
+            armor: { name: '护甲', desc: '每级+0.75', icon: 'A' },
+            revival: { name: '复活', desc: '+1次复活', icon: 'R' },
+            goldGain: { name: '金币获取', desc: '每级+15%', icon: 'G' }
         };
 
         for (const [id, meta] of Object.entries(descriptions)) {

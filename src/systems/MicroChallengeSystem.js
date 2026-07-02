@@ -53,8 +53,8 @@ export class MicroChallengeSystem {
                     const target = 15 + Math.floor(Math.random() * 20); // 15-34
                     const time = 10 + Math.floor(Math.random() * 6);    // 10-15s
                     return {
-                        name: `Kill ${target} enemies`,
-                        description: `Slay ${target} foes within ${time}s`,
+                        name: `击杀${target}个敌人`,
+                        description: `在${time}秒内击杀${target}个敌人`,
                         type: 'kill_spree',
                         target,
                         timeLimit: time,
@@ -67,8 +67,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const time = 15 + Math.floor(Math.random() * 16); // 15-30s
                     return {
-                        name: `Untouchable (${time}s)`,
-                        description: `Survive ${time}s without taking damage`,
+                        name: `无伤挑战（${time}秒）`,
+                        description: `生存${time}秒不受伤害`,
                         type: 'survive_nodamage',
                         target: time,
                         timeLimit: time,
@@ -81,8 +81,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 8 + Math.floor(Math.random() * 13); // 8-20
                     return {
-                        name: `Combo ×${target}`,
-                        description: `Reach a ${target}-hit combo`,
+                        name: `连击×${target}`,
+                        description: `达成${target}连击`,
                         type: 'combo_reach',
                         target,
                         timeLimit: 20,
@@ -95,8 +95,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 3 + Math.floor(Math.random() * 5); // 3-7
                     return {
-                        name: `Sharpshooter`,
-                        description: `Land ${target} perfect aim shots`,
+                        name: `神射手`,
+                        description: `完成${target}次精准射击`,
                         type: 'precision',
                         target,
                         timeLimit: 25,
@@ -109,8 +109,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 30 + Math.floor(Math.random() * 30); // 30-59
                     return {
-                        name: `Exterminator`,
-                        description: `Kill ${target} enemies (no time limit)`,
+                        name: `歼灭者`,
+                        description: `击杀${target}个敌人（无时限）`,
                         type: 'total_kills',
                         target,
                         timeLimit: 45,
@@ -123,8 +123,8 @@ export class MicroChallengeSystem {
                 generate: () => {
                     const target = 5 + Math.floor(Math.random() * 6); // 5-10
                     return {
-                        name: `Blitz`,
-                        description: `Kill ${target} enemies in 5 seconds`,
+                        name: `闪电战`,
+                        description: `5秒内击杀${target}个敌人`,
                         type: 'speed_kills',
                         target,
                         timeLimit: 5,
@@ -198,7 +198,7 @@ export class MicroChallengeSystem {
 
         // Toast
         if (this.game.showToast) {
-            this.game.showToast(`⚔ Challenge: ${this.activeChallenge.name}`, '#FF8C00', 2000);
+            this.game.showToast(`⚔ 挑战：${this.activeChallenge.name}`, '#FF8C00', 2000);
         }
     }
 
@@ -222,7 +222,7 @@ export class MicroChallengeSystem {
 
         // Toast
         if (this.game.showToast) {
-            this.game.showToast('✅ Challenge Complete! XP ×1.5!', '#00FF88', 2500);
+            this.game.showToast('✅ 挑战完成！经验 ×1.5！', '#00FF88', 2500);
         }
 
         this.activeChallenge = null;
@@ -390,7 +390,7 @@ export class MicroChallengeSystem {
             ctx.font = '11px Arial';
             ctx.textAlign = 'left';
             if (c.type === 'survive_nodamage') {
-                ctx.fillText(`${Math.floor(c.progress)}/${c.target}s survived`, x + 12, y + 35);
+                ctx.fillText(`${Math.floor(c.progress)}/${c.target}秒 已生存`, x + 12, y + 35);
             } else {
                 ctx.fillText(`${c.progress}/${c.target}`, x + 12, y + 35);
             }

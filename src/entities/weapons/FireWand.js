@@ -4,8 +4,8 @@ export class FireWand extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'fire_wand',
-            name: 'Fire Wand',
-            description: 'Launches fireballs that explode on impact, leaving burning ground',
+            name: '火焰法杖',
+            description: '发射火球，命中爆炸并留下燃烧地面',
             type: 'fireball',
             damage: 12,
             cooldown: 1.6,

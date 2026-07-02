@@ -291,7 +291,7 @@ export class CanvasHUD {
 
         // Wave pacing badge (rest / rush)
         if (waveType !== 'normal') {
-            const badgeLabel = waveType === 'rest' ? 'REST' : 'RUSH';
+            const badgeLabel = waveType === 'rest' ? '休憩' : '疾行';
             const badgeColor = waveType === 'rest' ? '#44CC88' : '#FF6644';
             ctx.font = `bold 7px "Courier New", monospace`;
             const tw = ctx.measureText(badgeLabel).width;
@@ -446,10 +446,10 @@ export class CanvasHUD {
         ctx.fillStyle = C.gold;
         ctx.textAlign = 'left';
         ctx.fillText('♦', PX + 10, goldY);
-        // "GOLD" label inline
+        // "金币" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.goldDim;
-        ctx.fillText('GOLD', PX + 30, goldY);
+        ctx.fillText('金币', PX + 30, goldY);
         // Value right-aligned
         ctx.font      = `bold 19px "Courier New", monospace`;
         ctx.fillStyle = C.gold;
@@ -464,7 +464,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.bank;
             ctx.textAlign   = 'right';
             ctx.textBaseline = 'top';
-            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 10);
+            ctx.fillText(`银行 ${bank}`, PX + PW - 8, goldY + 10);
         }
 
         // ── Kills row ────────────────────────────────────────
@@ -482,7 +482,7 @@ export class CanvasHUD {
         // "KILLS" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.killsDim;
-        ctx.fillText('KILLS', PX + 30, killsY);
+        ctx.fillText('击杀', PX + 30, killsY);
         // Value (scales on milestone)
         const kScale = 1 + 0.14 * this.killFlash;
         ctx.save();
@@ -505,11 +505,11 @@ export class CanvasHUD {
         if (!player.powerUps) return;
 
         const configs = [
-            { key: 'invincible',  label: 'INVINCIBLE', icon: '◊', color: '#FFD700' },
-            { key: 'speedBoost',  label: 'SPEED',      icon: '»', color: '#00E5FF' },
-            { key: 'damageBoost', label: 'DAMAGE',     icon: '☄', color: '#FF6622' },
-            { key: 'fireRate',    label: 'FIRE RATE',  icon: '‹›', color: '#EE44FF' },
-            { key: 'magnetBoost', label: 'MAGNET',     icon: '◎', color: '#44FF99' },
+            { key: 'invincible',  label: '无敌', icon: '◊', color: '#FFD700' },
+            { key: 'speedBoost',  label: '加速', icon: '»', color: '#00E5FF' },
+            { key: 'damageBoost', label: '伤害', icon: '☄', color: '#FF6622' },
+            { key: 'fireRate',    label: '射速', icon: '‹›', color: '#EE44FF' },
+            { key: 'magnetBoost', label: '磁力', icon: '◎', color: '#44FF99' },
         ];
 
         const active = [];
@@ -658,7 +658,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText('WEAPONS', PX + PAD, rowY);
+            ctx.fillText('武器', PX + PAD, rowY);
             rowY += LH;
 
             for (let i = 0; i < weapons.length; i++) {
@@ -674,7 +674,7 @@ export class CanvasHUD {
             ctx.fillStyle   = C.labelDim;
             ctx.textAlign   = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText('ITEMS', PX + PAD, rowY);
+            ctx.fillText('道具', PX + PAD, rowY);
             rowY += LH;
 
             for (let i = 0; i < passives.length; i++) {
@@ -896,7 +896,7 @@ export class CanvasHUD {
         ctx.fillStyle   = 'rgba(170, 140, 70, 0.65)';
         ctx.textAlign   = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText('MAP', MX + 4, MY + 3);
+        ctx.fillText('地图', MX + 4, MY + 3);
 
         ctx.restore();
     }

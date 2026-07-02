@@ -86,21 +86,21 @@
   },
   "variants": {
     "champion": {
-      "namePrefix": "Champion",
+      "namePrefix": "精英",
       "color": "#FFD700",
       "healthMultiplier": 1.2,
       "damageMultiplier": 1.15,
       "expMultiplier": 1.3
     },
     "swift": {
-      "namePrefix": "Swift",
+      "namePrefix": "迅捷",
       "color": "#00FFFF",
       "speedMultiplier": 1.3,
       "healthMultiplier": 0.8,
       "expMultiplier": 1.2
     },
     "shadow": {
-      "namePrefix": "Shadow",
+      "namePrefix": "暗影",
       "color": "#333333",
       "speedMultiplier": 1.4,
       "damageMultiplier": 0.8,
@@ -108,35 +108,35 @@
       "expMultiplier": 1.4
     },
     "burning": {
-      "namePrefix": "Burning",
+      "namePrefix": "烈焰",
       "color": "#FF4500",
       "speedMultiplier": 1.3,
       "damageMultiplier": 1.1,
       "expMultiplier": 1.3
     },
     "armored": {
-      "namePrefix": "Armored",
+      "namePrefix": "重甲",
       "color": "#708090",
       "speedMultiplier": 0.9,
       "healthMultiplier": 1.4,
       "expMultiplier": 1.2
     },
     "crystal": {
-      "namePrefix": "Crystal",
+      "namePrefix": "水晶",
       "color": "#666666",
       "healthMultiplier": 1.4,
       "speedMultiplier": 0.8,
       "expMultiplier": 1.5
     },
     "volatile": {
-      "namePrefix": "Volatile",
+      "namePrefix": "爆裂",
       "color": "#FF6B6B",
       "damageMultiplier": 1.3,
       "healthMultiplier": 1.1,
       "expMultiplier": 1.4
     },
     "arctic": {
-      "namePrefix": "Arctic",
+      "namePrefix": "寒冰",
       "color": "#B0E0E6",
       "attackRangeMultiplier": 1.3,
       "damageMultiplier": 1.2,
@@ -144,7 +144,7 @@
       "expMultiplier": 1.4
     },
     "toxic": {
-      "namePrefix": "Toxic",
+      "namePrefix": "剧毒",
       "color": "#32CD32",
       "damageMultiplier": 0.8,
       "attackCooldownMultiplier": 0.8,

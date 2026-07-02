@@ -1,5 +1,18 @@
 import { CHARACTERS } from '../data/characters.js';
 
+const WEAPON_NAMES = {
+    whip: '鞭子',
+    magic_missile: '魔法飞弹',
+    fire_wand: '火焰法杖',
+    lightning_chain: '连锁闪电',
+    garlic_aura: '大蒜光环',
+    holy_bible: '圣经',
+    bone_boomerang: '骨头回旋镖',
+    throwing_knife: '飞刀',
+    ice_shard: '冰晶碎片',
+    shadow_dagger: '暗影匕首'
+};
+
 /**
  * RunSummarySystem - Canvas-rendered post-death run statistics screen.
  *
@@ -31,24 +44,24 @@ export class RunSummarySystem {
         this.statDefs = [
             {
                 key: 'survivalTime',
-                label: 'TIME SURVIVED',
+                label: '生存时间',
                 format: 'time',
                 recordKey: 'longestSurvival',
                 icon: '\u23F1'
             },
-            { key: 'kills', label: 'ENEMIES SLAIN', format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
-            { key: 'level', label: 'LEVEL REACHED', format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
-            { key: 'combo', label: 'BEST COMBO', format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
+            { key: 'kills', label: '击杀敌人', format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
+            { key: 'level', label: '达到等级', format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
+            { key: 'combo', label: '最佳连击', format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
             {
                 key: 'goldEarned',
-                label: 'GOLD EARNED',
+                label: '获得金币',
                 format: 'number',
                 recordKey: 'mostGoldSingleRun',
                 icon: '\uD83D\uDCB0'
             },
             {
                 key: 'damageDealt',
-                label: 'DAMAGE DEALT',
+                label: '造成伤害',
                 format: 'number',
                 recordKey: 'totalDamageDealt',
                 icon: '\u2694'
@@ -185,15 +198,15 @@ export class RunSummarySystem {
         ctx.shadowBlur = 30;
         ctx.font = `bold ${fontSize}px 'Cinzel', 'Times New Roman', serif`;
         ctx.fillStyle = '#FF3333';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText('战死于沙场', w / 2, headerY);
         ctx.shadowBlur = 15;
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText('战死于沙场', w / 2, headerY);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Lighter text on top
         ctx.fillStyle = '#FF8888';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
+        ctx.fillText('战死于沙场', w / 2, headerY);
 
         // Character name and title
         const charId = this.game.systems.persistence ? this.game.systems.persistence.getSelectedCharacter() : 'antonio';
@@ -212,7 +225,7 @@ export class RunSummarySystem {
             ctx.fillStyle = '#FF6666';
             ctx.globalAlpha = 0.95;
             const killerName = this.runData.killedBy.name.charAt(0).toUpperCase() + this.runData.killedBy.name.slice(1);
-            ctx.fillText(`\u2620 Killed by: ${killerName}`, w / 2, headerY + (character ? 50 : 30));
+            ctx.fillText(`\u2620 击杀者: ${killerName}`, w / 2, headerY + (character ? 50 : 30));
             ctx.globalAlpha = 1;
         }
 
@@ -292,7 +305,7 @@ export class RunSummarySystem {
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
                 ctx.shadowBlur = 8;
-                ctx.fillText('\u2605 NEW RECORD', badgeX, badgeY);
+                ctx.fillText('\u2605 新纪录', badgeX, badgeY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
                 ctx.restore();
@@ -315,7 +328,7 @@ export class RunSummarySystem {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#AAAACC';
             const remaining = nextMilestone - kills;
-            ctx.fillText(`${remaining} kills away from ${this.formatNumber(nextMilestone)} milestone`, w / 2, statsStartY + panelH + 6);
+            ctx.fillText(`距离 ${this.formatNumber(nextMilestone)} 里程碑还差 ${remaining} 击杀`, w / 2, statsStartY + panelH + 6);
             ctx.globalAlpha = 1;
         }
 
@@ -327,7 +340,7 @@ export class RunSummarySystem {
             ctx.font = '11px Arial, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(150, 150, 170, 0.6)';
-            ctx.fillText('ARSENAL', w / 2, weaponsY);
+            ctx.fillText('武器库', w / 2, weaponsY);
 
             // Weapon name pills
             const names = this.runData.weaponsUsed.map((id) => this.formatWeaponName(id));
@@ -366,7 +379,7 @@ export class RunSummarySystem {
             ctx.font = '12px Arial, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillStyle = '#AAAACC';
-            ctx.fillText('R - Play Again    M - Main Menu    ESC - Main Menu', w / 2, buttonsY + 54);
+            ctx.fillText('R - 再来一局    M - 返回主菜单    ESC - 返回主菜单', w / 2, buttonsY + 54);
             ctx.globalAlpha = 1;
         }
 
@@ -382,8 +395,8 @@ export class RunSummarySystem {
         const startX = (w - totalW) / 2;
 
         const buttons = [
-            { label: 'PLAY AGAIN', baseColor: [60, 160, 70], accent: '#4CAF50' },
-            { label: 'MAIN MENU', baseColor: [100, 50, 140], accent: '#8844AA' }
+            { label: '再来一局', baseColor: [60, 160, 70], accent: '#4CAF50' },
+            { label: '返回主菜单', baseColor: [100, 50, 140], accent: '#8844AA' }
         ];
 
         for (let i = 0; i < buttons.length; i++) {
@@ -502,7 +515,7 @@ export class RunSummarySystem {
     }
 
     formatWeaponName(id) {
-        return id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return WEAPON_NAMES[id] || id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     roundRect(ctx, x, y, w, h, r) {

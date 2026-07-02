@@ -32,7 +32,7 @@ export class RaritySystem {
         this.rarities = {
             common: {
                 id: 'common',
-                name: 'Common',
+                name: '普通',
                 color: '#CCCCCC',
                 borderColor: '#888888',
                 glowColor: 'rgba(200,200,200,0.1)',
@@ -41,7 +41,7 @@ export class RaritySystem {
             },
             uncommon: {
                 id: 'uncommon',
-                name: 'Uncommon',
+                name: '优秀',
                 color: '#4ADE80',
                 borderColor: '#22C55E',
                 glowColor: 'rgba(74,222,128,0.15)',
@@ -50,7 +50,7 @@ export class RaritySystem {
             },
             rare: {
                 id: 'rare',
-                name: 'Rare',
+                name: '稀有',
                 color: '#60A5FA',
                 borderColor: '#3B82F6',
                 glowColor: 'rgba(96,165,250,0.2)',
@@ -59,7 +59,7 @@ export class RaritySystem {
             },
             epic: {
                 id: 'epic',
-                name: 'Epic',
+                name: '史诗',
                 color: '#C084FC',
                 borderColor: '#A855F7',
                 glowColor: 'rgba(192,132,252,0.25)',
@@ -68,7 +68,7 @@ export class RaritySystem {
             },
             legendary: {
                 id: 'legendary',
-                name: 'LEGENDARY',
+                name: '传说',
                 color: '#FFD700',
                 borderColor: '#FFA500',
                 glowColor: 'rgba(255,215,0,0.35)',

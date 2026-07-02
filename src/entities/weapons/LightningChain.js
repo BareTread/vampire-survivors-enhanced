@@ -4,8 +4,8 @@ export class LightningChain extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'lightning_chain',
-            name: 'Lightning Chain',
-            description: 'Strikes the nearest enemy with lightning that chains to nearby foes',
+            name: '连锁闪电',
+            description: '闪电打击最近敌人，并连锁到附近敌人',
             type: 'lightning',
             damage: 15,
             cooldown: 1.8,

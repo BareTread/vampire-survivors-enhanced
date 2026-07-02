@@ -4,8 +4,8 @@ export class Whip extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'whip',
-            name: 'Whip',
-            description: 'Strikes in an arc, hitting multiple enemies',
+            name: '鞭子',
+            description: '弧形挥击，可命中多个敌人',
             type: 'melee',
             damage: 15,
             cooldown: 0.8,

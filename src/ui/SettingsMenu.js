@@ -99,95 +99,95 @@ export class SettingsMenu {
         
         this.menuElement.innerHTML = `
             <div class="settings-header">
-                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">Settings</h2>
+                <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">游戏设置</h2>
                 <button class="close-btn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; color: #FFD700; font-size: 24px; cursor: pointer;">×</button>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🔊 Audio</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">🔊 音频</h3>
                 
                 <div class="setting-item">
-                    <label for="masterVolume">Master Volume: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
+                    <label for="masterVolume">主音量: <span id="masterVolumeValue">${Math.round(this.settings.masterVolume * 100)}%</span></label>
                     <input type="range" id="masterVolume" min="0" max="1" step="0.1" value="${this.settings.masterVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="musicVolume">Music Volume: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
+                    <label for="musicVolume">音乐音量: <span id="musicVolumeValue">${Math.round(this.settings.musicVolume * 100)}%</span></label>
                     <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="${this.settings.musicVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
                 
                 <div class="setting-item">
-                    <label for="sfxVolume">SFX Volume: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
+                    <label for="sfxVolume">音效音量: <span id="sfxVolumeValue">${Math.round(this.settings.sfxVolume * 100)}%</span></label>
                     <input type="range" id="sfxVolume" min="0" max="1" step="0.1" value="${this.settings.sfxVolume}" style="width: 100%; margin-top: 5px;">
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">✨ Visual Effects</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">✨ 视觉效果</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="particleEffects" ${this.settings.particleEffects ? 'checked' : ''}>
-                        Particle Effects
+                        粒子效果
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="screenShake" ${this.settings.screenShake ? 'checked' : ''}>
-                        Screen Shake
+                        屏幕震动
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="damageNumbers" ${this.settings.damageNumbers ? 'checked' : ''}>
-                        Damage Numbers
+                        伤害数字
                     </label>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="lowFXMode" ${this.settings.lowFXMode ? 'checked' : ''}>
-                        Low Effects Mode
+                        低特效模式
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Reduces visual effects for better performance</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">降低视觉效果以提升性能</small>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">⚡ Performance</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">⚡ 性能</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="autoQuality" ${this.settings.autoQuality ? 'checked' : ''}>
-                        Auto Quality Adjustment
+                        自动画质调整
                     </label>
-                    <small style="color: #B8860B; display: block; margin-top: 5px;">Automatically reduces quality when FPS drops</small>
+                    <small style="color: #B8860B; display: block; margin-top: 5px;">帧率下降时自动降低画质</small>
                 </div>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="showFPS" ${this.settings.showFPS ? 'checked' : ''}>
-                        Show FPS Counter
+                        显示帧率计数器
                     </label>
                 </div>
             </div>
             
             <div class="settings-section">
-                <h3 style="color: #DAA520; margin-bottom: 15px;">🎮 Gameplay</h3>
+                <h3 style="color: #DAA520; margin-bottom: 15px;">🎮 游戏玩法</h3>
                 
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="pauseOnFocusLoss" ${this.settings.pauseOnFocusLoss ? 'checked' : ''}>
-                        Pause When Window Loses Focus
+                        窗口失焦时暂停
                     </label>
                 </div>
             </div>
             
             <div class="settings-actions" style="text-align: center; margin-top: 25px;">
-                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">Reset to Defaults</button>
-                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Close</button>
+                <button class="btn-reset" style="background: #8B4513; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">恢复默认设置</button>
+                <button class="btn-close" style="background: #DAA520; color: #1a0f08; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">关闭</button>
             </div>
         `;
         
