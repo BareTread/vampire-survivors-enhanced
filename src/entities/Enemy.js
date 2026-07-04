@@ -63,7 +63,7 @@ export class Enemy {
         const types = {
             basic: {
                 maxHealth: 28,
-                speed: 55,
+                speed: 50,
                 damage: 11,
                 size: 8,
                 color: '#FF6B6B',
@@ -73,7 +73,7 @@ export class Enemy {
             },
             fast: {
                 maxHealth: 20,
-                speed: 110,
+                speed: 100,
                 damage: 9,
                 size: 6,
                 color: '#4ECDC4',
@@ -83,7 +83,7 @@ export class Enemy {
             },
             tank: {
                 maxHealth: 70,
-                speed: 34,
+                speed: 30,
                 damage: 27,
                 size: 14,
                 color: '#45B7D1',
@@ -93,7 +93,7 @@ export class Enemy {
             },
             ranged: {
                 maxHealth: 24,
-                speed: 50,
+                speed: 40,
                 damage: 11,
                 size: 7,
                 color: '#F39C12',
@@ -103,7 +103,7 @@ export class Enemy {
             },
             elite: {
                 maxHealth: 110,
-                speed: 48,
+                speed: 105,
                 damage: 32,
                 size: 16,
                 color: '#9B59B6',
@@ -113,8 +113,8 @@ export class Enemy {
             },
             berserker: {
                 maxHealth: 80,
-                speed: 60,
-                damage: 28,
+                speed: 50,
+                damage: 25,
                 size: 14,
                 color: '#FF4500',
                 expReward: 25,
@@ -124,7 +124,7 @@ export class Enemy {
             },
             summoner: {
                 maxHealth: 60,
-                speed: 35,
+                speed: 30,
                 damage: 18,
                 size: 12,
                 color: '#8A2BE2',
@@ -136,7 +136,7 @@ export class Enemy {
             juggernaut: {
                 maxHealth: 200,
                 speed: 22,
-                damage: 45,
+                damage: 35,
                 size: 20,
                 color: '#2F4F4F',
                 expReward: 50,
@@ -636,6 +636,18 @@ export class Enemy {
         const damage = Math.max(1, Math.floor(amount));
         this.health = Math.max(0, this.health - damage);
 
+        // 吸血效果：根据伤害回复玩家生命值
+        if (this.game.player && this.game.player.getEffectiveStats) {
+            const playerStats = this.game.player.getEffectiveStats();
+            const lifestealPercent = playerStats.lifesteal || 0;
+            if (lifestealPercent > 0) {
+                const healAmount = Math.floor(damage * lifestealPercent);
+                if (healAmount > 0) {
+                    this.game.player.heal(healAmount);
+                }
+            }
+        }
+
         // Track damage for psychology feedback
         this.lastDamageAmount = damage;
         this.lastDamageWasCritical = isCritical;
@@ -1014,6 +1026,11 @@ export class Enemy {
         // Track kill for milestones system (kill counts, celebrations)
         if (this.game.systems.killMilestone) {
             this.game.systems.killMilestone.onEnemyKilled();
+        }
+
+        // Track kill for wave progression
+        if (this.game.systems.enemy) {
+            this.game.systems.enemy.onEnemyKilled(this.type);
         }
 
         // Gold drop chance

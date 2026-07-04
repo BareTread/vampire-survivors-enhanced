@@ -13,12 +13,12 @@ export class TerrainRenderer {
         this.qualityLevel = 'high';
         this.lastPerformanceCheck = 0;
 
-        // Zone/biome system — concentric rings from origin
+        // Zone/biome system — concentric rings from origin (Castle style)
         this.zones = [
-            { name: 'Crypt',      radius: 600,  bgInner: '#2a1a3e', bgMid: '#1e1030', bgOuter: '#140a22', gridColor: 'rgba(100, 60, 140, 0.16)', majorColor: 'rgba(140, 80, 180, 0.14)' },
-            { name: 'Catacombs',  radius: 1200, bgInner: '#1e2a3e', bgMid: '#141e2d', bgOuter: '#0e1422', gridColor: 'rgba(60, 80, 120, 0.16)',  majorColor: 'rgba(80, 110, 160, 0.14)' },
-            { name: 'Graveyard',  radius: 1800, bgInner: '#1e2e26', bgMid: '#141e1a', bgOuter: '#0e1612', gridColor: 'rgba(50, 90, 60, 0.16)',   majorColor: 'rgba(70, 120, 80, 0.14)' },
-            { name: 'Wasteland',  radius: Infinity, bgInner: '#3e2020', bgMid: '#2d1818', bgOuter: '#221010', gridColor: 'rgba(120, 60, 50, 0.16)', majorColor: 'rgba(160, 80, 60, 0.14)' }
+            { name: 'Throne Room',   radius: 600,  bgInner: '#6b5b4f', bgMid: '#5a4a3e', bgOuter: '#4a3a2e', gridColor: 'rgba(160, 140, 100, 0.16)', majorColor: 'rgba(180, 160, 110, 0.14)' },
+            { name: 'Great Hall',    radius: 1200, bgInner: '#5c5c6e', bgMid: '#4a4a5c', bgOuter: '#3a3a4c', gridColor: 'rgba(120, 120, 150, 0.16)', majorColor: 'rgba(140, 140, 170, 0.14)' },
+            { name: 'Outer Wall',    radius: 1800, bgInner: '#5a6a5a', bgMid: '#4a5a4a', bgOuter: '#3a4a3a', gridColor: 'rgba(100, 130, 100, 0.16)', majorColor: 'rgba(120, 150, 120, 0.14)' },
+            { name: 'Moat',          radius: Infinity, bgInner: '#4a5a6a', bgMid: '#3a4a5a', bgOuter: '#2a3a4a', gridColor: 'rgba(80, 110, 140, 0.16)', majorColor: 'rgba(100, 130, 160, 0.14)' }
         ];
 
         console.log('🏰 Simple TerrainRenderer initialized');
@@ -130,17 +130,17 @@ export class TerrainRenderer {
 
         ctx.save();
 
-        // Always draw visible map boundaries
-        ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
-        ctx.lineWidth = 4;
-        ctx.setLineDash([20, 10]); // Dashed line for visibility
+        // Always draw visible map boundaries - thick black solid line
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 8;
+        ctx.setLineDash([]); // Solid line for clear boundary
 
         // Draw the map boundary rectangle
         ctx.strokeRect(-worldHalfWidth, -worldHalfHeight, this.worldWidth, this.worldHeight);
 
         // Add corner markers for better visibility
-        ctx.fillStyle = 'rgba(255, 150, 150, 0.8)';
-        const markerSize = 20;
+        ctx.fillStyle = '#000000';
+        const markerSize = 24;
 
         // Top-left corner
         ctx.fillRect(-worldHalfWidth - 5, -worldHalfHeight - 5, markerSize, 5);

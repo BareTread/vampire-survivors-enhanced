@@ -99,6 +99,17 @@ export class PassiveItemSystem {
                 bonusPerLevel: 0.25,
                 maxLevel: 5,
                 color: '#22d3ee'
+            }],
+            ['lifesteal', {
+                id: 'lifesteal',
+                name: '吸血',
+                icon: '🩸',
+                stat: 'lifesteal',
+                description: '攻击回复2%生命值',
+                upgradeDescription: level => `攻击回复${level * 2}%生命值`,
+                bonusPerLevel: 0.02,
+                maxLevel: 5,
+                color: '#dc2626'
             }]
         ]);
     }
@@ -177,7 +188,8 @@ export class PassiveItemSystem {
             armor: 0,        // Flat damage reduction
             cooldown: 0,     // Additive cooldown reduction (0.08 = 8% faster)
             projectiles: 0,  // Flat extra projectiles
-            pickupRange: 0   // Additive range multiplier bonus
+            pickupRange: 0,  // Additive range multiplier bonus
+            lifesteal: 0     // Lifesteal percentage (0.02 = 2%)
         };
 
         for (const item of this.items.values()) {
@@ -200,6 +212,9 @@ export class PassiveItemSystem {
                     break;
                 case 'pickupRange':
                     mods.pickupRange += bonus;
+                    break;
+                case 'lifesteal':
+                    mods.lifesteal += bonus;
                     break;
             }
         }

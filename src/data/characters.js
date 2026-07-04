@@ -110,5 +110,17 @@ export const CHARACTERS = [
         unlocked: false,
         unlockCondition: 'highestKillCount >= 1000',
         unlockDesc: '单局击杀1000个敌人'
+    },
+    {
+        id: 'osel',
+        name: '奥赛尔',
+        title: '剑士',
+        color: '#A0A0A0',
+        startingWeapon: 'greatsword',
+        description: '近战肉搏，攻防双修。',
+        statModifiers: { health: 1.10, area: 1.10 },
+        unlocked: false,
+        unlockCondition: 'highestKillCount >= 200',
+        unlockDesc: '单局杀敌200个'
     }
 ];

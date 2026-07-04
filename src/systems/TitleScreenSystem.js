@@ -88,7 +88,7 @@ export class TitleScreenSystem {
 
         // Menu state
         this.selectedIndex = 0;
-        this.menuItems = ['开始游戏', '无尽模式', '角色选择', '强化升级', '挑战模式', '游戏统计', '怪物图鉴', '游戏设置'];
+        this.menuItems = ['开始游戏', '无尽模式', '角色选择', '强化升级', '挑战模式', '排行榜', '游戏统计', '怪物图鉴', '游戏设置'];
         this.hoveredIndex = -1;
 
         // Upgrade shop state
@@ -111,6 +111,10 @@ export class TitleScreenSystem {
         // Codex state
         this.codexTabIndex = 0;
         this._codexBackRect = null;
+
+        // Leaderboard state
+        this.leaderboardScrollOffset = 0;
+        this._leaderboardBackRect = null;
 
         // Settings state
         this.settingsSelectedIndex = 0;
@@ -438,6 +442,7 @@ export class TitleScreenSystem {
         if (this.game.gameState === 'statistics') this.renderStatistics(ctx);
         if (this.game.gameState === 'challenges') this.renderChallenges(ctx);
         if (this.game.gameState === 'codex') this.renderCodex(ctx);
+        if (this.game.gameState === 'leaderboard') this.renderLeaderboard(ctx);
         if (this.game.gameState === 'settings') this.renderSettings(ctx);
 
         // 9. Drips (drawn over menus but under transition)
@@ -1158,6 +1163,11 @@ export class TitleScreenSystem {
             return;
         }
 
+        if (this.game.gameState === 'leaderboard') {
+            this.handleLeaderboardInput(k);
+            return;
+        }
+
         if (this.game.gameState === 'settings') {
             this.handleSettingsInput(k);
             return;
@@ -1239,6 +1249,11 @@ export class TitleScreenSystem {
 
         if (this.game.gameState === 'codex') {
             this.handleCodexClick(x, y);
+            return;
+        }
+
+        if (this.game.gameState === 'leaderboard') {
+            this.handleLeaderboardClick(x, y);
             return;
         }
 
@@ -1959,6 +1974,171 @@ export class TitleScreenSystem {
         ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#E0E0E0';
         ctx.fillText('ESC - 返回菜单', w / 2, backY + backH / 2 + 1);
+    }
+
+    /**
+     * Render leaderboard screen
+     */
+    renderLeaderboard(ctx) {
+        const w = this.game.canvas.width;
+        const h = this.game.canvas.height;
+
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Panel
+        const panelW = Math.min(700, w - 40);
+        const panelH = Math.min(580, h - 40);
+        const panelX = (w - panelW) / 2;
+        const panelY = (h - panelH) / 2;
+
+        const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+        bgGrad.addColorStop(0, '#1c1528');
+        bgGrad.addColorStop(1, '#0e0b14');
+        ctx.fillStyle = bgGrad;
+        ctx.strokeStyle = '#3a2845';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 30;
+        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        // Header
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 30px "Cinzel", "Times New Roman", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
+        ctx.shadowBlur = 15;
+        ctx.fillText('排行榜', w / 2, panelY + 40);
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+
+        // Get leaderboard data
+        const leaderboard = this.game.systems.leaderboard;
+        const entries = leaderboard ? leaderboard.getTopEntries(20) : [];
+
+        if (entries.length === 0) {
+            // No entries
+            ctx.font = '16px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
+            ctx.textAlign = 'center';
+            ctx.fillText('暂无排行榜数据', w / 2, panelY + panelH / 2);
+            ctx.font = '14px Arial, sans-serif';
+            ctx.fillText('完成一局游戏后将显示排行榜', w / 2, panelY + panelH / 2 + 30);
+        } else {
+            // Table header
+            const tableX = panelX + 40;
+            const tableY = panelY + 80;
+            const tableW = panelW - 80;
+            const rowH = 32;
+
+            // Column headers
+            ctx.font = 'bold 14px Arial, sans-serif';
+            ctx.fillStyle = '#D9A45C';
+            ctx.textAlign = 'left';
+            ctx.fillText('排名', tableX, tableY);
+            ctx.fillText('玩家', tableX + 60, tableY);
+            ctx.textAlign = 'right';
+            ctx.fillText('生存时间', tableX + tableW - 140, tableY);
+            ctx.fillText('击杀数', tableX + tableW, tableY);
+
+            // Divider line
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(tableX, tableY + 15);
+            ctx.lineTo(tableX + tableW, tableY + 15);
+            ctx.stroke();
+
+            // Table rows
+            const startY = tableY + 35;
+            const maxRows = Math.floor((panelH - 150) / rowH);
+            const displayEntries = entries.slice(0, maxRows);
+
+            for (let i = 0; i < displayEntries.length; i++) {
+                const entry = displayEntries[i];
+                const rowY = startY + i * rowH;
+
+                // Alternating row background
+                if (i % 2 === 0) {
+                    ctx.fillStyle = 'rgba(40, 30, 55, 0.3)';
+                    ctx.fillRect(tableX, rowY - 10, tableW, rowH);
+                }
+
+                // Rank
+                ctx.font = 'bold 14px Arial, sans-serif';
+                ctx.textAlign = 'left';
+                if (i === 0) {
+                    ctx.fillStyle = '#FFD700'; // Gold
+                } else if (i === 1) {
+                    ctx.fillStyle = '#C0C0C0'; // Silver
+                } else if (i === 2) {
+                    ctx.fillStyle = '#CD7F32'; // Bronze
+                } else {
+                    ctx.fillStyle = '#E0E0F0';
+                }
+                ctx.fillText(`${i + 1}`, tableX, rowY + 5);
+
+                // Player name
+                ctx.fillStyle = '#E0E0F0';
+                ctx.fillText(entry.playerName, tableX + 60, rowY + 5);
+
+                // Survival time
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#4ade80';
+                const timeStr = this.formatTime(entry.survivalTime);
+                ctx.fillText(timeStr, tableX + tableW - 140, rowY + 5);
+
+                // Kill count
+                ctx.fillStyle = '#FF6B6B';
+                const killStr = this.formatNumber(entry.killCount);
+                ctx.fillText(killStr, tableX + tableW, rowY + 5);
+            }
+        }
+
+        // Back button
+        const backW = 140;
+        const backH = 38;
+        const backX = (w - backW) / 2;
+        const backY = panelY + panelH - 52;
+        this._leaderboardBackRect = { x: backX, y: backY, w: backW, h: backH };
+
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, backX, backY, backW, backH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
+        ctx.fillStyle = '#E0E0E0';
+        ctx.fillText('ESC - 返回菜单', w / 2, backY + backH / 2 + 1);
+    }
+
+    /**
+     * Handle leaderboard keyboard input
+     */
+    handleLeaderboardInput(k) {
+        if (k === 'escape') {
+            this.triggerTransition('menu');
+        }
+    }
+
+    /**
+     * Handle leaderboard mouse click
+     */
+    handleLeaderboardClick(x, y) {
+        // Back button
+        const b = this._leaderboardBackRect;
+        if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+            this.triggerTransition('menu');
+            return;
+        }
     }
 
     handleCodexInput(k) {

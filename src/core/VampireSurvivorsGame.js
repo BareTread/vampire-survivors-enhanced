@@ -45,6 +45,7 @@ import { FireWand } from '../entities/weapons/FireWand.js';
 import { BoneBoomerang } from '../entities/weapons/BoneBoomerang.js';
 import { IceShard } from '../entities/weapons/IceShard.js';
 import { ShadowDagger } from '../entities/weapons/ShadowDagger.js';
+import { GreatSword } from '../entities/weapons/GreatSword.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
@@ -54,6 +55,7 @@ import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
 import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
+import { LeaderboardSystem } from '../systems/LeaderboardSystem.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
@@ -78,6 +80,10 @@ const WEAPON_METADATA = {
     shadow_dagger: {
         name: '暗影匕首',
         description: '将暗影之刃传送到最近的敌人，造成巨大爆发伤害'
+    },
+    greatsword: {
+        name: '大剑',
+        description: '近战肉搏，攻防双修'
     }
 };
 
@@ -143,7 +149,8 @@ export class VampireSurvivorsGame {
             inventory: new InventoryOverlaySystem(this),
             floorItems: new FloorItemSystem(this),
             challenge: new ChallengeSystem(this),
-            codex: new CodexSystem(this)
+            codex: new CodexSystem(this),
+            leaderboard: new LeaderboardSystem(this)
         };
 
         // Debug systems
@@ -228,7 +235,8 @@ export class VampireSurvivorsGame {
             ['fire_wand', FireWand],
             ['bone_boomerang', BoneBoomerang],
             ['ice_shard', IceShard],
-            ['shadow_dagger', ShadowDagger]
+            ['shadow_dagger', ShadowDagger],
+            ['greatsword', GreatSword]
         ]);
 
         this.setupInput();
@@ -1071,6 +1079,12 @@ export class VampireSurvivorsGame {
         // THEN persist (updates records for next run)
         if (this.systems.persistence && this.player) {
             this.systems.persistence.recordRunEnd(runData);
+        }
+
+        // Save to leaderboard
+        if (this.systems.leaderboard) {
+            const playerName = this.systems.persistence?.data?.playerName || 'Anonymous';
+            this.systems.leaderboard.addEntry(playerName, runData.survivalTime, runData.kills);
         }
 
         // Transition to summary after 1.5s death pause

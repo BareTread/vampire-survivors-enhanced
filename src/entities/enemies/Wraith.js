@@ -8,7 +8,7 @@ export class Wraith extends Enemy {
         // Override base enemy properties for Wraith
         this.maxHealth = this.maxHealth || 35;
         this.health = this.maxHealth;
-        this.speed = 60;
+        this.speed = 45;
         this.damage = 15;
         this.size = 10;
         this.color = '#9370DB';
@@ -20,12 +20,11 @@ export class Wraith extends Enemy {
 
         // Wraith-specific properties
         this.phaseMode = false;
-        this.phaseDuration = 2.0; // How long phase lasts
+        this.phaseDuration = 3.0; // How long phase lasts
         this.phaseTimer = 0;
-        this.phaseCooldown = 4.0; // Cooldown between phases
-        this.phaseCooldownTimer = 0;
-        this.phaseSpeed = 120; // Speed when phasing
-        this.normalSpeed = 60;
+        this.phaseUsed = false; // Whether phase has been used (only once)
+        this.phaseSpeed = 90; // Speed when phasing
+        this.normalSpeed = 45;
 
         // Visual properties
         this.baseAlpha = 0.8; // Slightly transparent normally
@@ -124,11 +123,8 @@ export class Wraith extends Enemy {
             if (this.phaseTimer <= 0) {
                 this.exitPhaseMode();
             }
-        } else {
-            this.phaseCooldownTimer -= dt;
-            if (this.phaseCooldownTimer <= 0 && this.shouldEnterPhase()) {
-                this.enterPhaseMode();
-            }
+        } else if (!this.phaseUsed && this.shouldEnterPhase()) {
+            this.enterPhaseMode();
         }
     }
 
@@ -166,32 +162,14 @@ export class Wraith extends Enemy {
     }
 
     shouldEnterPhase() {
-        const player = this.game.player;
-        if (!player || !player.isAlive()) return false;
-
-        // Enter phase mode when:
-        // 1. Player is far away (to close distance quickly)
-        // 2. Wraith is surrounded by other enemies (to escape)
-        // 3. Random chance for unpredictability
-
-        const distanceToPlayer = Math.sqrt(
-            (player.x - this.x) ** 2 + (player.y - this.y) ** 2
-        );
-
-        if (distanceToPlayer > 200) return true; // Far from player
-        if (Math.random() < 0.02) return true; // 2% chance per frame
-
-        // Check if surrounded by other enemies
-        const nearbyEnemies = this.game.systems.enemy.getNearbyEnemies(this.x, this.y, 50);
-        if (nearbyEnemies.length > 3) return true;
-
-        return false;
+        // Enter phase mode when health is below 50%
+        return this.health < this.maxHealth * 0.5;
     }
 
     enterPhaseMode() {
         this.phaseMode = true;
+        this.phaseUsed = true; // Mark as used (only once)
         this.phaseTimer = this.phaseDuration;
-        this.phaseCooldownTimer = this.phaseCooldown;
         this.canPassThroughWalls = true;
         this.immuneToDamage = true;
         this.currentAlpha = this.phaseAlpha;

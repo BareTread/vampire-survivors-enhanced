@@ -16,7 +16,7 @@ export class Player {
         this.deceleration = 800;
 
         // Health and stats
-        this.maxHealth = 100;
+        this.maxHealth = 500;
         this.health = this.maxHealth;
         this.level = 1;
         this.experience = 0;
@@ -1566,6 +1566,11 @@ export class Player {
     getEffectiveStats() {
         const stats = { ...this.stats };
 
+        // Initialize lifesteal to 0 if not set
+        if (stats.lifesteal === undefined) {
+            stats.lifesteal = 0;
+        }
+
         if (this.powerUps.speedBoost.active) {
             stats.speed *= this.powerUps.speedBoost.currentMultiplier || this.powerUps.speedBoost.multiplier;
         }
@@ -1598,6 +1603,7 @@ export class Player {
             stats.speed *= 1 + mods.speed; // Wings: +10%/level additive
             stats.cooldown *= 1 + mods.cooldown; // Empty Tome: +8%/level (bigger = faster)
             stats.projectiles += mods.projectiles; // Duplicator: +1/level flat
+            stats.lifesteal += mods.lifesteal; // Lifesteal: +2%/level additive
             // Armor (mods.armor) is applied in takeDamageEnhanced
             // Attractorb (mods.pickupRange) is applied in ExperienceGem collection range
         }

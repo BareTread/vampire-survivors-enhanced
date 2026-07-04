@@ -8,8 +8,8 @@ export class Demon extends Enemy {
         // Override base enemy properties for Demon
         this.maxHealth = this.maxHealth || 80;
         this.health = this.maxHealth;
-        this.speed = 45;
-        this.damage = 35;
+        this.speed = 40;
+        this.damage = 30;
         this.size = 16;
         this.color = '#DC143C';
         this.expReward = 20;
@@ -21,7 +21,7 @@ export class Demon extends Enemy {
         // Demon-specific properties
         this.rageMode = false;
         this.rageModeThreshold = 0.3; // Enter rage at 30% health
-        this.rageMultiplier = 1.8; // 80% increase in stats
+        this.rageMultiplier = 2.0; // 100% increase in stats (30 -> 60)
         this.originalStats = {};
 
         // Area attack properties
