@@ -20,8 +20,8 @@ export class ShadowDagger extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id:            'shadow_dagger',
-            name:          'Shadow Dagger',
-            description:   'Teleports a shadow blade to the nearest enemy for massive burst damage',
+            name:          '暗影匕首',
+            description:   '传送暗影之刃至最近敌人，造成巨额爆发伤害',
             type:          'melee',
             damage:        28,
             cooldown:      1.8,

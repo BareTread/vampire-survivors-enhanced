@@ -14,8 +14,8 @@ export class HolyBible extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'holy_bible',
-            name: 'Holy Bible',
-            description: 'Orbiting crosses that circle the player, damaging enemies on contact',
+            name: '圣经',
+            description: '环绕玩家的十字架，接触敌人造成伤害',
             type: 'orbital',
             damage: 6,
             cooldown: 0.25, // damage tick rate (how often each orbiter can hit)

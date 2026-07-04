@@ -4,8 +4,8 @@ export class BoneBoomerang extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'bone_boomerang',
-            name: 'Bone Boomerang',
-            description: 'Thrown bone that returns to the player, hitting enemies both ways',
+            name: '骨头回旋镖',
+            description: '投掷骨头回旋往返，双向打击敌人',
             type: 'boomerang',
             damage: 10,
             cooldown: 1.4,

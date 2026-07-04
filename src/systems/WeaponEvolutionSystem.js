@@ -32,10 +32,10 @@ export class WeaponEvolutionSystem {
                 'magic_missile',
                 {
                     requiredPassive: 'empty_tome',
-                    evolvedName: 'Soul Missile',
+                    evolvedName: '雷霆飞弹',
                     evolvedColor: '#FF00FF',
                     glowColor: 'rgba(255,0,255,0.4)',
-                    description: 'Homing missiles that pierce all enemies',
+                    description: '追踪飞弹穿透所有敌人',
                     statMultipliers: {
                         damage: 1.7,
                         cooldown: 0.7, // Still much faster, but no longer doubles the fire rate
@@ -50,10 +50,10 @@ export class WeaponEvolutionSystem {
                 'whip',
                 {
                     requiredPassive: 'spinach',
-                    evolvedName: 'Bloody Tear',
+                    evolvedName: '血腥鞭挞',
                     evolvedColor: '#DC143C',
                     glowColor: 'rgba(220,20,60,0.4)',
-                    description: 'Life-stealing whip with massive range',
+                    description: '吸血长鞭，攻击范围巨大',
                     statMultipliers: {
                         damage: 1.5,
                         range: 1.6,
@@ -67,10 +67,10 @@ export class WeaponEvolutionSystem {
                 'throwing_knife',
                 {
                     requiredPassive: 'duplicator',
-                    evolvedName: 'Thousand Edge',
+                    evolvedName: '剑刃风暴',
                     evolvedColor: '#00FFFF',
                     glowColor: 'rgba(0,255,255,0.4)',
-                    description: 'A storm of blades that shreds everything',
+                    description: '刀片风暴撕碎一切',
                     statMultipliers: {
                         projectiles: 2,
                         speed: 1.35,
@@ -84,10 +84,10 @@ export class WeaponEvolutionSystem {
                 'lightning_chain',
                 {
                     requiredPassive: 'duplicator',
-                    evolvedName: 'Thunder Loop',
+                    evolvedName: '连锁闪电',
                     evolvedColor: '#7DF9FF',
                     glowColor: 'rgba(125,249,255,0.5)',
-                    description: 'Chains to 12 enemies with stunning force',
+                    description: '连锁12个敌人并造成眩晕',
                     statMultipliers: {
                         damage: 1.8,
                         range: 1.5,
@@ -101,10 +101,10 @@ export class WeaponEvolutionSystem {
                 'garlic_aura',
                 {
                     requiredPassive: 'attractorb',
-                    evolvedName: 'Soul Eater',
+                    evolvedName: '虚空漩涡',
                     evolvedColor: '#9400D3',
                     glowColor: 'rgba(148,0,211,0.35)',
-                    description: 'Pulls enemies in and devours them',
+                    description: '吸引敌人并吞噬',
                     statMultipliers: {
                         damage: 1.9,
                         range: 2.2,
@@ -117,10 +117,10 @@ export class WeaponEvolutionSystem {
                 'holy_bible',
                 {
                     requiredPassive: 'armor',
-                    evolvedName: 'Unholy Vespers',
+                    evolvedName: '神圣轨道',
                     evolvedColor: '#8B0000',
                     glowColor: 'rgba(139,0,0,0.4)',
-                    description: '6 orbiters with explosive trails',
+                    description: '6个轨道器留下爆炸尾迹',
                     statMultipliers: {
                         damage: 1.6,
                         area: 1.35,
@@ -134,10 +134,10 @@ export class WeaponEvolutionSystem {
                 'fire_wand',
                 {
                     requiredPassive: 'spinach',
-                    evolvedName: 'Hellfire',
+                    evolvedName: '炼狱火雨',
                     evolvedColor: '#FF4500',
                     glowColor: 'rgba(255,69,0,0.5)',
-                    description: 'Cataclysmic fireballs with permanent burns',
+                    description: '灾变火球造成永久灼烧',
                     statMultipliers: {
                         damage: 2.2,
                         area: 1.5,
@@ -151,10 +151,10 @@ export class WeaponEvolutionSystem {
                 'bone_boomerang',
                 {
                     requiredPassive: 'wings',
-                    evolvedName: 'Death Spiral',
+                    evolvedName: '骨头旋风',
                     evolvedColor: '#ADFF2F',
                     glowColor: 'rgba(173,255,47,0.4)',
-                    description: 'Triple boomerangs in a constant death spin',
+                    description: '三重回旋镖持续死亡旋转',
                     statMultipliers: {
                         damage: 1.7,
                         projectiles: 2,
@@ -168,10 +168,10 @@ export class WeaponEvolutionSystem {
                 'ice_shard',
                 {
                     requiredPassive: 'empty_tome',
-                    evolvedName: 'Blizzard',
+                    evolvedName: '永冻之地',
                     evolvedColor: '#B3E5FF',
                     glowColor: 'rgba(179,229,255,0.5)',
-                    description: 'Constant ice storm — 50% slow to all nearby enemies',
+                    description: '持续冰暴——附近所有敌人减速50%',
                     statMultipliers: {
                         damage:     1.6,
                         cooldown:   0.7,
@@ -186,10 +186,10 @@ export class WeaponEvolutionSystem {
                 'shadow_dagger',
                 {
                     requiredPassive: 'wings',
-                    evolvedName: 'Phantom Assassin',
+                    evolvedName: '暗影刺客',
                     evolvedColor: '#4C1D95',
                     glowColor: 'rgba(76,29,149,0.5)',
-                    description: 'Daggers chain through 5 enemies; each hit spawns a shadow clone',
+                    description: '匕首连锁5个敌人；每次命中生成暗影分身',
                     statMultipliers: {
                         damage:   1.8,
                         cooldown: 0.75

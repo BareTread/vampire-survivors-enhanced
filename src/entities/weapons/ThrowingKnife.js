@@ -4,8 +4,8 @@ export class ThrowingKnife extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'throwing_knife',
-            name: 'Throwing Knife',
-            description: 'Fast projectiles that pierce through enemies',
+            name: '飞刀',
+            description: '快速飞刀，可穿透敌人',
             type: 'projectile',
             damage: 13,
             cooldown: 0.6,

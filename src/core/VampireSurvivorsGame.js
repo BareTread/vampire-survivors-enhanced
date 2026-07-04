@@ -45,6 +45,7 @@ import { FireWand } from '../entities/weapons/FireWand.js';
 import { BoneBoomerang } from '../entities/weapons/BoneBoomerang.js';
 import { IceShard } from '../entities/weapons/IceShard.js';
 import { ShadowDagger } from '../entities/weapons/ShadowDagger.js';
+import { GreatSword } from '../entities/weapons/GreatSword.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
@@ -54,30 +55,35 @@ import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
 import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
+import { LeaderboardSystem } from '../systems/LeaderboardSystem.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
-    magic_missile: { name: 'Magic Missile', description: 'Automatically fires homing projectiles at nearby enemies' },
-    whip: { name: 'Whip', description: 'Strikes in an arc, hitting multiple enemies' },
-    throwing_knife: { name: 'Throwing Knife', description: 'Fast projectiles that pierce through enemies' },
+    magic_missile: { name: '魔法飞弹', description: '自动向附近敌人发射追踪弹药' },
+    whip: { name: '鞭子', description: '弧形打击，可击中多个敌人' },
+    throwing_knife: { name: '飞刀', description: '快速弹药，可穿透敌人' },
     lightning_chain: {
-        name: 'Lightning Chain',
-        description: 'Strikes the nearest enemy with lightning that chains to nearby foes'
+        name: '闪电链',
+        description: '用闪电击中最近的敌人，并连锁到附近的敌人'
     },
-    garlic_aura: { name: 'Garlic Aura', description: 'Damages nearby enemies with a pulsing aura of garlic essence' },
+    garlic_aura: { name: '大蒜光环', description: '用大蒜精华的脉动光环伤害附近敌人' },
     holy_bible: {
-        name: 'Holy Bible',
-        description: 'Orbiting crosses that circle the player, damaging enemies on contact'
+        name: '圣经',
+        description: '环绕玩家的旋转十字架，接触时伤害敌人'
     },
-    fire_wand: { name: 'Fire Wand', description: 'Launches fireballs that explode on impact, leaving burning ground' },
+    fire_wand: { name: '火焰杖', description: '发射火球，撞击时爆炸，留下燃烧地面' },
     bone_boomerang: {
-        name: 'Bone Boomerang',
-        description: 'Thrown bone that returns to the player, hitting enemies both ways'
+        name: '骨头回旋镖',
+        description: '投掷骨头后返回玩家，往返都能击中敌人'
     },
-    ice_shard: { name: 'Ice Shard', description: 'Slow ice projectiles that freeze enemies on impact' },
+    ice_shard: { name: '冰晶', description: '缓慢的冰弹，撞击时冻结敌人' },
     shadow_dagger: {
-        name: 'Shadow Dagger',
-        description: 'Teleports a shadow blade to the nearest enemy for massive burst damage'
+        name: '暗影匕首',
+        description: '将暗影之刃传送到最近的敌人，造成巨大爆发伤害'
+    },
+    greatsword: {
+        name: '大剑',
+        description: '近战肉搏，攻防双修'
     }
 };
 
@@ -143,7 +149,8 @@ export class VampireSurvivorsGame {
             inventory: new InventoryOverlaySystem(this),
             floorItems: new FloorItemSystem(this),
             challenge: new ChallengeSystem(this),
-            codex: new CodexSystem(this)
+            codex: new CodexSystem(this),
+            leaderboard: new LeaderboardSystem(this)
         };
 
         // Debug systems
@@ -228,7 +235,8 @@ export class VampireSurvivorsGame {
             ['fire_wand', FireWand],
             ['bone_boomerang', BoneBoomerang],
             ['ice_shard', IceShard],
-            ['shadow_dagger', ShadowDagger]
+            ['shadow_dagger', ShadowDagger],
+            ['greatsword', GreatSword]
         ]);
 
         this.setupInput();
@@ -386,26 +394,26 @@ export class VampireSurvivorsGame {
             <!-- Core Player Stats - Primary Hierarchy -->
             <div style="font-size: 22px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
                 <div style="color: #FFD700; text-shadow: 3px 3px 6px rgba(218, 165, 32, 0.9); margin-bottom: 8px;">
-                    ⚔ Level <span id="player-level">1</span> ⚔
+                    ⚔ 等级 <span id="player-level">1</span> ⚔
                 </div>
                 <div style="color: #FF6B6B; text-shadow: 2px 2px 4px rgba(255, 107, 107, 0.8); font-size: 18px;">
                     ❤ <span id="player-health">100</span>/<span id="player-max-health">100</span>
                 </div>
                 <div style="color: #40E0D0; text-shadow: 2px 2px 4px rgba(64, 224, 208, 0.8); font-size: 16px; margin-top: 4px;">
-                    ✦ <span id="player-exp">0</span>/<span id="player-exp-needed">100</span> XP
+                    ✦ <span id="player-exp">0</span>/<span id="player-exp-needed">100</span> 经验
                 </div>
             </div>
             
             <!-- Combo Display - Special Attention When Active -->
             <div style="font-size: 20px; margin-bottom: 12px; color: #FFD700; text-shadow: 3px 3px 6px rgba(218, 165, 32, 0.9);">
                 <div id="combo-display" style="display: none; animation: pulse 1.5s infinite;">
-                    🔥 COMBO: <span id="combo-count">0</span> (×<span id="combo-multiplier">1.0</span>)
+                    🔥 连击：<span id="combo-count">0</span> (×<span id="combo-multiplier">1.0</span>)
                 </div>
             </div>
             
             <!-- Game Progress - Secondary Hierarchy -->
             <div style="font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                <div style="color: #DDA0DD; margin-bottom: 4px;">⚡ Wave <span id="current-wave">1</span></div>
+                <div style="color: #DDA0DD; margin-bottom: 4px;">⚡ 波次 <span id="current-wave">1</span></div>
                 <div style="color: #98FB98; margin-bottom: 4px;">⏰ <span id="game-time">0:00</span></div>
                 <div style="color: #FFA500;">🏆 <span id="game-score">0</span></div>
             </div>
@@ -417,26 +425,26 @@ export class VampireSurvivorsGame {
             
             <!-- Manual Aiming UI - Context-Sensitive -->
             <div id="manual-aiming-status" style="font-size: 14px; margin-top: 12px; display: none; color: #00FFFF; text-shadow: 2px 2px 4px rgba(0, 255, 255, 0.9); animation: pulse 1.5s infinite;">
-                🎯 MANUAL AIM: <span id="aim-accuracy">0%</span> | <span id="aim-bonus">1.0x</span> DMG
+                🎯 手动瞄准：<span id="aim-accuracy">0%</span> | <span id="aim-bonus">1.0x</span> 伤害
                 <div style="font-size: 12px; color: #FFAA00; margin-top: 3px;">
-                    Shots: <span id="aim-total-shots">0</span> | Accuracy: <span id="aim-overall-accuracy">0%</span>
+                    射击数：<span id="aim-total-shots">0</span> | 精准度：<span id="aim-overall-accuracy">0%</span>
                 </div>
             </div>
             
             <!-- Controls Hint - Minimal and Subtle -->
             <div id="controls-hint" style="font-size: 10px; margin-top: 10px; color: #888; opacity: 0.6; line-height: 1.3;">
-                <span style="color: #FFD700; font-weight: bold;">SHIFT</span>: Manual Aim | 
-                <span style="color: #FFD700; font-weight: bold;">F2</span>: Performance | 
-                <span style="color: #FFD700; font-weight: bold;">F4/G</span>: Debug
+                <span style="color: #FFD700; font-weight: bold;">SHIFT</span>: 手动瞄准 | 
+                <span style="color: #FFD700; font-weight: bold;">F2</span>: 性能面板 | 
+                <span style="color: #FFD700; font-weight: bold;">F4/G</span>: 调试
             </div>
             
             <!-- Debug Overlay - Technical Metrics Only -->
             <div id="debug-info" style="font-size: 11px; margin-top: 12px; display: none; opacity: 0.8; color: #ccc; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 3px solid #444;">
-                <div style="color: #aaa; font-weight: bold; margin-bottom: 4px;">TECHNICAL DEBUG</div>
-                <div>Entities: <span id="entity-count" style="color: #4ade80;">0</span></div>
-                <div>Projectiles: <span id="projectile-count" style="color: #fbbf24;">0</span></div>
-                <div>Experience Gems: <span id="gem-count" style="color: #8b5cf6;">0</span></div>
-                <div>Enemies: <span id="enemy-count" style="color: #ef4444;">0</span></div>
+                <div style="color: #aaa; font-weight: bold; margin-bottom: 4px;">技术调试</div>
+                <div>实体数：<span id="entity-count" style="color: #4ade80;">0</span></div>
+                <div>弹药数：<span id="projectile-count" style="color: #fbbf24;">0</span></div>
+                <div>经验宝石：<span id="gem-count" style="color: #8b5cf6;">0</span></div>
+                <div>敌人数：<span id="enemy-count" style="color: #ef4444;">0</span></div>
             </div>
         `;
 
@@ -475,8 +483,8 @@ export class VampireSurvivorsGame {
         `;
 
         levelUpUI.innerHTML = `
-            <h2 style="color: #FFD700; margin-bottom: 20px;">LEVEL UP!</h2>
-            <p style="margin-bottom: 30px;">Choose an upgrade:</p>
+            <h2 style="color: #FFD700; margin-bottom: 20px;">升级！</h2>
+            <p style="margin-bottom: 30px;">选择一项升级：</p>
             <div id="level-up-options" style="display: flex; flex-direction: column; gap: 15px;">
                 <!-- Options will be populated dynamically -->
             </div>
@@ -548,26 +556,26 @@ export class VampireSurvivorsGame {
 
     getPowerUpName(type) {
         const names = {
-            health: 'Health',
-            invincible: 'Invincibility',
-            speedBoost: 'Speed',
-            damageBoost: 'Damage',
-            magnetBoost: 'Magnet',
-            fireRate: 'Fire Rate'
+            health: '生命',
+            invincible: '无敌',
+            speedBoost: '加速',
+            damageBoost: '伤害',
+            magnetBoost: '磁铁',
+            fireRate: '射速'
         };
-        return names[type] || 'Power-up';
+        return names[type] || '道具';
     }
 
     getPowerUpPickupHint(type) {
         const hints = {
-            health: 'Heal 50%',
-            invincible: 'Invincible 5s',
-            speedBoost: 'Speed x2 (8s)',
-            damageBoost: 'Damage x3 (10s)',
-            magnetBoost: 'Pull all gems',
-            fireRate: 'Fire rate +30% (15s)'
+            health: '恢复50%生命',
+            invincible: '无敌5秒',
+            speedBoost: '速度×2（8秒）',
+            damageBoost: '伤害×3（10秒）',
+            magnetBoost: '吸引所有宝石',
+            fireRate: '射速+30%（15秒）'
         };
-        return hints[type] || 'Power-up';
+        return hints[type] || '道具';
     }
 
     handleKeyDown(key) {
@@ -726,19 +734,19 @@ export class VampireSurvivorsGame {
 
         // Speed
         if (p.speedBoost?.active) {
-            pushEntry('speedBoost', 'Speed', p.speedBoost.timer, '#4ade80', '⚡');
+            pushEntry('speedBoost', '加速', p.speedBoost.timer, '#4ade80', '⚡');
         }
         // Damage
         if (p.damageBoost?.active) {
-            pushEntry('damageBoost', 'Damage', p.damageBoost.timer, '#f59e0b', '🗡️');
+            pushEntry('damageBoost', '伤害', p.damageBoost.timer, '#f59e0b', '🗡️');
         }
         // Fire rate
         if (p.fireRate?.active) {
-            pushEntry('fireRate', 'Fire Rate', p.fireRate.timer, '#60a5fa', '🔥');
+            pushEntry('fireRate', '射速', p.fireRate.timer, '#60a5fa', '🔥');
         }
         // Invincibility
         if (p.invincible?.active) {
-            pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
+            pushEntry('invincible', '无敌', p.invincible.timer, '#fde047', '🛡️');
         }
         // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
         const playerMagnet = p.magnetBoost?.active ? p.magnetBoost.timer || 0 : 0;
@@ -752,7 +760,7 @@ export class VampireSurvivorsGame {
                 : 0;
         const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
-            pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
+            pushEntry('magnet', '磁铁', magnetTime, '#22d3ee', '🧲');
         }
 
         // Render compact pills with remaining time (no heavy DOM churn)
@@ -1073,6 +1081,12 @@ export class VampireSurvivorsGame {
             this.systems.persistence.recordRunEnd(runData);
         }
 
+        // Save to leaderboard
+        if (this.systems.leaderboard) {
+            const playerName = this.systems.persistence?.data?.playerName || 'Anonymous';
+            this.systems.leaderboard.addEntry(playerName, runData.survivalTime, runData.kills);
+        }
+
         // Transition to summary after 1.5s death pause
         managedSetTimeout(() => {
             if (this.gameState === 'gameOver') {
@@ -1126,8 +1140,8 @@ export class VampireSurvivorsGame {
                 options.push({
                     type: 'weapon_upgrade',
                     weaponId: weapon.id,
-                    name: `${weapon.name} (Level ${weapon.level + 1})`,
-                    description: `Upgrade ${weapon.name}`
+                    name: `${weapon.name} (等级 ${weapon.level + 1})`,
+                    description: `升级 ${weapon.name}`
                 });
             }
         }
@@ -1164,12 +1178,12 @@ export class VampireSurvivorsGame {
 
         // Stat upgrades — still valuable, but less generically run-winning than before
         const statUpgrades = [
-            { stat: 'damage', name: 'Damage +15%', description: 'Increase weapon damage' },
-            { stat: 'speed', name: 'Speed +10%', description: 'Move faster' },
-            { stat: 'health', name: 'Max Health +20%', description: 'Increase maximum health' },
-            { stat: 'luck', name: 'Luck +8%', description: 'Better experience and drops' },
-            { stat: 'area', name: 'Area +12%', description: 'Bigger projectiles and AoE radius' },
-            { stat: 'cooldown', name: 'Cooldown -8%', description: 'Weapons fire faster' }
+            { stat: 'damage', name: '伤害 +15%', description: '提升武器伤害' },
+            { stat: 'speed', name: '速度 +10%', description: '移动更快' },
+            { stat: 'health', name: '最大生命 +20%', description: '提升最大生命值' },
+            { stat: 'luck', name: '幸运 +8%', description: '更好的经验和掉落' },
+            { stat: 'area', name: '范围 +12%', description: '更大的弹药和范围效果半径' },
+            { stat: 'cooldown', name: '冷却 -8%', description: '武器射速更快' }
         ];
 
         for (const upgrade of this.shuffleArray([...statUpgrades]).slice(0, 4)) {
@@ -1220,7 +1234,7 @@ export class VampireSurvivorsGame {
             case 'weapon_upgrade': {
                 const weapon = this.player.weapons.get(option.weaponId);
                 if (!weapon || weapon.level >= weapon.maxLevel) {
-                    this.showToast('Option no longer available', '#FF6666', 1200);
+                    this.showToast('选项已不可用', '#FF6666', 1200);
                     return; // Don't close UI — let player pick another
                 }
                 this.player.upgradeWeapon(option.weaponId);
@@ -1231,11 +1245,11 @@ export class VampireSurvivorsGame {
             }
             case 'new_weapon': {
                 if (this.player.weapons.size >= this.player.maxWeapons) {
-                    this.showToast('Weapon slots full', '#FF6666', 1200);
+                    this.showToast('武器槽已满', '#FF6666', 1200);
                     return;
                 }
                 if (Array.from(this.player.weapons.values()).some(w => w.id === option.weaponType)) {
-                    this.showToast('Already have this weapon', '#FF6666', 1200);
+                    this.showToast('已拥有此武器', '#FF6666', 1200);
                     return;
                 }
                 const WeaponClass = this.weaponClasses.get(option.weaponType);
@@ -1263,7 +1277,7 @@ export class VampireSurvivorsGame {
                     const canEvolve = this.systems.weaponEvolution.getEvolutionOptions()
                         .some(e => e.weaponId === option.weaponId);
                     if (!canEvolve) {
-                        this.showToast('Evolution no longer available', '#FF6666', 1200);
+                        this.showToast('进化已不可用', '#FF6666', 1200);
                         return;
                     }
                     this.systems.weaponEvolution.evolveWeapon(option.weaponId);
@@ -1950,13 +1964,13 @@ export class VampireSurvivorsGame {
             this.ctx.textBaseline = 'middle';
             this.ctx.shadowColor = '#FFD700';
             this.ctx.shadowBlur = 15;
-            this.ctx.fillText('LEVEL UP!', cx, startY);
+            this.ctx.fillText('升级！', cx, startY);
             this.ctx.shadowBlur = 0;
 
             this.ctx.fillStyle = '#CCCCCC';
             this.ctx.font = '18px Arial';
             this.ctx.fillText(
-                'Choose an upgrade (click or press 1-' + this.levelUpOptions.length + '):',
+                '选择一项升级（点击或按 1-' + this.levelUpOptions.length + '）：',
                 cx,
                 startY + 45
             );
@@ -2285,7 +2299,7 @@ export class VampireSurvivorsGame {
             ctx.fillStyle = '#FF4040';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('BOUNDARY', hudX + hudSize / 2, hudY + hudSize + 20);
+            ctx.fillText('边界', hudX + hudSize / 2, hudY + hudSize + 20);
             ctx.fillText(`${Math.round(minDistance)}m`, hudX + hudSize / 2, hudY + hudSize + 35);
 
             // Directional arrow pointing to closest boundary
@@ -2539,22 +2553,22 @@ export class VampireSurvivorsGame {
         // Determine wave type and styling
         let waveText, color, size, intensity;
         if (isMilestoneWave) {
-            waveText = `🔥 MILESTONE WAVE ${waveNumber} 🔥`;
+            waveText = `🔥 里程碑波次 ${waveNumber} 🔥`;
             color = '#FF0066';
             size = 48;
             intensity = 3.0;
         } else if (isBossWave) {
-            waveText = `💀 BOSS WAVE ${waveNumber} 💀`;
+            waveText = `💀 Boss波次 ${waveNumber} 💀`;
             color = '#FF4444';
             size = 42;
             intensity = 2.5;
         } else if (isSpecialWave) {
-            waveText = `⚡ ELITE WAVE ${waveNumber} ⚡`;
+            waveText = `⚡ 精英波次 ${waveNumber} ⚡`;
             color = '#FF6600';
             size = 38;
             intensity = 2.0;
         } else {
-            waveText = `WAVE ${waveNumber}`;
+            waveText = `波次 ${waveNumber}`;
             color = '#FFD700';
             size = 36;
             intensity = 1.5;
@@ -2745,7 +2759,7 @@ export class VampireSurvivorsGame {
                     text-align: center;
                     animation: waveWarning 2s ease-out forwards;
                 `;
-                    warningText.textContent = isMilestoneWave ? 'PREPARE FOR CHAOS!' : 'DANGER INCOMING!';
+                    warningText.textContent = isMilestoneWave ? '准备迎接混乱！' : '危险来袭！';
 
                     // Add warning animation if not exists
                     if (!document.getElementById('wave-warning-style')) {

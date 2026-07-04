@@ -19,11 +19,36 @@ export class EnemySystem {
         this.spawnDistance = 350; // Balanced spawn distance for visibility
         this.despawnDistance = 600; // Distance at which to despawn enemies
 
-        // Wave system - tuned to reach real pressure sooner
+        // Wave system - kill-based progression
         this.currentWave = 1;
         this.waveTimer = 0;
-        this.waveDuration = 40; // Slightly shorter than before so the run escalates earlier
+        this.waveDuration = 40; // Keep for compatibility
         this.waveProgress = 0;
+        this.waveEnemyCount = 0; // Enemies spawned in current wave
+        this.waveEnemyTarget = 0; // Target enemies for current wave
+        this.waveEnemiesKilled = 0; // Enemies killed in current wave
+        this.waveInProgress = false; // Whether wave is actively spawning
+        this.waveComplete = false; // Whether wave is complete (waiting for all kills)
+        
+        // Wave composition tracking
+        this.waveComposition = {
+            basic: 0,
+            fast: 0,
+            tank: 0,
+            ranged: 0,
+            elite: 0,
+            berserker: 0,
+            summoner: 0,
+            juggernaut: 0
+        };
+        
+        // Cumulative caps for special enemies
+        this.cumulativeCaps = {
+            elite: 0,
+            berserker: 0,
+            summoner: 0,
+            juggernaut: 0
+        };
 
         // Difficulty scaling - PROGRESSIVE CHALLENGE
         this.difficultyMultiplier = 1.0;
@@ -117,13 +142,16 @@ export class EnemySystem {
     }
 
     update(dt) {
-        // Update wave timer
+        // Update wave timer (for compatibility, but not used for wave transition)
         this.waveTimer += dt;
-        this.waveProgress = this.waveTimer / this.waveDuration;
+        this.waveProgress = this.waveEnemiesKilled / Math.max(1, this.waveEnemyTarget);
 
-        // Check for wave transition
-        if (this.waveTimer >= this.waveDuration) {
-            this.nextWave();
+        // Check if wave is complete (all enemies killed)
+        if (this.waveInProgress && this.waveEnemiesKilled >= this.waveEnemyTarget && this.activeEnemies.length === 0) {
+            this.waveComplete = true;
+            this.waveInProgress = false;
+            // Start next wave after a short delay
+            setTimeout(() => this.nextWave(), 2000);
         }
 
         // Update difficulty
@@ -345,6 +373,12 @@ export class EnemySystem {
 
     updateSpawning(dt) {
         if (!this.game.player || !this.game.player.isAlive()) return;
+        
+        // Only spawn if wave is in progress and not complete
+        if (!this.waveInProgress || this.waveComplete) return;
+        
+        // Check if we've reached the target enemy count for this wave
+        if (this.waveEnemyCount >= this.waveEnemyTarget) return;
 
         const challengeMult = this.spawnRateMultiplier || 1.0;
         let effectiveSpawnRate = this.spawnRate * this.surgeSpawnMultiplier * this.getSpawnThrottle() * challengeMult;
@@ -382,18 +416,8 @@ export class EnemySystem {
     }
 
     spawnEnemyWave() {
-        const timeMinutes = this.game.gameTime / 60;
-        const difficultyBonus = Math.min(Math.floor(Math.max(0, this.difficultyMultiplier - 1) / 3), 2);
-        const earlyPressureBonus = this.currentWave >= 2 ? 1 : 0;
-        const waveBonus = this.currentWave >= 5 ? 1 : 0;
-        const timeBonus = timeMinutes >= 6 ? Math.min(1 + Math.floor((timeMinutes - 6) / 5), 2) : 0;
-        const surgeBonus = this.pressureSurgeActive ? 1 : 0;
-        const availableSlots = Math.max(0, this.maxActiveEnemies - this.activeEnemies.length);
-        const spawnCount = Math.min(
-            1 + earlyPressureBonus + waveBonus + difficultyBonus + timeBonus + surgeBonus,
-            6,
-            availableSlots
-        );
+        const availableSlots = Math.max(0, this.waveEnemyTarget - this.waveEnemyCount);
+        const spawnCount = Math.min(5, availableSlots); // Spawn up to 5 enemies at a time
 
         if (spawnCount <= 0) return;
 
@@ -404,9 +428,10 @@ export class EnemySystem {
 
     spawnSingleEnemy() {
         if (this.activeEnemies.length >= this.maxActiveEnemies) return;
+        if (this.waveEnemyCount >= this.waveEnemyTarget) return;
 
-        // Choose enemy type
-        const enemyType = this.chooseEnemyType();
+        // Choose enemy type based on wave composition
+        const enemyType = this.chooseEnemyTypeForWave();
 
         // Choose spawn pattern
         const pattern = this.chooseSpawnPattern();
@@ -458,8 +483,132 @@ export class EnemySystem {
         }
 
         this.activeEnemies.push(enemy);
+        this.waveEnemyCount++;
     }
 
+    chooseEnemyTypeForWave() {
+        // Calculate wave composition based on current wave
+        const composition = this.calculateWaveComposition();
+        
+        // Check which enemy types still need to be spawned
+        const needed = [];
+        for (const [type, count] of Object.entries(composition)) {
+            const current = this.waveComposition[type] || 0;
+            if (current < count) {
+                needed.push({ type, remaining: count - current });
+            }
+        }
+        
+        // If all special enemies are spawned, use basic/fast
+        if (needed.length === 0) {
+            return Math.random() < 0.5 ? 'basic' : 'fast';
+        }
+        
+        // Randomly pick from needed types
+        const totalNeeded = needed.reduce((sum, n) => sum + n.remaining, 0);
+        let random = Math.random() * totalNeeded;
+        
+        for (const { type, remaining } of needed) {
+            random -= remaining;
+            if (random <= 0) {
+                this.waveComposition[type] = (this.waveComposition[type] || 0) + 1;
+                return type;
+            }
+        }
+        
+        return 'basic';
+    }
+    
+    calculateWaveComposition() {
+        const wave = this.currentWave;
+        let totalEnemies;
+        
+        // Calculate total enemies for this wave
+        if (wave <= 5) {
+            totalEnemies = 30 + (wave - 1) * 10; // 30, 40, 50, 60, 70
+        } else if (wave === 6) {
+            totalEnemies = 80;
+        } else {
+            totalEnemies = Math.min(80 + (wave - 6) * 20, 240); // +20 per wave, max 240
+        }
+        
+        const composition = { basic: 0, fast: 0, tank: 0, ranged: 0, elite: 0, berserker: 0, summoner: 0, juggernaut: 0 };
+        
+        // Wave 1-5: Only basic and fast
+        if (wave <= 5) {
+            composition.basic = Math.floor(totalEnemies * 0.5);
+            composition.fast = totalEnemies - composition.basic;
+            return composition;
+        }
+        
+        // Wave 6+: Add tank and ranged (25% of total)
+        if (wave >= 6) {
+            const tankRangedCount = Math.floor(totalEnemies * 0.25);
+            composition.tank = Math.floor(tankRangedCount * 0.5);
+            composition.ranged = tankRangedCount - composition.tank;
+        }
+        
+        // Wave 7+: Add elite and berserker (cumulative cap: 120 total)
+        if (wave === 7) {
+            composition.elite = 4;
+            composition.berserker = 4;
+        } else if (wave > 7) {
+            const currentElite = this.cumulativeCaps.elite;
+            const currentBerserker = this.cumulativeCaps.berserker;
+            const currentTotal = currentElite + currentBerserker;
+            
+            // Each wave adds 2 elite + 2 berserker (4 total), capped at 120
+            const newTotal = Math.min(currentTotal + 4, 120);
+            const toAdd = newTotal - currentTotal;
+            
+            if (toAdd > 0) {
+                composition.elite = Math.floor(toAdd * 0.5); // 2 per wave
+                composition.berserker = toAdd - composition.elite; // 2 per wave
+            }
+        }
+        
+        // Wave 8+: Add summoner and juggernaut (cumulative cap: 100 total)
+        if (wave === 8) {
+            composition.summoner = 3;
+            composition.juggernaut = 2;
+        } else if (wave > 8) {
+            const currentSummoner = this.cumulativeCaps.summoner;
+            const currentJuggernaut = this.cumulativeCaps.juggernaut;
+            const currentTotal = currentSummoner + currentJuggernaut;
+            
+            // Each wave adds 2 summoner + 2 juggernaut (4 total), capped at 100
+            const newTotal = Math.min(currentTotal + 4, 100);
+            const toAdd = newTotal - currentTotal;
+            
+            if (toAdd > 0) {
+                composition.summoner = Math.floor(toAdd * 0.5); // 2 per wave
+                composition.juggernaut = toAdd - composition.summoner; // 2 per wave
+            }
+        }
+        
+        // Check if special enemies reached caps
+        const specialCount = composition.tank + composition.ranged + composition.elite + 
+                            composition.berserker + composition.summoner + composition.juggernaut;
+        
+        // If special enemies reached caps, don't spawn basic/fast
+        if (specialCount >= totalEnemies) {
+            composition.basic = 0;
+            composition.fast = 0;
+        } else {
+            const basicFastCount = totalEnemies - specialCount;
+            composition.basic = Math.floor(basicFastCount * 0.5);
+            composition.fast = basicFastCount - composition.basic;
+        }
+        
+        return composition;
+    }
+    
+    onEnemyKilled(enemyType) {
+        if (!this.waveInProgress) return;
+        
+        this.waveEnemiesKilled++;
+    }
+    
     chooseEnemyType() {
         // Filter types available for current wave
         const availableTypes = Object.entries(this.enemyTypes).filter(
@@ -738,6 +887,34 @@ export class EnemySystem {
         this.waveTimer = 0;
         this.waveProgress = 0;
         this.auraEliteThisWave = false; // allow one new aura elite in the new wave
+        
+        // Reset wave tracking
+        this.waveEnemyCount = 0;
+        this.waveEnemiesKilled = 0;
+        this.waveComplete = false;
+        this.waveInProgress = true;
+        
+        // Reset wave composition
+        this.waveComposition = {
+            basic: 0,
+            fast: 0,
+            tank: 0,
+            ranged: 0,
+            elite: 0,
+            berserker: 0,
+            summoner: 0,
+            juggernaut: 0
+        };
+        
+        // Calculate target enemy count for this wave
+        const composition = this.calculateWaveComposition();
+        this.waveEnemyTarget = Object.values(composition).reduce((sum, count) => sum + count, 0);
+
+        // Update cumulative caps after calculating composition
+        this.cumulativeCaps.elite += composition.elite;
+        this.cumulativeCaps.berserker += composition.berserker;
+        this.cumulativeCaps.summoner += composition.summoner;
+        this.cumulativeCaps.juggernaut += composition.juggernaut;
 
         // Wave pacing — set type and duration for this wave
         this.waveType = this.getWaveType(this.currentWave);
@@ -1143,6 +1320,36 @@ export class EnemySystem {
         this.waveType = 'normal';
         this.enemySpeedMultiplier = 1.0;
         this.waveDuration = 40;
+        
+        // Reset wave tracking
+        this.waveEnemyCount = 0;
+        this.waveEnemiesKilled = 0;
+        this.waveComplete = false;
+        this.waveInProgress = true; // Start first wave immediately
+        
+        // Reset wave composition
+        this.waveComposition = {
+            basic: 0,
+            fast: 0,
+            tank: 0,
+            ranged: 0,
+            elite: 0,
+            berserker: 0,
+            summoner: 0,
+            juggernaut: 0
+        };
+        
+        // Reset cumulative caps
+        this.cumulativeCaps = {
+            elite: 0,
+            berserker: 0,
+            summoner: 0,
+            juggernaut: 0
+        };
+        
+        // Calculate target for first wave
+        const composition = this.calculateWaveComposition();
+        this.waveEnemyTarget = Object.values(composition).reduce((sum, count) => sum + count, 0);
     }
 
     /**

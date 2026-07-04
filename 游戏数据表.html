@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>吸血鬼幸存者 - 游戏数据表</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #8B0000;
+            text-align: center;
+            border-bottom: 3px solid #8B0000;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2c3e50;
+            margin-top: 40px;
+            border-left: 5px solid #8B0000;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #8B0000;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        tr:hover {
+            background: #f0f0f0;
+        }
+        .character-card {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .character-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #8B0000;
+            margin-bottom: 10px;
+        }
+        .character-title {
+            font-style: italic;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            background: #ecf0f1;
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+        .stat-label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-value {
+            color: #8B0000;
+        }
+        .unlock-condition {
+            background: #fff3cd;
+            padding: 10px;
+            border-left: 4px solid #ffc107;
+            margin-top: 15px;
+        }
+        .enemy-type {
+            background: white;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid #8B0000;
+        }
+        .enemy-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #8B0000;
+            margin-bottom: 10px;
+        }
+        .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #333;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        .note {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #2196F3;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧛 吸血鬼幸存者 - 游戏数据表</h1>
+    
+    <div class="note">
+        <strong>说明：</strong>本文档包含游戏中所有角色和敌人的详细数据。可以用 Microsoft Word 打开此文件，数据将以表格形式呈现。
+    </div>
+
+    <h2>一、可玩角色数据</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>角色名称</th>
+                <th>称号</th>
+                <th>初始武器</th>
+                <th>描述</th>
+                <th>属性修正</th>
+                <th>解锁条件</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>安东尼奥</strong></td>
+                <td>吸血鬼猎人</td>
+                <td>鞭子</td>
+                <td>均衡战士，伤害加成</td>
+                <td>伤害 +10%</td>
+                <td>默认解锁</td>
+            </tr>
+            <tr>
+                <td><strong>伊梅尔达</strong></td>
+                <td>学者</td>
+                <td>魔法飞弹</td>
+                <td>经验获取更快，脆弱但强力</td>
+                <td>幸运 +15%，生命 -10%</td>
+                <td>单局达到15级</td>
+            </tr>
+            <tr>
+                <td><strong>詹纳罗</strong></td>
+                <td>盗贼</td>
+                <td>飞刀</td>
+                <td>快速致命，开局多一发弹药</td>
+                <td>速度 +12%，弹药 +1</td>
+                <td>单局击杀500个敌人</td>
+            </tr>
+            <tr>
+                <td><strong>莫蒂默</strong></td>
+                <td>火焰法师</td>
+                <td>火焰法杖</td>
+                <td>火焰大师，爆炸范围更大但行动迟缓</td>
+                <td>范围 +20%，速度 -5%</td>
+                <td>生存10分钟</td>
+            </tr>
+            <tr>
+                <td><strong>塞拉</strong></td>
+                <td>守护者</td>
+                <td>大蒜光环</td>
+                <td>坚韧的防御者，天生强韧</td>
+                <td>生命 +15%，伤害 -5%</td>
+                <td>累计击杀1000个敌人</td>
+            </tr>
+            <tr>
+                <td><strong>但丁</strong></td>
+                <td>风暴召唤者</td>
+                <td>连锁闪电</td>
+                <td>快速连锁闪电，伤害较低但冷却更快</td>
+                <td>冷却 -15%，伤害 -8%</td>
+                <td>达成50连击</td>
+            </tr>
+            <tr>
+                <td><strong>露娜</strong></td>
+                <td>女祭司</td>
+                <td>圣经</td>
+                <td>受月亮祝福，额外弹药和幸运</td>
+                <td>弹药 +1，幸运 +10%</td>
+                <td>完成10局游戏</td>
+            </tr>
+            <tr>
+                <td><strong>维克多</strong></td>
+                <td>冰霜法师</td>
+                <td>冰晶碎片</td>
+                <td>冰冻范围更广，在寒冷中谨慎前行</td>
+                <td>范围 +15%，速度 -10%</td>
+                <td>生存15分钟</td>
+            </tr>
+            <tr>
+                <td><strong>尼克斯</strong></td>
+                <td>刺客</td>
+                <td>暗影匕首</td>
+                <td>致命精准，玻璃大炮——高伤害低血量</td>
+                <td>伤害 +15%，生命 -15%</td>
+                <td>单局击杀1000个敌人</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>二、玩家基础属性</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>属性名称</th>
+                <th>初始值</th>
+                <th>说明</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>最大生命值</td>
+                <td>500</td>
+                <td>角色的最大生命值</td>
+            </tr>
+            <tr>
+                <td>移动速度</td>
+                <td>100 像素/秒</td>
+                <td>基础移动速度</td>
+            </tr>
+            <tr>
+                <td>加速度</td>
+                <td>500</td>
+                <td>移动加速速率</td>
+            </tr>
+            <tr>
+                <td>减速度</td>
+                <td>800</td>
+                <td>移动减速速率</td>
+            </tr>
+            <tr>
+                <td>初始等级</td>
+                <td>1</td>
+                <td>游戏开始时的等级</td>
+            </tr>
+            <tr>
+                <td>初始经验</td>
+                <td>0</td>
+                <td>游戏开始时的经验值</td>
+            </tr>
+            <tr>
+                <td>升级所需经验</td>
+                <td>100</td>
+                <td>从1级升到2级所需经验</td>
+            </tr>
+            <tr>
+                <td>无敌时间</td>
+                <td>1.0 秒</td>
+                <td>受击后的无敌时间</td>
+            </tr>
+            <tr>
+                <td>最大武器数</td>
+                <td>6</td>
+                <td>可同时装备的武器数量</td>
+            </tr>
+            <tr>
+                <td>连击时间窗口</td>
+                <td>3.0 秒</td>
+                <td>维持连击的时间间隔</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>三、普通敌人数据</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>敌人类型</th>
+                <th>生命值</th>
+                <th>移动速度</th>
+                <th>伤害</th>
+                <th>体积</th>
+                <th>经验奖励</th>
+                <th>攻击范围</th>
+                <th>攻击冷却</th>
+                <th>特殊能力</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>普通怪物</strong></td>
+                <td>28</td>
+                <td>50</td>
+                <td>11</td>
+                <td>8</td>
+                <td>5</td>
+                <td>20</td>
+                <td>1.0秒</td>
+                <td>无</td>
+            </tr>
+            <tr>
+                <td><strong>迅捷怪</strong></td>
+                <td>20</td>
+                <td>100</td>
+                <td>9</td>
+                <td>6</td>
+                <td>4</td>
+                <td>15</td>
+                <td>0.8秒</td>
+                <td>高速移动</td>
+            </tr>
+            <tr>
+                <td><strong>重装怪</strong></td>
+                <td>70</td>
+                <td>30</td>
+                <td>27</td>
+                <td>14</td>
+                <td>12</td>
+                <td>25</td>
+                <td>2.0秒</td>
+                <td>高生命高伤害</td>
+            </tr>
+            <tr>
+                <td><strong>远程怪</strong></td>
+                <td>24</td>
+                <td>40</td>
+                <td>11</td>
+                <td>7</td>
+                <td>8</td>
+                <td>100</td>
+                <td>2.0秒</td>
+                <td>远程攻击</td>
+            </tr>
+            <tr>
+                <td><strong>精英怪</strong></td>
+                <td>110</td>
+                <td>105</td>
+                <td>32</td>
+                <td>16</td>
+                <td>20</td>
+                <td>30</td>
+                <td>1.2秒</td>
+                <td>护盾/传送/治疗/爆炸</td>
+            </tr>
+            <tr>
+                <td><strong>狂战士</strong></td>
+                <td>80</td>
+                <td>50</td>
+                <td>25</td>
+                <td>14</td>
+                <td>25</td>
+                <td>25</td>
+                <td>0.8秒</td>
+                <td>生命值低于50%时狂暴</td>
+            </tr>
+            <tr>
+                <td><strong>召唤师</strong></td>
+                <td>60</td>
+                <td>30</td>
+                <td>18</td>
+                <td>12</td>
+                <td>30</td>
+                <td>150</td>
+                <td>3.0秒</td>
+                <td>每4秒召唤小怪</td>
+            </tr>
+            <tr>
+                <td><strong>主宰者</strong></td>
+                <td>200</td>
+                <td>22</td>
+                <td>35</td>
+                <td>20</td>
+                <td>50</td>
+                <td>35</td>
+                <td>2.5秒</td>
+                <td>范围80的冲击波</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>四、特殊敌人数据</h2>
+    
+    <h3>4.1 怨灵 (Wraith)</h3>
+    <div class="enemy-type">
+        <div class="enemy-name">怨灵 <span class="color-box" style="background: #9370DB;"></span></div>
+        <table>
+            <tr>
+                <td><strong>生命值</strong></td>
+                <td>35</td>
+                <td><strong>移动速度</strong></td>
+                <td>45（相位模式：90）</td>
+            </tr>
+            <tr>
+                <td><strong>伤害</strong></td>
+                <td>15</td>
+                <td><strong>体积</strong></td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td><strong>经验奖励</strong></td>
+                <td>12</td>
+                <td><strong>攻击范围</strong></td>
+                <td>25</td>
+            </tr>
+            <tr>
+                <td><strong>攻击冷却</strong></td>
+                <td>1.5秒</td>
+                <td><strong>相位持续时间</strong></td>
+                <td>2.0秒</td>
+            </tr>
+            <tr>
+                <td><strong>相位冷却</strong></td>
+                <td>4.0秒</td>
+                <td><strong>透明度</strong></td>
+                <td>0.8（相位：0.3）</td>
+            </tr>
+        </table>
+        <p><strong>特殊能力：</strong></p>
+        <ul>
+            <li><strong>相位模式：</strong>可以穿过墙壁，免疫伤害，移动速度翻倍</li>
+            <li><strong>幽灵漂浮：</strong>上下漂浮的动画效果</li>
+            <li><strong>幽灵攻击：</strong>穿透防御的幽灵之触</li>
+            <li><strong>相位残影：</strong>相位移动时留下残影轨迹</li>
+        </ul>
+    </div>
+
+    <h3>4.2 恶魔 (Demon)</h3>
+    <div class="enemy-type">
+        <div class="enemy-name">恶魔 <span class="color-box" style="background: #DC143C;"></span></div>
+        <table>
+            <tr>
+                <td><strong>生命值</strong></td>
+                <td>80</td>
+                <td><strong>移动速度</strong></td>
+                <td>40</td>
+            </tr>
+            <tr>
+                <td><strong>伤害</strong></td>
+                <td>30（狂暴模式：60）</td>
+                <td><strong>体积</strong></td>
+                <td>16</td>
+            </tr>
+            <tr>
+                <td><strong>经验奖励</strong></td>
+                <td>20</td>
+                <td><strong>攻击范围</strong></td>
+                <td>30（近战）/ 150（火球）</td>
+            </tr>
+            <tr>
+                <td><strong>攻击冷却</strong></td>
+                <td>1.2秒（狂暴：0.67秒）</td>
+                <td><strong>狂暴阈值</strong></td>
+                <td>30%生命值</td>
+            </tr>
+            <tr>
+                <td><strong>范围攻击范围</strong></td>
+                <td>100</td>
+                <td><strong>范围攻击冷却</strong></td>
+                <td>3.0秒</td>
+            </tr>
+            <tr>
+                <td><strong>火球冷却</strong></td>
+                <td>2.0秒</td>
+                <td><strong>燃烧持续时间</strong></td>
+                <td>3.0秒</td>
+            </tr>
+        </table>
+        <p><strong>特殊能力：</strong></p>
+        <ul>
+            <li><strong>狂暴模式：</strong>生命值低于30%时进入，伤害+80%，速度+80%，攻击速度+80%</li>
+            <li><strong>范围攻击：</strong>蓄力1.5秒后对范围100内造成1.5倍伤害</li>
+            <li><strong>火球攻击：</strong>发射火球造成80%近战伤害，附带3秒燃烧效果</li>
+            <li><strong>近战攻击：</strong>爪击附带击退效果（狂暴模式击退更强）</li>
+            <li><strong>领地行为：</strong>在出生点120范围内巡逻</li>
+        </ul>
+    </div>
+
+    <h2>五、难度缩放说明</h2>
+    <div class="note">
+        <p><strong>敌人属性随游戏时间缩放：</strong></p>
+        <ul>
+            <li>所有敌人的属性会根据游戏时间进行难度缩放</li>
+            <li>缩放公式：<code>实际属性 = 基础属性 × 难度倍数</code></li>
+            <li>难度倍数随游戏时间递增</li>
+            <li>伤害有上限保护：前10分钟内，敌人伤害最高为玩家最大生命值的40%-60%</li>
+            <li>10分钟后，伤害上限提升到70%</li>
+        </ul>
+    </div>
+
+    <h2>六、角色属性修正详解</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>属性名称</th>
+                <th>说明</th>
+                <th>影响范围</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>伤害 (damage)</td>
+                <td>伤害倍率</td>
+                <td>所有武器伤害</td>
+            </tr>
+            <tr>
+                <td>速度 (speed)</td>
+                <td>移动速度倍率</td>
+                <td>角色移动速度</td>
+            </tr>
+            <tr>
+                <td>生命 (health)</td>
+                <td>生命值倍率</td>
+                <td>最大生命值</td>
+            </tr>
+            <tr>
+                <td>幸运 (luck)</td>
+                <td>经验/掉落倍率</td>
+                <td>经验获取和掉落概率</td>
+            </tr>
+            <tr>
+                <td>范围 (area)</td>
+                <td>武器范围倍率</td>
+                <td>武器攻击范围</td>
+            </tr>
+            <tr>
+                <td>冷却 (cooldown)</td>
+                <td>武器冷却倍率</td>
+                <td>武器攻击间隔</td>
+            </tr>
+            <tr>
+                <td>持续时间 (duration)</td>
+                <td>武器持续时间倍率</td>
+                <td>武器效果持续时间</td>
+            </tr>
+            <tr>
+                <td>弹药 (projectiles)</td>
+                <td>额外弹药数量</td>
+                <td>武器发射的弹丸数量</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note" style="margin-top: 40px;">
+        <p><strong>文档生成时间：</strong>2026年</p>
+        <p><strong>游戏版本：</strong>吸血鬼幸存者加强版 v1.0.0</p>
+        <p><strong>提示：</strong>可以用 Microsoft Word 打开此 HTML 文件，所有表格将自动转换为 Word 表格格式。</p>
+    </div>
+</body>
+</html>

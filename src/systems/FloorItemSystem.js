@@ -25,10 +25,10 @@ export class FloorItemSystem {
     // ── Static item definitions ─────────────────────────────────────────────
     getItemDef(type) {
         const defs = {
-            health_orb:     { color: '#44FF88', glow: 'rgba(68,255,136,0.55)',  size: 10, symbol: '♥', label: 'Health Orb'  },
-            vacuum:         { color: '#FFD700', glow: 'rgba(255,215,0,0.55)',   size: 11, symbol: '◎', label: 'Vacuum'      },
-            rosary:         { color: '#E8E8FF', glow: 'rgba(200,200,255,0.65)', size: 11, symbol: '✦', label: 'Rosary'      },
-            treasure_chest: { color: '#DAA520', glow: 'rgba(218,165,32,0.55)', size: 15, symbol: '⊞', label: 'Chest'       }
+            health_orb:     { color: '#44FF88', glow: 'rgba(68,255,136,0.55)',  size: 10, symbol: '♥', label: '生命宝珠'  },
+            vacuum:         { color: '#FFD700', glow: 'rgba(255,215,0,0.55)',   size: 11, symbol: '◎', label: '吸尘宝珠'      },
+            rosary:         { color: '#E8E8FF', glow: 'rgba(200,200,255,0.65)', size: 11, symbol: '✦', label: '念珠'      },
+            treasure_chest: { color: '#DAA520', glow: 'rgba(218,165,32,0.55)', size: 15, symbol: '⊞', label: '宝箱'       }
         };
         return defs[type] || null;
     }
@@ -39,7 +39,7 @@ export class FloorItemSystem {
             case 'health_orb': {
                 const heal = Math.round(player.maxHealth * (0.15 + Math.random() * 0.10));
                 player.health = Math.min(player.maxHealth, player.health + heal);
-                player.addDamageNumber(`+${heal} HP`, '#44FF88', '');
+                player.addDamageNumber(`+${heal} 生命`, '#44FF88', '');
                 if (this.game.camera) this.game.camera.shake(2, 0.15);
                 break;
             }
@@ -50,7 +50,7 @@ export class FloorItemSystem {
                     exp.magnetizeAllGems();
                     if (exp.activateGlobalMagnet) exp.activateGlobalMagnet(3.0);
                 }
-                player.addDamageNumber('VACUUM!', '#FFD700', '');
+                player.addDamageNumber('吸尘！', '#FFD700', '');
                 break;
             }
 
@@ -68,7 +68,7 @@ export class FloorItemSystem {
                     enemy.takeDamage(999999, this, false);
                     killed++;
                 }
-                player.addDamageNumber('HOLY SMITE!', '#F0F0FF', '');
+                player.addDamageNumber('神圣制裁！', '#F0F0FF', '');
                 if (this.game.camera) this.game.camera.shake(10, 0.5);
                 // White screen flash
                 if (this.game.camera && this.game.camera.flash)
@@ -106,13 +106,13 @@ export class FloorItemSystem {
                     Math.ceil(value / 8)
                 );
             }
-            player.addDamageNumber(`+${value} Gold`, '#FFD700', '');
+            player.addDamageNumber(`+${value} 金币`, '#FFD700', '');
         } else if (roll < 0.82) {
             // Random stat upgrade
             const stats = ['damage', 'speed', 'health', 'luck', 'area', 'cooldown'];
             const stat  = stats[Math.floor(Math.random() * stats.length)];
             this.game.applyStatUpgrade(stat);
-            player.addDamageNumber('STAT BOOST!', '#AA88FF', '');
+            player.addDamageNumber('属性提升！', '#AA88FF', '');
         } else {
             // Free weapon level (random non-evolved weapon that isn't max level)
             const weapons = Array.from(player.weapons.values())
@@ -120,14 +120,14 @@ export class FloorItemSystem {
             if (weapons.length > 0) {
                 const w = weapons[Math.floor(Math.random() * weapons.length)];
                 this.game.player.upgradeWeapon(w.id);
-                player.addDamageNumber(`${w.name} LEVEL UP!`, '#00FFFF', '');
+                player.addDamageNumber(`${w.name} 升级！`, '#00FFFF', '');
             } else {
                 // Fallback: gold
                 if (gold) {
                     for (let i = 0; i < 5; i++)
                         gold.spawnCoin(player.x, player.y, 30);
                 }
-                player.addDamageNumber('+150 Gold', '#FFD700', '');
+                player.addDamageNumber('+150 金币', '#FFD700', '');
             }
         }
 

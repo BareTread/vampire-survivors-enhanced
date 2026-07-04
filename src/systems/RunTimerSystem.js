@@ -92,7 +92,7 @@ export class RunTimerSystem {
         // Floating text
         const player = this.game.player;
         if (player && globalDamageNumberPool) {
-            globalDamageNumberPool.spawn(player.x, player.y - 60, 'DEATH APPROACHES...', '#FF0000', 'WARNING');
+            globalDamageNumberPool.spawn(player.x, player.y - 60, '死亡将至...', '#FF0000', 'WARNING');
         }
     }
 
@@ -127,7 +127,7 @@ export class RunTimerSystem {
         }
 
         if (globalDamageNumberPool) {
-            globalDamageNumberPool.spawn(player.x, player.y - 80, 'DEATH HAS ARRIVED', '#FF0000', 'BOSS');
+            globalDamageNumberPool.spawn(player.x, player.y - 80, '死亡已降临', '#FF0000', 'BOSS');
         }
     }
 
@@ -174,7 +174,7 @@ export class RunTimerSystem {
         const killRange = death.size + player.size;
         if (dist < killRange) {
             // Set damage source before killing
-            player.lastDamageSource = { type: 'death', name: 'Death', damage: 9999, time: this.runTime };
+            player.lastDamageSource = { type: 'death', name: '死亡', damage: 9999, time: this.runTime };
 
             // Instant kill
             player.health = 0;
@@ -189,7 +189,7 @@ export class RunTimerSystem {
             }
 
             if (globalDamageNumberPool) {
-                globalDamageNumberPool.spawn(player.x, player.y - 40, 'CLAIMED BY DEATH', '#FF0000', 'DEATH');
+                globalDamageNumberPool.spawn(player.x, player.y - 40, '被死亡带走', '#FF0000', 'DEATH');
             }
         }
     }
@@ -246,7 +246,7 @@ export class RunTimerSystem {
             ctx.font = 'bold 14px "Courier New", monospace';
             ctx.fillStyle = '#FF3333';
             ctx.shadowBlur = 12;
-            ctx.fillText('DEATH APPROACHES...', cx, pillY + pillH + 16);
+            ctx.fillText('死亡将至...', cx, pillY + pillH + 16);
         }
 
         ctx.restore();

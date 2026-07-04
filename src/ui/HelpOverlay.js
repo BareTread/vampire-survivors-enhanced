@@ -36,53 +36,53 @@ export class HelpOverlay {
         
         this.element.innerHTML = `
             <h2 style="color: #FFD700; text-align: center; margin-bottom: 20px;">
-                🎮 Game Controls
+                🎮 游戏操作
             </h2>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Movement</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">移动操作</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
-                    <span style="color: #AAA;">WASD / Arrows</span>
-                    <span>Move character</span>
-                    <span style="color: #AAA;">Mouse</span>
-                    <span>Aim direction</span>
+                    <span style="color: #AAA;">WASD / 方向键</span>
+                    <span>移动角色</span>
+                    <span style="color: #AAA;">鼠标</span>
+                    <span>瞄准方向</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Game Controls</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">游戏控制</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
                     <span style="color: #AAA;">ESC</span>
-                    <span>Pause/Resume</span>
+                    <span>暂停/继续</span>
                     <span style="color: #AAA;">F1</span>
-                    <span>Settings Menu</span>
+                    <span>设置菜单</span>
                     <span style="color: #AAA;">1-5</span>
-                    <span>Select upgrade option</span>
+                    <span>选择升级选项</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Debug Tools</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">调试工具</h3>
                 <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px;">
                     <span style="color: #AAA;">Shift + D</span>
-                    <span>Projectile Debug Overlay</span>
+                    <span>弹药调试面板</span>
                     <span style="color: #AAA;">F4 / G</span>
-                    <span>General Debug Info</span>
+                    <span>通用调试信息</span>
                     <span style="color: #AAA;">F5</span>
-                    <span>Progression Telemetry</span>
+                    <span>进度遥测数据</span>
                     <span style="color: #AAA;">F2</span>
-                    <span>Performance Dashboard</span>
+                    <span>性能仪表盘</span>
                 </div>
             </div>
             
             <div style="margin-bottom: 25px;">
-                <h3 style="color: #FF6B6B; margin-bottom: 10px;">Tips</h3>
+                <h3 style="color: #FF6B6B; margin-bottom: 10px;">游戏提示</h3>
                 <ul style="margin: 0; padding-left: 20px; color: #CCC;">
-                    <li>Weapons auto-fire at nearest enemies</li>
-                    <li>Collect green gems to level up</li>
-                    <li>Survive as long as possible!</li>
-                    <li>Enemies get stronger over time</li>
-                    <li>Critical hits deal 2x damage</li>
+                    <li>武器自动攻击最近的敌人</li>
+                    <li>收集绿色宝石来升级</li>
+                    <li>尽可能长时间生存！</li>
+                    <li>敌人会随时间变得更强</li>
+                    <li>暴击造成2倍伤害</li>
                 </ul>
             </div>
             
@@ -96,7 +96,7 @@ export class HelpOverlay {
                     border-radius: 5px;
                     cursor: pointer;
                     font-weight: bold;
-                ">Close (H)</button>
+                ">关闭 (H)</button>
             </div>
         `;
         

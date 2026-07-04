@@ -4,8 +4,8 @@ export class MagicMissile extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'magic_missile',
-            name: 'Magic Missile',
-            description: 'Automatically fires homing projectiles at nearby enemies',
+            name: '魔法飞弹',
+            description: '自动向附近敌人发射追踪弹',
             type: 'projectile',
             damage: 10,
             cooldown: 1.2,

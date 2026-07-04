@@ -54,7 +54,7 @@ export class BossSystem {
     _createBossDefinitions() {
         return {
             vampire_lord: {
-                name: 'Vampire Lord',
+                name: '吸血鬼领主',
                 color: '#8B0000',
                 glowColor: '#FF0000',
                 size: 32,
@@ -75,7 +75,7 @@ export class BossSystem {
                 }
             },
             lich: {
-                name: 'Lich King',
+                name: '巫妖之王',
                 color: '#2E0854',
                 glowColor: '#9B59B6',
                 size: 30,
@@ -96,7 +96,7 @@ export class BossSystem {
                 }
             },
             werewolf: {
-                name: 'Alpha Werewolf',
+                name: '狼王',
                 color: '#4A3728',
                 glowColor: '#FF8C00',
                 size: 34,

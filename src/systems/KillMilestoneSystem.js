@@ -19,7 +19,7 @@ export class KillMilestoneSystem {
         this.milestones = [
             {
                 threshold: 100,
-                label: '100 KILLS!',
+                label: '击杀100！',
                 reward: 'speedBoost',
                 rewardDuration: 5,
                 gemCount: 8,
@@ -27,7 +27,7 @@ export class KillMilestoneSystem {
             },
             {
                 threshold: 250,
-                label: '250 KILLS!',
+                label: '击杀250！',
                 reward: 'damageBoost',
                 rewardDuration: 6,
                 gemCount: 12,
@@ -35,7 +35,7 @@ export class KillMilestoneSystem {
             },
             {
                 threshold: 500,
-                label: '500 KILLS!',
+                label: '击杀500！',
                 reward: 'fireRateBoost',
                 rewardDuration: 8,
                 gemCount: 16,
@@ -43,7 +43,7 @@ export class KillMilestoneSystem {
             },
             {
                 threshold: 1000,
-                label: '1000 KILLS!',
+                label: '击杀1000！',
                 reward: 'damageBoost',
                 rewardDuration: 10,
                 gemCount: 24,
@@ -51,7 +51,7 @@ export class KillMilestoneSystem {
             },
             {
                 threshold: 2500,
-                label: '2500 KILLS!',
+                label: '击杀2500！',
                 reward: 'invincible',
                 rewardDuration: 5,
                 gemCount: 32,
@@ -59,7 +59,7 @@ export class KillMilestoneSystem {
             },
             {
                 threshold: 5000,
-                label: '5000 KILLS!',
+                label: '击杀5000！',
                 reward: 'damageBoost',
                 rewardDuration: 12,
                 gemCount: 48,

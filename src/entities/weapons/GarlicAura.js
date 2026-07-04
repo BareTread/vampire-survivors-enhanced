@@ -4,8 +4,8 @@ export class GarlicAura extends BaseWeapon {
     constructor(game, player, config = {}) {
         const weaponConfig = {
             id: 'garlic_aura',
-            name: 'Garlic Aura',
-            description: 'Damages nearby enemies with a pulsing aura of garlic essence',
+            name: '大蒜光环',
+            description: '脉动大蒜光环伤害附近敌人',
             type: 'aura',
             damage: 4,
             cooldown: 0.6, // Tick rate — NOT weapon cooldown in the traditional sense

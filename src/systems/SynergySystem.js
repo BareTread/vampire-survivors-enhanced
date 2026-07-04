@@ -27,12 +27,12 @@ export class SynergySystem {
         this.synergies = [
             {
                 id: 'storms_fury',
-                name: "Storm's Fury",
+                name: '风暴之怒',
                 icon: '⚡',
                 color: '#7DF9FF',
                 weaponId: 'lightning_chain',
                 passiveId: 'empty_tome',
-                description: 'Chain Lightning fires 30% faster',
+                description: '连锁闪电发射速度提升30%',
                 apply: (weapon) => {
                     if (!weapon._synergyApplied_storms_fury) {
                         weapon.currentStats.cooldown *= 0.7;
@@ -48,12 +48,12 @@ export class SynergySystem {
             },
             {
                 id: 'gravity_well',
-                name: 'Gravity Well',
+                name: '重力井',
                 icon: '🧲',
                 color: '#9400D3',
                 weaponId: 'garlic_aura',
                 passiveId: 'attractorb',
-                description: 'Aura pulls XP gems 40% farther',
+                description: '光环将经验宝石吸引距离增加40%',
                 apply: (weapon) => {
                     weapon._synergyGemPull = true;
                 },
@@ -63,12 +63,12 @@ export class SynergySystem {
             },
             {
                 id: 'inferno',
-                name: 'Inferno',
+                name: '地狱烈焰',
                 icon: '🔥',
                 color: '#FF4500',
                 weaponId: 'fire_wand',
                 passiveId: 'spinach',
-                description: 'Burn zones 50% larger, +25% burn damage',
+                description: '灼烧范围扩大50%，灼烧伤害提升25%',
                 apply: (weapon) => {
                     if (!weapon._synergyApplied_inferno) {
                         weapon.currentStats.area *= 1.5;
@@ -86,12 +86,12 @@ export class SynergySystem {
             },
             {
                 id: 'blitz_lash',
-                name: 'Blitz Lash',
+                name: '闪电鞭笞',
                 icon: '💨',
                 color: '#60A5FA',
                 weaponId: 'whip',
                 passiveId: 'wings',
-                description: 'Whip does +40% damage while moving',
+                description: '移动时鞭子伤害提升40%',
                 apply: (weapon) => {
                     weapon._synergyMovingBonus = 1.4; // 40% bonus when player is moving
                 },
@@ -101,12 +101,12 @@ export class SynergySystem {
             },
             {
                 id: 'iron_rain',
-                name: 'Iron Rain',
+                name: '铁雨',
                 icon: '🗡️',
                 color: '#A78BFA',
                 weaponId: 'throwing_knife',
                 passiveId: 'armor',
-                description: 'Knives pierce +2 additional enemies',
+                description: '飞刀额外穿透2个敌人',
                 apply: (weapon) => {
                     if (!weapon._synergyApplied_iron_rain) {
                         weapon.currentStats.piercing += 2;
@@ -122,12 +122,12 @@ export class SynergySystem {
             },
             {
                 id: 'barrage',
-                name: 'Barrage',
+                name: '弹雨齐射',
                 icon: '✨',
                 color: '#FBBF24',
                 weaponId: 'magic_missile',
                 passiveId: 'duplicator',
-                description: 'Missiles fire in volleys of +2',
+                description: '飞弹齐射数量+2',
                 apply: (weapon) => {
                     if (!weapon._synergyApplied_barrage) {
                         weapon.currentStats.projectiles += 2;
@@ -143,12 +143,12 @@ export class SynergySystem {
             },
             {
                 id: 'sacred_rotation',
-                name: 'Sacred Rotation',
+                name: '神圣旋转',
                 icon: '📿',
                 color: '#C084FC',
                 weaponId: 'holy_bible',
                 passiveId: 'empty_tome',
-                description: 'Orbiters spin 40% faster',
+                description: '轨道器旋转速度提升40%',
                 apply: (weapon) => {
                     if (!weapon._synergyApplied_sacred_rotation) {
                         if (weapon.orbitSpeed) weapon.orbitSpeed *= 1.4;
@@ -166,12 +166,12 @@ export class SynergySystem {
             },
             {
                 id: 'iron_return',
-                name: 'Iron Return',
+                name: '钢铁回返',
                 icon: '🪃',
                 color: '#ADFF2F',
                 weaponId: 'bone_boomerang',
                 passiveId: 'armor',
-                description: 'Boomerangs do +60% damage on return',
+                description: '回旋镖返程伤害提升60%',
                 apply: (weapon) => {
                     weapon._synergyReturnBonus = 1.6; // 60% more damage on return
                 },
@@ -181,12 +181,12 @@ export class SynergySystem {
             },
             {
                 id: 'permafrost',
-                name: 'Permafrost',
+                name: '永冻',
                 icon: '❄️',
                 color: '#88DDFF',
                 weaponId: 'ice_shard',
                 passiveId: 'armor',
-                description: 'Frozen enemies take +35% damage from all sources',
+                description: '冰冻敌人受到所有来源伤害提升35%',
                 apply: (weapon) => {
                     weapon._synergyPermafrost = true;
                 },
@@ -196,12 +196,12 @@ export class SynergySystem {
             },
             {
                 id: 'death_mark',
-                name: 'Death Mark',
+                name: '死亡印记',
                 icon: '🩸',
                 color: '#8B5CF6',
                 weaponId: 'shadow_dagger',
                 passiveId: 'spinach',
-                description: 'Shadow Dagger deals +30% damage to bleeding enemies',
+                description: '暗影匕首对流血敌人伤害提升30%',
                 apply: (weapon) => {
                     weapon._synergyDeathMark = true;
                 },

@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
         <meta http-equiv="Expires" content="0" />
-        <title>🧛 Vampire Survivors</title>
+        <title>🧛 吸血鬼幸存者</title>
         <link rel="icon" href="data:," />
         <style>
             * {
@@ -114,26 +114,242 @@
                     transform: rotate(360deg);
                 }
             }
+
+            /* Login/Register Screen */
+            #authScreen {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 99999;
+                flex-direction: column;
+            }
+
+            #authScreen.hidden {
+                display: none;
+            }
+
+            .auth-container {
+                background: rgba(20, 15, 30, 0.95);
+                border: 2px solid rgba(214, 138, 68, 0.5);
+                border-radius: 16px;
+                padding: 40px;
+                width: 400px;
+                max-width: 90%;
+                box-shadow: 0 0 40px rgba(255, 215, 0, 0.2);
+            }
+
+            .auth-header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .auth-header h1 {
+                color: #FFD700;
+                font-size: 32px;
+                margin: 0 0 10px 0;
+                text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            }
+
+            .auth-header p {
+                color: #CBB48A;
+                font-size: 14px;
+                margin: 0;
+            }
+
+            .auth-tabs {
+                display: flex;
+                margin-bottom: 20px;
+                border-bottom: 1px solid rgba(214, 138, 68, 0.3);
+            }
+
+            .auth-tab {
+                flex: 1;
+                padding: 12px;
+                text-align: center;
+                color: #CBB48A;
+                cursor: pointer;
+                transition: all 0.3s;
+                border-bottom: 2px solid transparent;
+            }
+
+            .auth-tab.active {
+                color: #FFD700;
+                border-bottom-color: #FFD700;
+            }
+
+            .auth-form {
+                display: none;
+            }
+
+            .auth-form.active {
+                display: block;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+
+            .form-group label {
+                display: block;
+                color: #CBB48A;
+                font-size: 14px;
+                margin-bottom: 8px;
+            }
+
+            .form-group input {
+                width: 100%;
+                padding: 12px;
+                background: rgba(30, 22, 40, 0.8);
+                border: 1px solid rgba(214, 138, 68, 0.3);
+                border-radius: 8px;
+                color: #E0E0F0;
+                font-size: 14px;
+                box-sizing: border-box;
+                transition: border-color 0.3s;
+            }
+
+            .form-group input:focus {
+                outline: none;
+                border-color: #FFD700;
+            }
+
+            .auth-button {
+                width: 100%;
+                padding: 14px;
+                background: linear-gradient(135deg, #9a4e24 0%, #d68a44 100%);
+                border: none;
+                border-radius: 8px;
+                color: #fff;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s;
+            }
+
+            .auth-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+            }
+
+            .auth-message {
+                text-align: center;
+                margin-top: 15px;
+                font-size: 14px;
+                min-height: 20px;
+            }
+
+            .auth-message.success {
+                color: #44CC88;
+            }
+
+            .auth-message.error {
+                color: #FF4466;
+            }
+
+            .user-info {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                color: #CBB48A;
+                font-size: 14px;
+            }
+
+            .user-info span {
+                color: #FFD700;
+                font-weight: bold;
+            }
+
+            .logout-button {
+                background: rgba(139, 0, 0, 0.6);
+                border: 1px solid rgba(255, 68, 102, 0.5);
+                color: #FF4466;
+                padding: 6px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-left: 10px;
+                transition: all 0.3s;
+            }
+
+            .logout-button:hover {
+                background: rgba(139, 0, 0, 0.8);
+            }
         </style>
     </head>
     <body>
+        <!-- Auth Screen (Login/Register) -->
+        <div id="authScreen">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h1>🧛 吸血鬼幸存者</h1>
+                    <p>加强版 - 请先登录或注册</p>
+                </div>
+                <div class="auth-tabs">
+                    <div class="auth-tab active" data-tab="login">登录</div>
+                    <div class="auth-tab" data-tab="register">注册</div>
+                </div>
+                <form id="loginForm" class="auth-form active">
+                    <div class="form-group">
+                        <label for="loginUsername">用户名</label>
+                        <input type="text" id="loginUsername" placeholder="请输入用户名" autocomplete="username" />
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">密码</label>
+                        <input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="current-password" />
+                    </div>
+                    <button type="submit" class="auth-button">登录</button>
+                    <div id="loginMessage" class="auth-message"></div>
+                </form>
+                <form id="registerForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="registerUsername">用户名</label>
+                        <input type="text" id="registerUsername" placeholder="请输入用户名（至少2个字符）" autocomplete="username" />
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">密码</label>
+                        <input type="password" id="registerPassword" placeholder="请输入密码（至少4个字符）" autocomplete="new-password" />
+                    </div>
+                    <div class="form-group">
+                        <label for="registerConfirmPassword">确认密码</label>
+                        <input type="password" id="registerConfirmPassword" placeholder="请再次输入密码" autocomplete="new-password" />
+                    </div>
+                    <button type="submit" class="auth-button">注册</button>
+                    <div id="registerMessage" class="auth-message"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Info (shown when logged in) -->
+        <div id="userInfo" class="user-info" style="display: none;">
+            欢迎, <span id="currentUsername"></span>
+            <button id="logoutButton" class="logout-button">退出登录</button>
+        </div>
+
         <!-- Main game canvas -->
         <canvas id="gameCanvas"></canvas>
 
         <!-- Performance Monitor (F2 to toggle) -->
         <div id="performanceMonitor">
-            <div>FPS: <span id="fpsDisplay">60</span></div>
-            <div>Entities: <span id="entityDisplay">0</span></div>
-            <div>Memory: <span id="memoryDisplay">0MB</span></div>
+            <div>帧率: <span id="fpsDisplay">60</span></div>
+            <div>实体数: <span id="entityDisplay">0</span></div>
+            <div>内存: <span id="memoryDisplay">0MB</span></div>
         </div>
 
         <!-- Loading Screen -->
         <div id="loadingScreen">
-            <h1>🧛 Vampire Survivors</h1>
+            <h1>🧛 吸血鬼幸存者</h1>
             <div class="loading-spinner"></div>
         </div>
 
         <script type="module">
+            import { AuthManager } from './src/core/AuthManager.js';
+
             // Hide loading screen after game loads
             function hideLoadingScreen() {
                 const loadingScreen = document.getElementById('loadingScreen');
@@ -144,6 +360,190 @@
                         loadingScreen.style.display = 'none';
                     }, 500);
                 }
+            }
+
+            // Hide auth screen and show game
+            function hideAuthScreen() {
+                const authScreen = document.getElementById('authScreen');
+                if (authScreen) {
+                    authScreen.classList.add('hidden');
+                }
+                // Show user info
+                const userInfo = document.getElementById('userInfo');
+                const usernameSpan = document.getElementById('currentUsername');
+                const currentUser = AuthManager.getCurrentUser();
+                if (userInfo && usernameSpan && currentUser) {
+                    usernameSpan.textContent = currentUser;
+                    userInfo.style.display = 'block';
+                }
+            }
+
+            // Show auth screen
+            function showAuthScreen() {
+                const authScreen = document.getElementById('authScreen');
+                if (authScreen) {
+                    authScreen.classList.remove('hidden');
+                }
+                const userInfo = document.getElementById('userInfo');
+                if (userInfo) {
+                    userInfo.style.display = 'none';
+                }
+            }
+
+            // Tab switching
+            function initAuthTabs() {
+                const tabs = document.querySelectorAll('.auth-tab');
+                const loginForm = document.getElementById('loginForm');
+                const registerForm = document.getElementById('registerForm');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const targetTab = tab.dataset.tab;
+
+                        // Update active tab
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+
+                        // Show corresponding form
+                        if (targetTab === 'login') {
+                            loginForm.classList.add('active');
+                            registerForm.classList.remove('active');
+                        } else {
+                            registerForm.classList.add('active');
+                            loginForm.classList.remove('active');
+                        }
+
+                        // Clear messages
+                        document.getElementById('loginMessage').textContent = '';
+                        document.getElementById('registerMessage').textContent = '';
+                    });
+                });
+            }
+
+            // Login form handler
+            function initLoginForm() {
+                const loginForm = document.getElementById('loginForm');
+                const loginMessage = document.getElementById('loginMessage');
+
+                loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById('loginUsername').value;
+                    const password = document.getElementById('loginPassword').value;
+
+                    const result = AuthManager.login(username, password);
+
+                    if (result.success) {
+                        loginMessage.textContent = result.message;
+                        loginMessage.className = 'auth-message success';
+                        setTimeout(() => {
+                            hideAuthScreen();
+                            loadGame();
+                        }, 500);
+                    } else {
+                        loginMessage.textContent = result.message;
+                        loginMessage.className = 'auth-message error';
+                    }
+                });
+            }
+
+            // Register form handler
+            function initRegisterForm() {
+                const registerForm = document.getElementById('registerForm');
+                const registerMessage = document.getElementById('registerMessage');
+
+                registerForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById('registerUsername').value;
+                    const password = document.getElementById('registerPassword').value;
+                    const confirmPassword = document.getElementById('registerConfirmPassword').value;
+
+                    if (password !== confirmPassword) {
+                        registerMessage.textContent = '两次输入的密码不一致';
+                        registerMessage.className = 'auth-message error';
+                        return;
+                    }
+
+                    const result = AuthManager.register(username, password);
+
+                    if (result.success) {
+                        registerMessage.textContent = result.message + '，正在登录...';
+                        registerMessage.className = 'auth-message success';
+                        // Auto login after register
+                        setTimeout(() => {
+                            const loginResult = AuthManager.login(username, password);
+                            if (loginResult.success) {
+                                hideAuthScreen();
+                                loadGame();
+                            }
+                        }, 800);
+                    } else {
+                        registerMessage.textContent = result.message;
+                        registerMessage.className = 'auth-message error';
+                    }
+                });
+            }
+
+            // Logout handler
+            function initLogoutButton() {
+                const logoutButton = document.getElementById('logoutButton');
+                logoutButton.addEventListener('click', () => {
+                    AuthManager.logout();
+                    showAuthScreen();
+                    // Clear form inputs
+                    document.getElementById('loginUsername').value = '';
+                    document.getElementById('loginPassword').value = '';
+                    document.getElementById('registerUsername').value = '';
+                    document.getElementById('registerPassword').value = '';
+                    document.getElementById('registerConfirmPassword').value = '';
+                    document.getElementById('loginMessage').textContent = '';
+                    document.getElementById('registerMessage').textContent = '';
+                });
+            }
+
+            // Load the game
+            let gameLoaded = false;
+            function loadGame() {
+                if (gameLoaded) return;
+                gameLoaded = true;
+
+                console.log('🎮 Loading Vampire Survivors...');
+
+                import('./src/vampireMain.js?v=20260317-hudfix2')
+                    .then(() => {
+                        console.log('✅ Game loaded successfully');
+
+                        // Check if game initialized
+                        setTimeout(() => {
+                            if (window.gameBootstrap) {
+                                console.log('✅ Game bootstrap ready');
+                                if (window.gameBootstrap.game) {
+                                    console.log('✅ Game instance created');
+                                    console.log('Game state:', window.gameBootstrap.game.gameState);
+                                    hideLoadingScreen();
+                                } else {
+                                    console.error('❌ Game instance not created');
+                                    hideLoadingScreen();
+                                }
+                            } else {
+                                console.error('❌ Game bootstrap not created');
+                                hideLoadingScreen();
+                            }
+                        }, 2000);
+                    })
+                    .catch((error) => {
+                        console.error('❌ Failed to load game:', error);
+                        console.error('Stack:', error.stack);
+                        hideLoadingScreen();
+
+                        // Show error message
+                        const canvas = document.getElementById('gameCanvas');
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = '#FF0000';
+                            ctx.font = '24px Arial';
+                            ctx.fillText('游戏加载失败。请查看控制台获取错误信息。', 50, 50);
+                        }
+                    });
             }
 
             // Performance monitor toggle
@@ -190,45 +590,19 @@
                 console.error('Unhandled promise rejection:', e.reason);
             });
 
-            // Load the game
-            console.log('🎮 Loading Vampire Survivors...');
+            // Initialize auth system
+            function initAuth() {
+                initAuthTabs();
+                initLoginForm();
+                initRegisterForm();
+                initLogoutButton();
 
-            import('./src/vampireMain.js?v=20260317-hudfix2')
-                .then(() => {
-                    console.log('✅ Game loaded successfully');
+                // 每次启动都显示登录界面，不自动登录
+                showAuthScreen();
+            }
 
-                    // Check if game initialized
-                    setTimeout(() => {
-                        if (window.gameBootstrap) {
-                            console.log('✅ Game bootstrap ready');
-                            if (window.gameBootstrap.game) {
-                                console.log('✅ Game instance created');
-                                console.log('Game state:', window.gameBootstrap.game.gameState);
-                                hideLoadingScreen();
-                            } else {
-                                console.error('❌ Game instance not created');
-                                hideLoadingScreen();
-                            }
-                        } else {
-                            console.error('❌ Game bootstrap not created');
-                            hideLoadingScreen();
-                        }
-                    }, 2000);
-                })
-                .catch((error) => {
-                    console.error('❌ Failed to load game:', error);
-                    console.error('Stack:', error.stack);
-                    hideLoadingScreen();
-
-                    // Show error message
-                    const canvas = document.getElementById('gameCanvas');
-                    if (canvas) {
-                        const ctx = canvas.getContext('2d');
-                        ctx.fillStyle = '#FF0000';
-                        ctx.font = '24px Arial';
-                        ctx.fillText('Failed to load game. Check console for errors.', 50, 50);
-                    }
-                });
+            // Start auth initialization
+            initAuth();
 
             // Game controls info
             console.log(`

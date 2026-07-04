@@ -1,5 +1,77 @@
 import { CHARACTERS } from '../data/characters.js';
 
+const WEAPON_NAMES = {
+    whip: '鞭子',
+    magic_missile: '魔法飞弹',
+    fire_wand: '火焰法杖',
+    lightning_chain: '连锁闪电',
+    garlic_aura: '大蒜光环',
+    holy_bible: '圣经',
+    bone_boomerang: '骨头回旋镖',
+    throwing_knife: '飞刀',
+    ice_shard: '冰晶碎片',
+    shadow_dagger: '暗影匕首'
+};
+
+const EVOLUTION_NAMES = {
+    thunderous_missile: '雷霆飞弹',
+    bloody_lash: '血腥鞭挞',
+    blade_storm: '剑刃风暴',
+    chain_lightning: '连锁闪电',
+    void_vortex: '虚空漩涡',
+    holy_orbit: '神圣轨道',
+    inferno: '炼狱火雨',
+    bone_cyclone: '骨头旋风',
+    permafrost: '永冻之地',
+    shadow_assassins: '暗影刺客'
+};
+
+const SYNERGY_NAMES = {
+    storm_fury: '风暴之怒',
+    gravity_well: '重力井',
+    inferno: '地狱烈焰',
+    blitz_lash: '闪电鞭笞',
+    iron_rain: '铁雨',
+    barrage: '弹雨齐射',
+    sacred_rotation: '神圣旋转',
+    iron_return: '钢铁回返',
+    permafrost: '永冻',
+    death_mark: '死亡印记'
+};
+
+const ENEMY_NAMES = {
+    basic: '普通怪物',
+    fast: '迅捷怪',
+    heavy: '重装怪',
+    ranged: '远程怪',
+    elite: '精英怪',
+    berserker: '狂战士',
+    summoner: '召唤师',
+    boss: 'Boss',
+    champion: '精英',
+    swift: '迅捷',
+    shadow: '暗影',
+    burning: '烈焰',
+    armored: '重甲',
+    crystal: '水晶',
+    volatile: '爆裂',
+    arctic: '寒冰',
+    toxic: '剧毒',
+    demon: '恶魔',
+    wraith: '怨灵'
+};
+
+function getLocalizedName(id, category) {
+    const maps = {
+        weapon: WEAPON_NAMES,
+        evolution: EVOLUTION_NAMES,
+        synergy: SYNERGY_NAMES,
+        enemy: ENEMY_NAMES
+    };
+    const map = maps[category] || {};
+    return map[id] || id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 /**
  * TitleScreenSystem - Canvas-rendered title screen with menu navigation, upgrade shop,
  * and character selection.
@@ -16,7 +88,7 @@ export class TitleScreenSystem {
 
         // Menu state
         this.selectedIndex = 0;
-        this.menuItems = ['PLAY', 'ENDLESS', 'CHARACTERS', 'UPGRADES', 'CHALLENGES', 'STATISTICS', 'CODEX', 'SETTINGS'];
+        this.menuItems = ['开始游戏', '无尽模式', '角色选择', '强化升级', '挑战模式', '排行榜', '游戏统计', '怪物图鉴', '游戏设置'];
         this.hoveredIndex = -1;
 
         // Upgrade shop state
@@ -39,6 +111,10 @@ export class TitleScreenSystem {
         // Codex state
         this.codexTabIndex = 0;
         this._codexBackRect = null;
+
+        // Leaderboard state
+        this.leaderboardScrollOffset = 0;
+        this._leaderboardBackRect = null;
 
         // Settings state
         this.settingsSelectedIndex = 0;
@@ -299,9 +375,9 @@ export class TitleScreenSystem {
 
             // Gold balance next to UPGRADES
             let displayLabel = label;
-            if (label === 'UPGRADES') {
+            if (label === '强化升级') {
                 const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
-                displayLabel = `UPGRADES  [${gold} Gold]`;
+                displayLabel = `强化升级  [${gold} 金币]`;
             }
 
             // Adaptive font: scale down slightly on smaller screens
@@ -358,7 +434,7 @@ export class TitleScreenSystem {
         ctx.font = '13px Arial, sans-serif';
         ctx.fillStyle = 'rgba(200, 200, 220, 0.4)';
         ctx.textAlign = 'center';
-        ctx.fillText('Arrow Keys / Mouse to navigate  |  Enter / Click to select', w / 2, h - 14);
+        ctx.fillText('方向键/鼠标选择  |  回车/点击确认', w / 2, h - 14);
 
         // 8. Overlays
         if (this.game.gameState === 'upgrades') this.renderUpgrades(ctx);
@@ -366,6 +442,7 @@ export class TitleScreenSystem {
         if (this.game.gameState === 'statistics') this.renderStatistics(ctx);
         if (this.game.gameState === 'challenges') this.renderChallenges(ctx);
         if (this.game.gameState === 'codex') this.renderCodex(ctx);
+        if (this.game.gameState === 'leaderboard') this.renderLeaderboard(ctx);
         if (this.game.gameState === 'settings') this.renderSettings(ctx);
 
         // 9. Drips (drawn over menus but under transition)
@@ -388,20 +465,20 @@ export class TitleScreenSystem {
 
         ctx.font = `bold ${Math.min(56, w * 0.06)}px 'Cinzel', 'Times New Roman', serif`;
         ctx.fillStyle = '#FF4444';
-        ctx.fillText('VAMPIRE SURVIVORS', w / 2, y);
+        ctx.fillText('吸血鬼幸存者', w / 2, y);
 
         // Second pass for gold highlight
         ctx.shadowColor = `rgba(255, 215, 0, ${glowAlpha * 0.5})`;
         ctx.shadowBlur = 10;
         ctx.fillStyle = `rgba(255, 215, 0, ${0.15 + 0.1 * this.titleGlow})`;
-        ctx.fillText('VAMPIRE SURVIVORS', w / 2, y);
+        ctx.fillText('吸血鬼幸存者', w / 2, y);
 
         // Subtitle
         ctx.shadowColor = 'rgba(217, 164, 92, 0.45)';
         ctx.shadowBlur = 12;
         ctx.font = `bold ${Math.min(24, w * 0.025)}px 'Cinzel', 'Times New Roman', serif`;
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('ENHANCED', w / 2, y + 42);
+        ctx.fillText('加强版', w / 2, y + 42);
 
         ctx.restore();
     }
@@ -421,7 +498,7 @@ export class TitleScreenSystem {
         ctx.fillStyle = 'rgba(160, 160, 180, 0.45)';
 
         const timeStr = this.formatTime(records.longestSurvival);
-        const line = `Best: ${timeStr}  ·  Kills: ${records.highestKillCount}  ·  Lv ${records.maxLevel}  ·  ${records.totalRuns} Runs`;
+        const line = `最佳: ${timeStr}  ·  击杀: ${records.highestKillCount}  ·  等级 ${records.maxLevel}  ·  ${records.totalRuns} 场`;
         ctx.fillText(line, w / 2, y);
         ctx.restore();
     }
@@ -563,13 +640,13 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('UPGRADE SHOP', w / 2, panelY + 36);
+        ctx.fillText('强化商店', w / 2, panelY + 36);
 
         // Gold balance
         const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
         ctx.font = 'bold 18px Arial, sans-serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText(`Gold: ${gold}`, w / 2, panelY + 66);
+        ctx.fillText(`金币: ${gold}`, w / 2, panelY + 66);
 
         // Upgrade list
         this._upgradeRects = [];
@@ -629,7 +706,7 @@ export class TitleScreenSystem {
             ctx.font = 'bold 14px Arial, sans-serif';
             if (u.cost === null) {
                 ctx.fillStyle = '#4ade80';
-                ctx.fillText('MAX', listX + listW - 10, iy + (itemH - 4) / 2);
+                ctx.fillText('已满级', listX + listW - 10, iy + (itemH - 4) / 2);
             } else {
                 ctx.fillStyle = u.canAfford ? '#FFD700' : '#FF6B6B';
                 ctx.fillText(`${u.cost}g`, listX + listW - 10, iy + (itemH - 4) / 2);
@@ -653,7 +730,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText('ESC  返回', w / 2, backY + backH / 2);
     }
 
     // ---- Render: Character Select ----
@@ -701,7 +778,7 @@ export class TitleScreenSystem {
         
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('CHOOSE YOUR CHAMPION', w / 2, panelY + 45);
+        ctx.fillText('选择你的英雄', w / 2, panelY + 45);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
@@ -849,7 +926,7 @@ export class TitleScreenSystem {
 
             ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
             ctx.fillStyle = 'rgba(140, 140, 160, 0.7)';
-            ctx.fillText('CHARACTER LOCKED', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
+            ctx.fillText('角色未解锁', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
 
             ctx.font = '15px Arial, sans-serif';
             ctx.fillStyle = 'rgba(215, 164, 92, 0.9)';
@@ -935,18 +1012,18 @@ export class TitleScreenSystem {
             // Left column: Weapon
             ctx.font = 'bold 14px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
-            ctx.fillText('STARTING WEAPON', detailsX, flexY);
+            ctx.fillText('初始武器', detailsX, flexY);
 
             ctx.font = 'bold 18px Arial, sans-serif';
-            ctx.fillStyle = '#87CEEB'; // Sky blue
-            const weaponName = activeChar.startingWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            ctx.fillStyle = '#87CEEB';
+            const weaponName = getLocalizedName(activeChar.startingWeapon, 'weapon');
             ctx.fillText(weaponName, detailsX, flexY + 25);
 
             // Right column: Stats
             const statsX = detailsX + detailsW * 0.45;
             ctx.font = 'bold 14px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
-            ctx.fillText('PASSIVE BONUSES', statsX, flexY);
+            ctx.fillText('被动加成', statsX, flexY);
 
             const modY = flexY + 25;
             ctx.font = '15px Arial, sans-serif';
@@ -955,7 +1032,7 @@ export class TitleScreenSystem {
             
             if (entries.length === 0) {
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-                ctx.fillText('None', statsX, modY);
+                ctx.fillText('无', statsX, modY);
             } else {
                 for (const [stat, val] of entries) {
                     const isPositive = val >= 1 || stat === 'projectiles';
@@ -980,7 +1057,7 @@ export class TitleScreenSystem {
                 ctx.textAlign = 'right';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
                 ctx.shadowBlur = 10;
-                ctx.fillText('✓ EQUIPPED', rightX + rightPaneW - 45, badgeY);
+                ctx.fillText('✓ 已装备', rightX + rightPaneW - 45, badgeY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
@@ -1002,7 +1079,7 @@ export class TitleScreenSystem {
                 ctx.stroke();
 
                 ctx.fillStyle = '#FFD700';
-                ctx.fillText('Press ENTER to Equip', rightX + rightPaneW - 45 - 20, badgeY - 5);
+                ctx.fillText('按 ENTER 装备', rightX + rightPaneW - 45 - 20, badgeY - 5);
             }
         }
 
@@ -1031,7 +1108,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 16px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        ctx.fillText('ESC - 返回菜单', w / 2, backY + backH / 2 + 1);
     }
 
     /**
@@ -1083,6 +1160,11 @@ export class TitleScreenSystem {
 
         if (this.game.gameState === 'codex') {
             this.handleCodexInput(k);
+            return;
+        }
+
+        if (this.game.gameState === 'leaderboard') {
+            this.handleLeaderboardInput(k);
             return;
         }
 
@@ -1167,6 +1249,11 @@ export class TitleScreenSystem {
 
         if (this.game.gameState === 'codex') {
             this.handleCodexClick(x, y);
+            return;
+        }
+
+        if (this.game.gameState === 'leaderboard') {
+            this.handleLeaderboardClick(x, y);
             return;
         }
 
@@ -1308,38 +1395,38 @@ export class TitleScreenSystem {
         this.playSelectSound();
 
         switch (item) {
-            case 'PLAY':
+            case '开始游戏':
                 this.game.startGame();
                 break;
-            case 'ENDLESS':
+            case '无尽模式':
                 this.game.startGame();
                 if (this.game.systems.runTimer) {
                     this.game.systems.runTimer.endlessMode = true;
                 }
                 break;
-            case 'CHARACTERS':
+            case '角色选择':
                 this.characterSelectedIndex = 0;
                 this.characterHoveredIndex = -1;
                 this.triggerTransition('characters');
                 break;
-            case 'UPGRADES':
+            case '强化升级':
                 this.upgradeSelectedIndex = 0;
                 this.upgradeList = this.game.systems.persistence ? this.game.systems.persistence.getUpgradeInfo() : [];
                 this.triggerTransition('upgrades');
                 break;
-            case 'CHALLENGES':
+            case '挑战模式':
                 this.challengeSelectedIndex = 0;
                 this.challengeHoveredIndex = -1;
                 this.triggerTransition('challenges');
                 break;
-            case 'STATISTICS':
+            case '游戏统计':
                 this.triggerTransition('statistics');
                 break;
-            case 'CODEX':
+            case '怪物图鉴':
                 this.codexTabIndex = 0;
                 this.triggerTransition('codex');
                 break;
-            case 'SETTINGS':
+            case '游戏设置':
                 this.settingsSelectedIndex = 0;
                 this.triggerTransition('settings');
                 break;
@@ -1357,7 +1444,7 @@ export class TitleScreenSystem {
         if (success) {
             this.upgradeList = persistence.getUpgradeInfo();
             this.playSelectSound();
-            this.game.showToast(`Upgraded ${u.name}!`, '#4ade80', 1200);
+            this.game.showToast(`${u.name} 已升级!`, '#4ade80', 1200);
         }
     }
 
@@ -1373,7 +1460,7 @@ export class TitleScreenSystem {
 
         persistence.setSelectedCharacter(char.id);
         this.playSelectSound();
-        this.game.showToast(`Selected ${char.name}!`, char.color, 1200);
+        this.game.showToast(`已选择 ${char.name}!`, char.color, 1200);
     }
 
     // ---- Render: Statistics Dashboard ----
@@ -1404,13 +1491,13 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('STATISTICS', w / 2, panelY + 36);
+        ctx.fillText('游戏统计', w / 2, panelY + 36);
 
         const persistence = this.game.systems.persistence;
         if (!persistence) {
             ctx.font = '16px Arial, sans-serif';
             ctx.fillStyle = this.theme.accentMuted;
-            ctx.fillText('No data available', w / 2, h / 2);
+            ctx.fillText('暂无数据', w / 2, h / 2);
             return;
         }
 
@@ -1424,16 +1511,16 @@ export class TitleScreenSystem {
         ctx.textAlign = 'left';
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('RUN TOTALS', colLeft, startY);
+        ctx.fillText('累计统计', colLeft, startY);
 
         // Left column stats
         ctx.font = '14px Arial, sans-serif';
         const leftStats = [
-            ['Total Runs', records.totalRuns],
-            ['Total Playtime', this.formatPlaytime(records.totalPlayTime || 0)],
-            ['Total Kills', this.formatNumber(records.totalKills || 0)],
-            ['Total Gold Earned', this.formatNumber(records.totalGoldEarned || 0)],
-            ['Total Damage Dealt', this.formatNumber(records.totalDamageDealt || 0)]
+            ['总场次', records.totalRuns],
+            ['总游戏时长', this.formatPlaytime(records.totalPlayTime || 0)],
+            ['总击杀数', this.formatNumber(records.totalKills || 0)],
+            ['总获得金币', this.formatNumber(records.totalGoldEarned || 0)],
+            ['总造成伤害', this.formatNumber(records.totalDamageDealt || 0)]
         ];
 
         for (let i = 0; i < leftStats.length; i++) {
@@ -1449,16 +1536,16 @@ export class TitleScreenSystem {
         // Right column header
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('PERSONAL BESTS', colRight, startY);
+        ctx.fillText('最高纪录', colRight, startY);
 
         // Right column stats
         ctx.font = '14px Arial, sans-serif';
         const rightStats = [
-            ['Best Survival', this.formatTime(records.longestSurvival || 0)],
-            ['Most Kills', this.formatNumber(records.highestKillCount || 0)],
-            ['Highest Level', records.maxLevel || 0],
-            ['Highest Combo', records.highestCombo || 0],
-            ['Most Gold (run)', this.formatNumber(records.mostGoldSingleRun || 0)]
+            ['最长生存', this.formatTime(records.longestSurvival || 0)],
+            ['最多击杀', this.formatNumber(records.highestKillCount || 0)],
+            ['最高等级', records.maxLevel || 0],
+            ['最高连击', records.highestCombo || 0],
+            ['单局最多金币', this.formatNumber(records.mostGoldSingleRun || 0)]
         ];
 
         for (let i = 0; i < rightStats.length; i++) {
@@ -1476,7 +1563,7 @@ export class TitleScreenSystem {
         ctx.font = 'bold 15px Arial, sans-serif';
         ctx.fillStyle = this.theme.sectionLabel;
         ctx.textAlign = 'center';
-        ctx.fillText('FAVORITE WEAPON', w / 2, weaponY);
+        ctx.fillText('最常用武器', w / 2, weaponY);
 
         const usage = records.weaponUsage || {};
         let favWeapon = null;
@@ -1490,16 +1577,16 @@ export class TitleScreenSystem {
 
         ctx.font = '14px Arial, sans-serif';
         if (favWeapon) {
-            const weaponName = favWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            const weaponName = getLocalizedName(favWeapon, 'weapon');
             ctx.fillStyle = '#FFD700';
             ctx.fillText(
-                `${weaponName}  (picked ${favCount} time${favCount !== 1 ? 's' : ''})`,
+                `${weaponName}  (选择 ${favCount} 次)`,
                 w / 2,
                 weaponY + lineH
             );
         } else {
             ctx.fillStyle = 'rgba(160, 160, 180, 0.6)';
-            ctx.fillText('No weapons used yet', w / 2, weaponY + lineH);
+            ctx.fillText('尚未使用过武器', w / 2, weaponY + lineH);
         }
 
         // Back button
@@ -1519,7 +1606,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText('ESC  返回', w / 2, backY + backH / 2);
     }
 
     // ---- Render: Challenge Modifiers ----
@@ -1552,22 +1639,22 @@ export class TitleScreenSystem {
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('CHALLENGE MODIFIERS', w / 2, panelY + 36);
+        ctx.fillText('挑战Modifier', w / 2, panelY + 36);
 
         // Unlock check
         const unlocked = challenge.isUnlocked();
         if (!unlocked) {
             ctx.font = '16px Arial, sans-serif';
             ctx.fillStyle = 'rgba(200, 160, 120, 0.8)';
-            ctx.fillText('\u{1F512}  Survive 15 minutes to unlock challenges', w / 2, h / 2 - 10);
+            ctx.fillText('\u{1F512}  生存15分钟解锁挑战', w / 2, h / 2 - 10);
             ctx.font = '13px Arial, sans-serif';
             ctx.fillStyle = 'rgba(160, 140, 120, 0.6)';
-            ctx.fillText('Challenges add difficulty modifiers in exchange for bonus gold', w / 2, h / 2 + 20);
+            ctx.fillText('挑战增加难度并提供额外金币奖励', w / 2, h / 2 + 20);
         } else {
             // Subheader
             ctx.font = '13px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-            ctx.fillText('Select up to 3 modifiers for bonus gold  |  Click / Enter to toggle', w / 2, panelY + 62);
+            ctx.fillText('最多选择3个Modifier获得金币加成  |  点击/回车切换', w / 2, panelY + 62);
 
             // Modifier list
             this._challengeRects = [];
@@ -1628,7 +1715,7 @@ export class TitleScreenSystem {
                 ctx.textAlign = 'right';
                 ctx.font = 'bold 14px Arial, sans-serif';
                 ctx.fillStyle = '#FFD700';
-                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% Gold`, listX + listW - 12, iy + (itemH - 4) / 2);
+                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% 金币`, listX + listW - 12, iy + (itemH - 4) / 2);
                 ctx.textAlign = 'left';
             }
 
@@ -1650,18 +1737,18 @@ export class TitleScreenSystem {
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
                 ctx.shadowBlur = 10;
-                ctx.fillText(`GOLD MULTIPLIER: ${pendingMult.toFixed(1)}×`, w / 2, totalY);
+                ctx.fillText(`金币倍率: ${pendingMult.toFixed(1)}×`, w / 2, totalY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-                ctx.fillText('No modifiers selected', w / 2, totalY);
+                ctx.fillText('未选择Modifier', w / 2, totalY);
             }
 
             // Active count
             ctx.font = '12px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-            ctx.fillText(`${pending.size} / ${challenge.maxActive} selected`, w / 2, totalY + 22);
+            ctx.fillText(`${pending.size} / ${challenge.maxActive} 已选择`, w / 2, totalY + 22);
         }
 
         // Back button
@@ -1681,7 +1768,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px Arial, sans-serif';
         ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        ctx.fillText('ESC  返回', w / 2, backY + backH / 2);
     }
 
     // ---- Render: Codex / Bestiary ----
@@ -1721,16 +1808,16 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('CODEX', w / 2, panelY + 40);
+        ctx.fillText('怪物图鉴', w / 2, panelY + 40);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Category tabs
         const tabs = [
-            { key: 'enemies', label: 'Enemies', icon: '\u{1F480}' },
-            { key: 'weapons', label: 'Weapons', icon: '\u{2694}' },
-            { key: 'evolutions', label: 'Evolutions', icon: '\u{2B50}' },
-            { key: 'synergies', label: 'Synergies', icon: '\u{1F517}' }
+            { key: 'enemies', label: '敌人', icon: '\u{1F480}' },
+            { key: 'weapons', label: '武器', icon: '\u{2694}' },
+            { key: 'evolutions', label: '进化', icon: '\u{2B50}' },
+            { key: 'synergies', label: '协同', icon: '\u{1F517}' }
         ];
         const tabW = (panelW - 60) / tabs.length;
         const tabY = panelY + 70;
@@ -1836,14 +1923,16 @@ export class TitleScreenSystem {
 
             ctx.textAlign = 'left';
             if (item.discovered) {
-                const displayName = item.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const categoryMap = { enemies: 'enemy', weapons: 'weapon', evolutions: 'evolution', synergies: 'synergy' };
+                const catKey = categoryMap[activeTab.key] || 'weapon';
+                const displayName = getLocalizedName(item.id, catKey);
                 ctx.font = 'bold 12px Arial, sans-serif';
                 ctx.fillStyle = '#E0E0F0';
                 ctx.fillText(displayName, cx + 8, cy + 22);
 
                 ctx.font = '11px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-                ctx.fillText(`Seen ${item.count}x`, cx + 8, cy + 42);
+                ctx.fillText(`见过 ${item.count}次`, cx + 8, cy + 42);
             } else {
                 ctx.font = 'bold 20px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(80, 70, 100, 0.5)';
@@ -1864,7 +1953,7 @@ export class TitleScreenSystem {
             ctx.textAlign = 'center';
             ctx.font = '12px Arial, sans-serif';
             ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-            ctx.fillText(`Overall Completion: ${totalDisc}/${totalAll} (${overallPct}%)`, w / 2, panelY + panelH - 72);
+            ctx.fillText(`总完成度: ${totalDisc}/${totalAll} (${overallPct}%)`, w / 2, panelY + panelH - 72);
         }
 
         // Back button
@@ -1884,7 +1973,172 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        ctx.fillText('ESC - 返回菜单', w / 2, backY + backH / 2 + 1);
+    }
+
+    /**
+     * Render leaderboard screen
+     */
+    renderLeaderboard(ctx) {
+        const w = this.game.canvas.width;
+        const h = this.game.canvas.height;
+
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Panel
+        const panelW = Math.min(700, w - 40);
+        const panelH = Math.min(580, h - 40);
+        const panelX = (w - panelW) / 2;
+        const panelY = (h - panelH) / 2;
+
+        const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+        bgGrad.addColorStop(0, '#1c1528');
+        bgGrad.addColorStop(1, '#0e0b14');
+        ctx.fillStyle = bgGrad;
+        ctx.strokeStyle = '#3a2845';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 30;
+        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        // Header
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 30px "Cinzel", "Times New Roman", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
+        ctx.shadowBlur = 15;
+        ctx.fillText('排行榜', w / 2, panelY + 40);
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+
+        // Get leaderboard data
+        const leaderboard = this.game.systems.leaderboard;
+        const entries = leaderboard ? leaderboard.getTopEntries(20) : [];
+
+        if (entries.length === 0) {
+            // No entries
+            ctx.font = '16px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
+            ctx.textAlign = 'center';
+            ctx.fillText('暂无排行榜数据', w / 2, panelY + panelH / 2);
+            ctx.font = '14px Arial, sans-serif';
+            ctx.fillText('完成一局游戏后将显示排行榜', w / 2, panelY + panelH / 2 + 30);
+        } else {
+            // Table header
+            const tableX = panelX + 40;
+            const tableY = panelY + 80;
+            const tableW = panelW - 80;
+            const rowH = 32;
+
+            // Column headers
+            ctx.font = 'bold 14px Arial, sans-serif';
+            ctx.fillStyle = '#D9A45C';
+            ctx.textAlign = 'left';
+            ctx.fillText('排名', tableX, tableY);
+            ctx.fillText('玩家', tableX + 60, tableY);
+            ctx.textAlign = 'right';
+            ctx.fillText('生存时间', tableX + tableW - 140, tableY);
+            ctx.fillText('击杀数', tableX + tableW, tableY);
+
+            // Divider line
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(tableX, tableY + 15);
+            ctx.lineTo(tableX + tableW, tableY + 15);
+            ctx.stroke();
+
+            // Table rows
+            const startY = tableY + 35;
+            const maxRows = Math.floor((panelH - 150) / rowH);
+            const displayEntries = entries.slice(0, maxRows);
+
+            for (let i = 0; i < displayEntries.length; i++) {
+                const entry = displayEntries[i];
+                const rowY = startY + i * rowH;
+
+                // Alternating row background
+                if (i % 2 === 0) {
+                    ctx.fillStyle = 'rgba(40, 30, 55, 0.3)';
+                    ctx.fillRect(tableX, rowY - 10, tableW, rowH);
+                }
+
+                // Rank
+                ctx.font = 'bold 14px Arial, sans-serif';
+                ctx.textAlign = 'left';
+                if (i === 0) {
+                    ctx.fillStyle = '#FFD700'; // Gold
+                } else if (i === 1) {
+                    ctx.fillStyle = '#C0C0C0'; // Silver
+                } else if (i === 2) {
+                    ctx.fillStyle = '#CD7F32'; // Bronze
+                } else {
+                    ctx.fillStyle = '#E0E0F0';
+                }
+                ctx.fillText(`${i + 1}`, tableX, rowY + 5);
+
+                // Player name
+                ctx.fillStyle = '#E0E0F0';
+                ctx.fillText(entry.playerName, tableX + 60, rowY + 5);
+
+                // Survival time
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#4ade80';
+                const timeStr = this.formatTime(entry.survivalTime);
+                ctx.fillText(timeStr, tableX + tableW - 140, rowY + 5);
+
+                // Kill count
+                ctx.fillStyle = '#FF6B6B';
+                const killStr = this.formatNumber(entry.killCount);
+                ctx.fillText(killStr, tableX + tableW, rowY + 5);
+            }
+        }
+
+        // Back button
+        const backW = 140;
+        const backH = 38;
+        const backX = (w - backW) / 2;
+        const backY = panelY + panelH - 52;
+        this._leaderboardBackRect = { x: backX, y: backY, w: backW, h: backH };
+
+        ctx.fillStyle = this.theme.backFill;
+        ctx.strokeStyle = this.theme.backStroke;
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, backX, backY, backW, backH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
+        ctx.fillStyle = '#E0E0E0';
+        ctx.fillText('ESC - 返回菜单', w / 2, backY + backH / 2 + 1);
+    }
+
+    /**
+     * Handle leaderboard keyboard input
+     */
+    handleLeaderboardInput(k) {
+        if (k === 'escape') {
+            this.triggerTransition('menu');
+        }
+    }
+
+    /**
+     * Handle leaderboard mouse click
+     */
+    handleLeaderboardClick(x, y) {
+        // Back button
+        const b = this._leaderboardBackRect;
+        if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+            this.triggerTransition('menu');
+            return;
+        }
     }
 
     handleCodexInput(k) {
@@ -1959,22 +2213,22 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
         ctx.shadowBlur = 15;
-        ctx.fillText('SETTINGS', w / 2, panelY + 38);
+        ctx.fillText('游戏设置', w / 2, panelY + 38);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
         // Settings items definition
         const items = [
-            { key: 'masterVolume', label: 'Master Volume', type: 'slider', icon: '\u{1F50A}' },
-            { key: 'musicVolume', label: 'Music Volume', type: 'slider', icon: '\u{1F3B5}' },
-            { key: 'sfxVolume', label: 'SFX Volume', type: 'slider', icon: '\u{1F3B6}' },
-            { key: 'particleEffects', label: 'Particle Effects', type: 'toggle', icon: '\u{2728}' },
-            { key: 'screenShake', label: 'Screen Shake', type: 'toggle', icon: '\u{1F4F3}' },
-            { key: 'damageNumbers', label: 'Damage Numbers', type: 'toggle', icon: '\u{1F4A5}' },
-            { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: '\u{26A1}' },
-            { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: '\u{2699}' },
-            { key: 'showFPS', label: 'Show FPS', type: 'toggle', icon: '\u{1F4CA}' },
-            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: '\u{23F8}' }
+            { key: 'masterVolume', label: '主音量', type: 'slider', icon: '\u{1F50A}' },
+            { key: 'musicVolume', label: '音乐音量', type: 'slider', icon: '\u{1F3B5}' },
+            { key: 'sfxVolume', label: '音效音量', type: 'slider', icon: '\u{1F3B6}' },
+            { key: 'particleEffects', label: '粒子效果', type: 'toggle', icon: '\u{2728}' },
+            { key: 'screenShake', label: '屏幕震动', type: 'toggle', icon: '\u{1F4F3}' },
+            { key: 'damageNumbers', label: '伤害数字', type: 'toggle', icon: '\u{1F4A5}' },
+            { key: 'lowFXMode', label: '低特效模式', type: 'toggle', icon: '\u{26A1}' },
+            { key: 'autoQuality', label: '自动画质', type: 'toggle', icon: '\u{2699}' },
+            { key: 'showFPS', label: '显示帧率', type: 'toggle', icon: '\u{1F4CA}' },
+            { key: 'pauseOnFocusLoss', label: '失焦暂停', type: 'toggle', icon: '\u{23F8}' }
         ];
 
         const itemH = 36;
@@ -2084,7 +2338,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 12px Arial, sans-serif';
         ctx.fillStyle = '#DAA520';
-        ctx.fillText('Reset to Defaults', resetX + resetW / 2, resetY + resetH / 2 + 1);
+        ctx.fillText('恢复默认设置', resetX + resetW / 2, resetY + resetH / 2 + 1);
 
         // Back button
         const backW = 140;
@@ -2103,7 +2357,7 @@ export class TitleScreenSystem {
         ctx.textAlign = 'center';
         ctx.font = 'bold 12px Arial, sans-serif';
         ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - Back', backX + backW / 2, backY + backH / 2 + 1);
+        ctx.fillText('ESC - 返回', backX + backW / 2, backY + backH / 2 + 1);
     }
 
     handleSettingsInput(k) {
@@ -2235,7 +2489,7 @@ export class TitleScreenSystem {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = 'rgba(255, 215, 0, 0.35)';
         ctx.shadowBlur = 18;
-        ctx.fillText('PAUSED', w / 2, panelY + 50);
+        ctx.fillText('游戏暂停', w / 2, panelY + 50);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
 
@@ -2254,10 +2508,10 @@ export class TitleScreenSystem {
         const level = this.game.player?.level || 1;
         ctx.font = '13px Arial, sans-serif';
         ctx.fillStyle = 'rgba(180, 180, 200, 0.55)';
-        ctx.fillText(`Lv ${level}  ·  Wave ${wave}  ·  ${this.formatTime(elapsed)}`, w / 2, panelY + 100);
+        ctx.fillText(`Lv ${level}  ·  波次 ${wave}  ·  ${this.formatTime(elapsed)}`, w / 2, panelY + 100);
 
         // Menu items
-        const pauseItems = ['RESUME', 'SETTINGS', 'RETURN TO MENU'];
+        const pauseItems = ['继续游戏', '设置', '返回主菜单'];
         const itemH = 48;
         const itemGap = 8;
         const itemsStartY = panelY + 128;
@@ -2314,7 +2568,7 @@ export class TitleScreenSystem {
         ctx.font = '12px Arial, sans-serif';
         ctx.fillStyle = 'rgba(180, 180, 200, 0.35)';
         ctx.textAlign = 'center';
-        ctx.fillText('ESC to resume', w / 2, panelY + panelH - 18);
+        ctx.fillText('按 ESC 继续', w / 2, panelY + panelH - 18);
     }
 
     handlePauseInput(k) {

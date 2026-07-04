@@ -8,7 +8,7 @@ export class StatusEffectSystem {
         // Status effect definitions
         this.effectDefinitions = {
             burn: {
-                name: 'Burn',
+                name: '灼烧',
                 color: '#FF4500',
                 icon: '🔥',
                 stackable: true,
@@ -19,7 +19,7 @@ export class StatusEffectSystem {
             },
             
             freeze: {
-                name: 'Freeze',
+                name: '冰冻',
                 color: '#00BFFF',
                 icon: '❄️',
                 stackable: false,
@@ -30,7 +30,7 @@ export class StatusEffectSystem {
             },
             
             poison: {
-                name: 'Poison',
+                name: '中毒',
                 color: '#9ACD32',
                 icon: '☠️',
                 stackable: true,
@@ -42,7 +42,7 @@ export class StatusEffectSystem {
             },
             
             stun: {
-                name: 'Stun',
+                name: '眩晕',
                 color: '#FFD700',
                 icon: '⚡',
                 stackable: false,
@@ -53,7 +53,7 @@ export class StatusEffectSystem {
             },
             
             bleed: {
-                name: 'Bleed',
+                name: '流血',
                 color: '#8B0000',
                 icon: '🩸',
                 stackable: true,
@@ -64,7 +64,7 @@ export class StatusEffectSystem {
             },
             
             weakness: {
-                name: 'Weakness',
+                name: '虚弱',
                 color: '#696969',
                 icon: '🥀',
                 stackable: false,
@@ -76,7 +76,7 @@ export class StatusEffectSystem {
             },
             
             regeneration: {
-                name: 'Regeneration',
+                name: '再生',
                 color: '#00FF00',
                 icon: '💚',
                 stackable: true,
@@ -88,7 +88,7 @@ export class StatusEffectSystem {
             },
             
             rage: {
-                name: 'Rage',
+                name: '狂暴',
                 color: '#FF0000',
                 icon: '😡',
                 stackable: false,
