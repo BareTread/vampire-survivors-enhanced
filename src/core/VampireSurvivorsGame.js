@@ -2293,8 +2293,8 @@ export class VampireSurvivorsGame {
             ctx.lineWidth = 3;
             ctx.beginPath();
 
-            let arrowX = hudX + hudSize / 2;
-            let arrowY = hudY + hudSize / 2;
+            const arrowX = hudX + hudSize / 2;
+            const arrowY = hudY + hudSize / 2;
             let arrowEndX = arrowX;
             let arrowEndY = arrowY;
 

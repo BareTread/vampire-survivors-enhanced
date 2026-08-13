@@ -518,14 +518,7 @@ export class InputManager {
             console.log('✅ InputManager cleanup complete');
             
         } catch (error) {
-            // If globalErrorManager is not available, just log the error
-            if (typeof globalErrorManager !== 'undefined' && globalErrorManager.handleError) {
-                globalErrorManager.handleError('input_cleanup', error, {
-                    severity: 'low'
-                });
-            } else {
-                console.error('Error during InputManager cleanup:', error);
-            }
+            console.error('Error during InputManager cleanup:', error);
         }
     }
 }

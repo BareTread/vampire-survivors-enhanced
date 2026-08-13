@@ -193,7 +193,7 @@ export class EnemySystem {
         }
 
         // Spawn rates tuned to create pressure earlier without relying on unfair damage spikes
-        let baseSpawnRate = 1.75;
+        const baseSpawnRate = 1.75;
         let rawSpawnRate;
 
         if (timeMinutes <= 2) {

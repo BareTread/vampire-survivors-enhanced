@@ -198,8 +198,8 @@ export class ExperienceGem {
             let speed;
             if (systemMagnetActive) {
                 // Use system timer to ensure arrival before magnet ends
-                let cm = 3.0;
-                let remaining =
+                const cm = 3.0;
+                const remaining =
                     this.game && this.game.systems && this.game.systems.experience
                         ? this.game.systems.experience.globalMagnetTimer || 0
                         : 0;
