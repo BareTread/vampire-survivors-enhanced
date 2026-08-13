@@ -367,7 +367,7 @@ export class CanvasHUD {
         }
 
         // Fill
-        let barCol = hpR > 0.6 ? C.hpHigh : hpR > 0.3 ? C.hpMid : C.hpLow;
+        const barCol = hpR > 0.6 ? C.hpHigh : hpR > 0.3 ? C.hpMid : C.hpLow;
         if (hpR > 0) {
             const g = ctx.createLinearGradient(bx, by, bx, by + bh);
             g.addColorStop(0, barCol);

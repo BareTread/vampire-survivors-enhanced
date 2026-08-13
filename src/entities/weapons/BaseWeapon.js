@@ -434,7 +434,7 @@ export class BaseWeapon {
     }
 
     calculateDamageWithPsychology() {
-        let baseDamage = this.getEffectiveDamage();
+        const baseDamage = this.getEffectiveDamage();
 
         // Check for critical hit using reward psychology system
         let isCritical = false;

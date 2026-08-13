@@ -191,7 +191,7 @@ export class ParticleSystemCore {
     enforceParticleBudget(profile = this.getEffectLoadProfile()) {
         const totalLimit = this.getEffectiveEffectLimit(profile);
         const priorities = ['cosmetic', 'combat'];
-        let counts = this.getPriorityCounts();
+        const counts = this.getPriorityCounts();
 
         for (const priority of priorities) {
             const cap = this.getPriorityCap(priority, totalLimit, profile);
@@ -283,31 +283,6 @@ export class ParticleSystemCore {
 
         this.effectParticles.push(particle);
         return particle;
-    }
-
-    createDamageNumber(x, y, damage, critical = false) {
-        // Use centralized damage number pool
-        const color = critical ? '#FF69B4' : '#FFFF00'; // Pink for critical, yellow for normal
-        return globalDamageNumberPool.get(x + (Math.random() - 0.5) * 20, y, Math.floor(damage), color, critical);
-    }
-
-    // OPTIMIZED: Batch effect creation for common scenarios
-    createHitEffect(x, y, intensity = 1.0) {
-        // IMPROVED: More visible hit effects with better duration
-        const count = Math.floor(5 * intensity * this.particleReduction); // Increased from 3
-        const color = intensity > 1.5 ? '#FF69B4' : '#FFFF00'; // Pink for critical
-
-        for (let i = 0; i < count; i++) {
-            this.createEffectParticle(x, y, {
-                vx: (Math.random() - 0.5) * 120 * intensity,
-                vy: (Math.random() - 0.5) * 120 * intensity,
-                life: 0.8 + Math.random() * 0.4, // Longer life - was 0.5 + 0.3
-                size: 3 + Math.random() * 2, // Bigger particles
-                color: color,
-                glow: intensity > 1.2,
-                fadeOut: true
-            });
-        }
     }
 
     createDeathEffect(x, y) {
@@ -805,12 +780,6 @@ export class ParticleSystemCore {
         }
     }
 
-    createDamageNumber(x, y, text, color = '#FFFFFF') {
-        // Use centralized damage number pool
-        const isCritical = color === '#FF0000';
-        return globalDamageNumberPool.get(x + (Math.random() - 0.5) * 20, y - 10, text, color, isCritical);
-    }
-
     createComboExplosion(x, y, count) {
         const intensity = Math.min(count / 10, 3.0);
         this.createBurst(x, y, 'combo', {
@@ -884,9 +853,10 @@ export class ParticleSystemCore {
         }
     }
 
-    // Additional missing particle methods
-    createBloodSplatter(x, y) {
-        this.createBurst(x, y, 'blood', { color: '#8B0000', count: 8, spread: 120 });
+    createDamageNumber(x, y, text, color = '#FFFFFF') {
+        // Use centralized damage number pool
+        const isCritical = color === '#FF0000';
+        return globalDamageNumberPool.get(x + (Math.random() - 0.5) * 20, y - 10, text, color, isCritical);
     }
 
     createBounceEffect(x, y, color = '#00FFFF') {

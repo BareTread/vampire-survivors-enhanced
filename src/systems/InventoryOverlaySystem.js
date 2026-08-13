@@ -132,7 +132,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderWeaponsSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '⚔️ WEAPONS', w, startY);
+        const y = this._renderSectionHeader(ctx, '⚔️ WEAPONS', w, startY);
         const player = this.game.player;
         const weapons = Array.from(player.weapons.values());
 
@@ -238,7 +238,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderPassivesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🛡️ PASSIVE ITEMS', w, startY);
+        const y = this._renderSectionHeader(ctx, '🛡️ PASSIVE ITEMS', w, startY);
         const passiveSystem = this.game.systems.passiveItems;
         if (!passiveSystem || passiveSystem.items.size === 0) {
             ctx.font = '13px monospace';
@@ -298,7 +298,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderSynergiesSection(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🔗 ACTIVE SYNERGIES', w, startY);
+        const y = this._renderSectionHeader(ctx, '🔗 ACTIVE SYNERGIES', w, startY);
         const synergySystem = this.game.systems.synergy;
         if (!synergySystem || synergySystem.activeSynergies.size === 0) {
             ctx.font = '13px monospace';
@@ -337,7 +337,7 @@ export class InventoryOverlaySystem {
     }
 
     _renderEvolutionHints(ctx, w, startY) {
-        let y = this._renderSectionHeader(ctx, '🌟 EVOLUTION RECIPES', w, startY);
+        const y = this._renderSectionHeader(ctx, '🌟 EVOLUTION RECIPES', w, startY);
         const evoSystem = this.game.systems.weaponEvolution;
         if (!evoSystem) return y;
 

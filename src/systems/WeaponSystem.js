@@ -71,7 +71,7 @@ export class WeaponSystem extends BaseSystem {
         if (!transform) return;
 
         // Calculate projectile direction
-        let direction = { x: 1, y: 0 };
+        const direction = { x: 1, y: 0 };
         
         if (target) {
             const targetTransform = target.getComponent('transform');

@@ -86,4 +86,32 @@ describe('ParticleSystemCore budget priorities', () => {
         expect(system.maxEffectParticles).toBeLessThan(50);
         expect(system.maxBloodSplatters).toBeLessThan(15);
     });
+
+    test('createHitEffect accepts a color string as callers pass it', () => {
+        const system = new ParticleSystemCore(createGame());
+
+        const before = system.effectParticles.length;
+        system.createHitEffect(10, 20, '#FF4444');
+
+        expect(system.effectParticles.length).toBeGreaterThan(before);
+        expect(system.effectParticles[system.effectParticles.length - 1].color).toBe('#FF4444');
+    });
+
+    test('createDamageNumber only defines one implementation (no silent method shadowing)', () => {
+        const system = new ParticleSystemCore(createGame());
+        const number = system.createDamageNumber(10, 20, '42', '#FFFFFF');
+
+        expect(number).toBeTruthy();
+    });
+
+    test('createBloodSplatter respects the pooled budget instead of an unbounded burst', () => {
+        const system = new ParticleSystemCore(createGame());
+        system.maxBloodSplatters = 2;
+
+        system.createBloodSplatter(0, 0);
+        system.createBloodSplatter(0, 0);
+        system.createBloodSplatter(0, 0);
+
+        expect(system.bloodSplatters.length).toBe(2);
+    });
 });

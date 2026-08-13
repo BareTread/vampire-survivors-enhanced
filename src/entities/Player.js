@@ -676,7 +676,7 @@ export class Player {
     renderWithSprites(renderer) {
         // Determine sprite variant based on state
         let spriteName = 'player_base';
-        let spriteOptions = {};
+        const spriteOptions = {};
 
         // Apply invulnerability flashing
         if (this.invulnerable) {
