@@ -568,16 +568,20 @@ export class ParticleSystemCore {
     }
 
     createCriticalEffect(x, y, color = '#FF4444') {
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
+        // Quick radial spark burst — gold/white with a touch of the weapon
+        // color. Crits are frequent; the gold damage number carries the
+        // message, so these stay small and short-lived.
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.4;
+            const sp = 110 + Math.random() * 60;
             this.createEffectParticle(x, y, {
-                vx: Math.cos(angle) * 80,
-                vy: Math.sin(angle) * 80,
-                color: color,
-                life: 1.0,
-                size: 6,
-                glow: true,
-                priority: 'critical'
+                vx: Math.cos(angle) * sp,
+                vy: Math.sin(angle) * sp,
+                color: i % 3 === 0 ? color : (i % 2 ? '#FFF2C0' : '#FFC94A'),
+                life: 0.3,
+                size: 2,
+                glow: false,
+                priority: 'combat'
             });
         }
     }
