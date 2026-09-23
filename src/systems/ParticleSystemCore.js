@@ -904,8 +904,30 @@ export class ParticleSystemCore {
         this.createBurst(x, y, 'enhanced', { ...options, intensity: 2.0 });
     }
 
-    createEnhancedMuzzleFlash(x, y, color = '#FFAA00') {
-        this.createBurst(x, y, 'muzzle', { color, count: 8, spread: 90, intensity: 1.5 });
+    /**
+     * Tiny directional spark on weapon fire. Accepts both call shapes:
+     * (x, y, color) and BaseWeapon's (x, y, weaponType, level, { color, angle }).
+     * Kept deliberately small — the weapon's own visuals carry the shot, and
+     * a ring of blobs around the hero on every fire just hides the hero.
+     */
+    createEnhancedMuzzleFlash(x, y, colorOrType = '#FFAA00', level = 1, options = {}) {
+        const isColor = typeof colorOrType === 'string' && /^(#|rgb|hsl)/i.test(colorOrType);
+        const color = options.color || (isColor ? colorOrType : '#FFD9A0');
+        const angle = typeof options.angle === 'number' ? options.angle : null;
+        const count = 3;
+        for (let i = 0; i < count; i++) {
+            const a = angle !== null ? angle + (Math.random() - 0.5) * 0.9 : Math.random() * Math.PI * 2;
+            const sp = 70 + Math.random() * 60;
+            this.createEffectParticle(x + Math.cos(a) * 10, y + Math.sin(a) * 10, {
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp,
+                color,
+                life: 0.18,
+                size: 1.5,
+                glow: false,
+                priority: 'cosmetic'
+            });
+        }
     }
 
     createLastStandEffect(x, y) {
@@ -1021,8 +1043,9 @@ export class ParticleSystemCore {
                 vx: Math.cos(angle) * spread * intensity,
                 vy: Math.sin(angle) * spread * intensity,
                 color: options.color || '#FFFFFF',
-                life: Math.min((options.life || 1.0) * intensity, 0.8), // Shorter life
-                size: Math.min((options.size || 4) * intensity, 6), // Smaller size
+                // Crisp, short sparks rather than lingering blobs
+                life: Math.min((options.life || 0.7) * intensity, 0.6),
+                size: Math.min((options.size || 2.5) * intensity, 5),
                 glow: options.glow !== false,
                 priority
             });

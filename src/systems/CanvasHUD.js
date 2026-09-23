@@ -76,7 +76,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260923-gothic1';
+        this.version = '20260924-bestiary1';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;

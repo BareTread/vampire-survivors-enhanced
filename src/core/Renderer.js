@@ -56,9 +56,8 @@ export class Renderer {
         
         // OPTIMIZED: Batch similar operations with minimal state changes
         const style = filled ? 'fill' : 'stroke';
-        const lastColor = filled ? this.lastUsedFillStyle : this.lastUsedStrokeStyle;
         
-        if (lastColor !== color) {
+        { // always apply (cache can be stale after save/restore)
             this.flushBatch(); // Flush current batch before style change
             if (filled) {
                 this.ctx.fillStyle = color;
@@ -103,14 +102,14 @@ export class Renderer {
         
         // OPTIMIZED: Minimize state changes
         if (filled) {
-            if (this.lastUsedFillStyle !== color) {
+            { // always apply (cache can be stale after save/restore)
                 this.ctx.fillStyle = color;
                 this.lastUsedFillStyle = color;
                 this.stateChangeCount++;
             }
             this.ctx.fillRect(x, y, width, height);
         } else {
-            if (this.lastUsedStrokeStyle !== color) {
+            { // always apply (cache can be stale after save/restore)
                 this.ctx.strokeStyle = color;
                 this.lastUsedStrokeStyle = color;
                 this.stateChangeCount++;
@@ -280,11 +279,16 @@ export class Renderer {
     }
     
     save() {
+        this.flushBatch();
         this.ctx.save();
     }
     
     restore() {
+        this.flushBatch();
         this.ctx.restore();
+        // Restored state may differ from what we last set
+        this.lastUsedFillStyle = null;
+        this.lastUsedStrokeStyle = null;
     }
     
     enableDebug() {
@@ -329,7 +333,7 @@ export class Renderer {
         
         // Draw the circle
         if (filled) {
-            if (this.lastUsedFillStyle !== color) {
+            { // always apply (cache can be stale after save/restore)
                 this.ctx.fillStyle = color;
                 this.lastUsedFillStyle = color;
                 this.stateChangeCount++;
@@ -339,7 +343,7 @@ export class Renderer {
             this.ctx.arc(x, y, radius, 0, 6.283185307179586);
             this.ctx.fill();
         } else {
-            if (this.lastUsedStrokeStyle !== color) {
+            { // always apply (cache can be stale after save/restore)
                 this.ctx.strokeStyle = color;
                 this.lastUsedStrokeStyle = color;
                 this.stateChangeCount++;
@@ -538,7 +542,7 @@ export class Renderer {
         const color = this.batchConfig.batchColor;
         
         if (this.batchConfig.batchType === 'rect') {
-            if (this.lastUsedFillStyle !== color) {
+            { // always apply (cache can be stale after save/restore)
                 this.ctx.fillStyle = color;
                 this.lastUsedFillStyle = color;
                 this.stateChangeCount++;

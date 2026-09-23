@@ -521,7 +521,7 @@ export class Whip extends BaseWeapon {
         
         // Dust explosion on impact
         this.game.systems.particle.createBurst(enemy.x, enemy.y, 'dustExplosion', {
-            color: '#D2B48C',
+            color: '#F3DDB0',
             count: Math.floor(damage * 0.2),
             spread: 40
         });

@@ -19,7 +19,7 @@
  *   elite → horned dreadlord · berserker → werebeast · summoner → necromancer
  *   juggernaut → stone golem · wraith → shroud · demon → winged imp
  */
-import { ENEMY_LAYOUT, getEnemySprite, enemyVisualTop, clearCharacterArtCache } from './CharacterArt.js';
+import { ENEMY_LAYOUT, getEnemySprite, enemyVisualTop, clearCharacterArtCache, artKind } from './CharacterArt.js';
 
 const TAU = Math.PI * 2;
 
@@ -30,7 +30,8 @@ export class EnemyRenderer {
         const ctx = renderer && renderer.ctx ? renderer.ctx : renderer;
         if (!ctx) return;
 
-        const layout = ENEMY_LAYOUT[enemy.type] || ENEMY_LAYOUT.basic;
+        const kind = artKind(enemy);
+        const layout = ENEMY_LAYOUT[kind] || ENEMY_LAYOUT.basic;
         const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
         const anim = EnemyRenderer._anim(enemy, now);
 
@@ -75,12 +76,32 @@ export class EnemyRenderer {
             enemy.renderVariantIndicator(ctx);
         }
 
+        // Boss: pulsing sigil pooled on the ground beneath them
+        if (enemy.isBoss && detailLevel !== 'low') {
+            const pulse = 0.5 + 0.5 * Math.sin(now * 3);
+            const glow = enemy.bossGlowColor || enemy.color;
+            ctx.save();
+            ctx.globalAlpha *= 0.35 + pulse * 0.25;
+            ctx.strokeStyle = glow;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(enemy.x, feetY, enemy.size * 1.6, enemy.size * 0.55, 0, 0, TAU);
+            ctx.stroke();
+            ctx.setLineDash([6, 8]);
+            ctx.lineDashOffset = -now * 30;
+            ctx.beginPath();
+            ctx.ellipse(enemy.x, feetY, enemy.size * 2.0, enemy.size * 0.7, 0, 0, TAU);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
         // Pick sprite variant
         const isFlashing = enemy.flashTime > 0;
         const isGoldenSwarm = enemy.game?.systems?.dynamicEvents?.goldenSwarmActive;
         const frozen = enemy._frozenVisual;
         const variant = isFlashing ? 'flash' : isGoldenSwarm ? 'gold' : frozen ? 'frost' : 'normal';
-        const sprite = getEnemySprite(enemy.type, enemy.color, enemy.size, anim.frame, variant);
+        const sprite = getEnemySprite(kind, enemy.color, enemy.size, anim.frame, variant);
 
         if (sprite) {
             ctx.save();
@@ -146,7 +167,7 @@ export class EnemyRenderer {
             };
         }
 
-        const layout = ENEMY_LAYOUT[enemy.type] || ENEMY_LAYOUT.basic;
+        const layout = ENEMY_LAYOUT[artKind(enemy)] || ENEMY_LAYOUT.basic;
         const vx = enemy.velocity ? enemy.velocity.x : 0;
         const vy = enemy.velocity ? enemy.velocity.y : 0;
         const speed = Math.sqrt(vx * vx + vy * vy);
@@ -204,6 +225,7 @@ export class EnemyRenderer {
      * file enemies so swarms stay readable; always shown for elites.
      */
     static drawHealthBar(ctx, enemy, detailLevel = 'high') {
+        if (enemy.isBoss) return; // bosses get the big HUD bar instead
         const ratio = enemy.maxHealth > 0 ? Math.max(0, enemy.health / enemy.maxHealth) : 0;
         const important = enemy.type === 'elite' || enemy.isElite || enemy.isBoss;
         if (ratio >= 1 && !important) return;

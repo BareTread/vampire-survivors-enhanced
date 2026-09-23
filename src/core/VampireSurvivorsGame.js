@@ -1939,6 +1939,7 @@ export class VampireSurvivorsGame {
             this.systems.boss.renderHUD(this.ctx);
             this.systems.dynamicEvents.render(this.ctx);
             this.systems.canvasHUD.render(this.ctx);
+            this.systems.floorItems.renderOverlay?.(this.ctx);
         }
 
         // Build inventory overlay (renders on top of everything)

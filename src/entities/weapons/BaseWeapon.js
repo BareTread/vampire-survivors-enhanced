@@ -236,24 +236,8 @@ export class BaseWeapon {
     }
 
     createWhipTrailEffect() {
-        if (this.game.systems.particle) {
-            // Dust trail from whip movement
-            for (let i = 0; i < 5; i++) {
-                this.game.systems.particle.create(
-                    this.player.x + (Math.random() - 0.5) * 30,
-                    this.player.y + (Math.random() - 0.5) * 30,
-                    {
-                        vx: (Math.random() - 0.5) * 60,
-                        vy: (Math.random() - 0.5) * 60,
-                        life: 0.8,
-                        size: 4,
-                        color: '#D2B48C',
-                        fadeOut: true,
-                        ay: 40
-                    }
-                );
-            }
-        }
+        // Intentionally empty: the whip's crescent slash is its own trail, and
+        // dust blobs around the hunter on every swing only hid the hero.
     }
 
     createKnifeGlintEffect() {

@@ -495,7 +495,10 @@ export const ENEMY_LAYOUT = {
     summoner: { scale: 1.15, feet: 1.0, fly: false, box: [-1.2, 1.5, -3.1, 0.2] },
     juggernaut: { scale: 1.05, feet: 1.0, fly: false, box: [-1.5, 1.6, -2.5, 0.2] },
     wraith: { scale: 1.35, feet: 0.4, fly: true, box: [-1.4, 1.4, -2.6, 0.2] },
-    demon: { scale: 1.05, feet: 0.9, fly: false, box: [-1.9, 1.9, -2.9, 0.2] }
+    demon: { scale: 1.05, feet: 0.9, fly: false, box: [-1.9, 1.9, -2.9, 0.2] },
+    boss_vampire_lord: { scale: 1.0, feet: 1.0, fly: false, box: [-1.7, 1.7, -2.9, 0.2] },
+    boss_lich: { scale: 1.0, feet: 0.8, fly: true, box: [-1.0, 1.4, -3.4, 0.2] },
+    boss_werewolf: { scale: 0.95, feet: 1.0, fly: false, box: [-1.1, 1.5, -3.1, 0.2] }
 };
 
 function enemyPalette(color) {
@@ -1144,6 +1147,263 @@ function paintDemon(ctx, u, p, frame) {
     ellipse(ctx, u * 0.88, -u * 1.35 + step * u * 0.08, u * 0.2, u * 0.2);
 }
 
+// ======================================================================
+// BOSSES
+// ======================================================================
+
+// --- Vampire Lord: bat-winged cape, high collar, gaunt pale face --------
+function paintVampireLord(ctx, u, p, frame) {
+    const cape = '#12080c';
+    const lining = '#8a0d18';
+    const skin = '#e4d6d0';
+    const sway = frame === 0 ? u * 0.06 : -u * 0.06;
+
+    // Cape spread like wings, scalloped hem
+    ctx.fillStyle = lining;
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.3, -u * 2.0);
+    ctx.quadraticCurveTo(-u * 1.4, -u * 2.2, -u * 1.55, -u * 1.0 + sway);
+    ctx.quadraticCurveTo(-u * 1.3, -u * 0.8, -u * 1.15, -u * 0.35 + sway);
+    ctx.quadraticCurveTo(-u * 0.95, -u * 0.55, -u * 0.8, -u * 0.05 + sway);
+    ctx.quadraticCurveTo(-u * 0.5, -u * 0.3, -u * 0.3, 0);
+    ctx.lineTo(u * 0.3, 0);
+    ctx.quadraticCurveTo(u * 0.55, -u * 0.3, u * 0.8, -u * 0.05 - sway);
+    ctx.quadraticCurveTo(u * 0.95, -u * 0.55, u * 1.15, -u * 0.35 - sway);
+    ctx.quadraticCurveTo(u * 1.3, -u * 0.8, u * 1.55, -u * 1.0 - sway);
+    ctx.quadraticCurveTo(u * 1.4, -u * 2.2, u * 0.3, -u * 2.0);
+    ctx.closePath();
+    ctx.fill();
+    // Outer cape (black), inset from lining
+    ctx.fillStyle = cape;
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.3, -u * 1.95);
+    ctx.quadraticCurveTo(-u * 1.25, -u * 2.05, -u * 1.4, -u * 1.05 + sway);
+    ctx.lineTo(-u * 0.55, -u * 0.25);
+    ctx.lineTo(u * 0.55, -u * 0.25);
+    ctx.lineTo(u * 1.4, -u * 1.05 - sway);
+    ctx.quadraticCurveTo(u * 1.25, -u * 2.05, u * 0.3, -u * 1.95);
+    ctx.closePath();
+    ctx.fill();
+
+    // Body — dark doublet with gold medallion
+    ctx.fillStyle = '#1e1218';
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.38, -u * 2.0);
+    ctx.lineTo(u * 0.38, -u * 2.0);
+    ctx.lineTo(u * 0.3, -u * 0.1);
+    ctx.lineTo(-u * 0.3, -u * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#6a0a14';
+    ctx.fillRect(-u * 0.08, -u * 1.95, u * 0.16, u * 1.2);
+    ctx.fillStyle = '#d8b050';
+    ellipse(ctx, 0, -u * 1.55, u * 0.1, u * 0.1);
+
+    // High collar
+    ctx.fillStyle = lining;
+    poly(ctx, [-u * 0.5, -u * 1.95, -u * 0.62, -u * 2.65, -u * 0.18, -u * 2.1], lining);
+    poly(ctx, [u * 0.5, -u * 1.95, u * 0.62, -u * 2.65, u * 0.18, -u * 2.1], lining);
+
+    // Gaunt head, slicked hair with widow's peak
+    const hx = u * 0.05;
+    const hy = -u * 2.35;
+    ctx.fillStyle = skin;
+    ellipse(ctx, hx, hy, u * 0.26, u * 0.32);
+    ctx.fillStyle = '#0c0608';
+    ctx.beginPath();
+    ctx.moveTo(hx - u * 0.28, hy - u * 0.05);
+    ctx.quadraticCurveTo(hx - u * 0.25, hy - u * 0.42, hx, hy - u * 0.36);
+    ctx.quadraticCurveTo(hx + u * 0.25, hy - u * 0.42, hx + u * 0.28, hy - u * 0.05);
+    ctx.lineTo(hx + u * 0.12, hy - u * 0.22);
+    ctx.lineTo(hx, hy - u * 0.1);
+    ctx.lineTo(hx - u * 0.12, hy - u * 0.22);
+    ctx.closePath();
+    ctx.fill();
+    glowEye(ctx, hx + u * 0.12, hy - u * 0.03, u * 0.05, '#ff2030');
+    glowEye(ctx, hx - u * 0.06, hy - u * 0.03, u * 0.045, '#ff2030');
+    ctx.fillStyle = '#f4f0e8';
+    poly(ctx, [hx - u * 0.05, hy + u * 0.16, hx - u * 0.02, hy + u * 0.26, hx + u * 0.01, hy + u * 0.16], '#f4f0e8');
+    poly(ctx, [hx + u * 0.07, hy + u * 0.16, hx + u * 0.1, hy + u * 0.26, hx + u * 0.13, hy + u * 0.16], '#f4f0e8');
+
+    // Clawed hand reaching forward
+    limb(ctx, u * 0.3, -u * 1.8, u * 0.85, -u * 1.45 + sway, u * 0.16, '#1e1218');
+    ctx.fillStyle = skin;
+    ellipse(ctx, u * 0.9, -u * 1.45 + sway, u * 0.1, u * 0.09);
+    ctx.strokeStyle = skin;
+    ctx.lineWidth = Math.max(0.7, u * 0.04);
+    ctx.beginPath();
+    for (let i = -1; i <= 1; i++) {
+        ctx.moveTo(u * 0.95, -u * 1.45 + sway + i * u * 0.05);
+        ctx.lineTo(u * 1.12, -u * 1.4 + sway + i * u * 0.09);
+    }
+    ctx.stroke();
+}
+
+// --- Lich King: floating robe, crowned skull, soul-fire staff ------------
+function paintLich(ctx, u, p, frame) {
+    const robe = '#231634';
+    const robeDark = '#120a1c';
+    const bone = '#e2dcc8';
+    const soul = '#9ef0c8';
+    const wave = frame === 0 ? 1 : -1;
+
+    // Tattered robe, no legs
+    ctx.fillStyle = robe;
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.45, -u * 2.05);
+    ctx.lineTo(u * 0.45, -u * 2.05);
+    ctx.quadraticCurveTo(u * 0.7, -u * 1.0, u * 0.75, -u * 0.25);
+    ctx.lineTo(u * 0.5, -u * 0.45 + wave * u * 0.06);
+    ctx.lineTo(u * 0.3, -u * 0.05);
+    ctx.lineTo(u * 0.05, -u * 0.4 - wave * u * 0.06);
+    ctx.lineTo(-u * 0.2, 0);
+    ctx.lineTo(-u * 0.45, -u * 0.38 + wave * u * 0.06);
+    ctx.lineTo(-u * 0.75, -u * 0.15);
+    ctx.quadraticCurveTo(-u * 0.7, -u * 1.0, -u * 0.45, -u * 2.05);
+    ctx.closePath();
+    ctx.fill();
+    // Ribcage peeking through
+    ctx.strokeStyle = bone;
+    ctx.lineWidth = Math.max(0.7, u * 0.05);
+    ctx.fillStyle = robeDark;
+    ellipse(ctx, 0, -u * 1.55, u * 0.3, u * 0.32);
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+        const y = -u * 1.72 + i * u * 0.14;
+        ctx.moveTo(-u * 0.22, y);
+        ctx.quadraticCurveTo(0, y + u * 0.08, u * 0.22, y);
+    }
+    ctx.moveTo(0, -u * 1.82);
+    ctx.lineTo(0, -u * 1.3);
+    ctx.stroke();
+    // Gold trim
+    ctx.strokeStyle = '#b8903e';
+    ctx.lineWidth = Math.max(0.7, u * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.45, -u * 2.05);
+    ctx.lineTo(u * 0.45, -u * 2.05);
+    ctx.stroke();
+
+    // Mantle
+    ctx.fillStyle = robeDark;
+    ellipse(ctx, 0, -u * 2.02, u * 0.62, u * 0.2);
+
+    // Skull
+    const hx = u * 0.02;
+    const hy = -u * 2.38;
+    ctx.fillStyle = bone;
+    ellipse(ctx, hx, hy, u * 0.28, u * 0.3);
+    ctx.fillRect(hx - u * 0.16, hy + u * 0.12, u * 0.32, u * 0.16);
+    ctx.fillStyle = '#0a0610';
+    ellipse(ctx, hx - u * 0.1, hy, u * 0.08, u * 0.09);
+    ellipse(ctx, hx + u * 0.12, hy, u * 0.08, u * 0.09);
+    poly(ctx, [hx, hy + u * 0.07, hx - u * 0.04, hy + u * 0.15, hx + u * 0.04, hy + u * 0.15], '#0a0610');
+    glowEye(ctx, hx - u * 0.1, hy, u * 0.04, soul);
+    glowEye(ctx, hx + u * 0.12, hy, u * 0.04, soul);
+    // Jagged crown
+    poly(ctx, [
+        hx - u * 0.3, hy - u * 0.2,
+        hx - u * 0.3, hy - u * 0.5,
+        hx - u * 0.18, hy - u * 0.34,
+        hx - u * 0.08, hy - u * 0.6,
+        hx + u * 0.04, hy - u * 0.36,
+        hx + u * 0.16, hy - u * 0.58,
+        hx + u * 0.24, hy - u * 0.34,
+        hx + u * 0.32, hy - u * 0.5,
+        hx + u * 0.32, hy - u * 0.2
+    ], '#d4a840');
+    ctx.fillStyle = p.accentLight;
+    ellipse(ctx, hx - u * 0.08, hy - u * 0.3, u * 0.04, u * 0.04);
+
+    // Staff with soul fire
+    const sx = u * 0.85;
+    ctx.strokeStyle = '#3a2a1c';
+    ctx.lineWidth = Math.max(1, u * 0.08);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx - u * 0.05, -u * 0.2);
+    ctx.lineTo(sx + u * 0.05, -u * 2.7);
+    ctx.stroke();
+    ctx.fillStyle = rgba(soul, 0.3);
+    ellipse(ctx, sx + u * 0.05, -u * 2.85, u * 0.34, u * 0.4);
+    ctx.fillStyle = soul;
+    ctx.beginPath();
+    ctx.moveTo(sx + u * 0.05, -u * 3.15 - wave * u * 0.05);
+    ctx.quadraticCurveTo(sx + u * 0.25, -u * 2.85, sx + u * 0.05, -u * 2.65);
+    ctx.quadraticCurveTo(sx - u * 0.15, -u * 2.85, sx + u * 0.05, -u * 3.15 - wave * u * 0.05);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ellipse(ctx, sx + u * 0.05, -u * 2.8, u * 0.06, u * 0.08);
+    // Bony hand
+    limb(ctx, u * 0.35, -u * 1.9, sx, -u * 1.6, u * 0.14, robe);
+    ctx.fillStyle = bone;
+    ellipse(ctx, sx + u * 0.02, -u * 1.6, u * 0.08, u * 0.09);
+}
+
+// --- Alpha Werewolf: towering upright beast, silver mane -----------------
+function paintWerewolf(ctx, u, p, frame) {
+    const fur = '#4a3728';
+    const furDark = '#2a1e16';
+    const mane = '#a8a0a8';
+    const step = frame === 0 ? 1 : -1;
+
+    // Legs (digitigrade)
+    bentLimb(ctx, -u * 0.25, -u * 1.0, -u * 0.5 - step * u * 0.12, -u * 0.55, -u * 0.3 - step * u * 0.22, -u * 0.05, u * 0.3, furDark);
+    bentLimb(ctx, u * 0.2, -u * 1.0, -u * 0.05 + step * u * 0.12, -u * 0.55, u * 0.3 + step * u * 0.22, -u * 0.05, u * 0.32, fur);
+
+    // Back arm
+    limb(ctx, -u * 0.35, -u * 1.9, -u * 0.6, -u * 1.05 - step * u * 0.1, u * 0.26, furDark);
+
+    // Massive chest
+    ctx.fillStyle = fur;
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.7, -u * 2.0);
+    ctx.quadraticCurveTo(0, -u * 2.35, u * 0.7, -u * 2.0);
+    ctx.quadraticCurveTo(u * 0.55, -u * 1.2, u * 0.3, -u * 0.95);
+    ctx.lineTo(-u * 0.35, -u * 0.95);
+    ctx.quadraticCurveTo(-u * 0.6, -u * 1.3, -u * 0.7, -u * 2.0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#6a5240';
+    ellipse(ctx, u * 0.05, -u * 1.5, u * 0.3, u * 0.38);
+
+    // Silver mane spikes
+    for (let i = 0; i < 6; i++) {
+        const a = Math.PI * (1.05 + i * 0.16);
+        const bx = Math.cos(a) * u * 0.55;
+        const by = -u * 2.1 + Math.sin(a) * u * 0.25;
+        poly(ctx, [bx - u * 0.12, by + u * 0.08, bx + Math.cos(a) * u * 0.4, by + Math.sin(a) * u * 0.4, bx + u * 0.12, by + u * 0.08], mane);
+    }
+
+    // Head — snarling wolf
+    const hx = u * 0.35;
+    const hy = -u * 2.35;
+    ctx.fillStyle = fur;
+    ellipse(ctx, hx, hy, u * 0.34, u * 0.3);
+    poly(ctx, [hx + u * 0.1, hy - u * 0.12, hx + u * 0.85, hy + u * 0.04, hx + u * 0.12, hy + u * 0.22], fur);
+    poly(ctx, [hx - u * 0.2, hy - u * 0.18, hx - u * 0.12, hy - u * 0.62, hx + u * 0.05, hy - u * 0.22], furDark);
+    poly(ctx, [hx + u * 0.05, hy - u * 0.2, hx + u * 0.18, hy - u * 0.6, hx + u * 0.25, hy - u * 0.16], furDark);
+    ctx.fillStyle = '#1a0a0c';
+    poly(ctx, [hx + u * 0.18, hy + u * 0.1, hx + u * 0.8, hy + u * 0.08, hx + u * 0.22, hy + u * 0.28], '#1a0a0c');
+    ctx.fillStyle = '#efe6d2';
+    poly(ctx, [hx + u * 0.4, hy + u * 0.08, hx + u * 0.45, hy + u * 0.22, hx + u * 0.5, hy + u * 0.08], '#efe6d2');
+    poly(ctx, [hx + u * 0.6, hy + u * 0.08, hx + u * 0.64, hy + u * 0.18, hx + u * 0.68, hy + u * 0.08], '#efe6d2');
+    glowEye(ctx, hx + u * 0.18, hy - u * 0.06, u * 0.07, '#ffb020');
+
+    // Front claw arm raised
+    limb(ctx, u * 0.45, -u * 1.9, u * 1.05, -u * 1.55 - step * u * 0.12, u * 0.28, fur);
+    ctx.strokeStyle = '#efe6d2';
+    ctx.lineWidth = Math.max(0.8, u * 0.06);
+    ctx.beginPath();
+    const cx = u * 1.05;
+    const cy = -u * 1.55 - step * u * 0.12;
+    for (let i = -1; i <= 1; i++) {
+        ctx.moveTo(cx, cy + i * u * 0.08);
+        ctx.lineTo(cx + u * 0.25, cy + i * u * 0.12 - u * 0.1);
+    }
+    ctx.stroke();
+}
+
 const ENEMY_PAINTERS = {
     basic: paintGhoul,
     fast: paintBat,
@@ -1154,8 +1414,19 @@ const ENEMY_PAINTERS = {
     summoner: paintNecromancer,
     juggernaut: paintGolem,
     wraith: paintWraith,
-    demon: paintDemon
+    demon: paintDemon,
+    boss_vampire_lord: paintVampireLord,
+    boss_lich: paintLich,
+    boss_werewolf: paintWerewolf
 };
+
+/** Art archetype for an enemy instance (bosses get their own painters). */
+export function artKind(enemy) {
+    if (enemy.isBoss && enemy.bossType && ENEMY_PAINTERS['boss_' + enemy.bossType]) {
+        return 'boss_' + enemy.bossType;
+    }
+    return ENEMY_PAINTERS[enemy.type] ? enemy.type : 'basic';
+}
 
 const enemyCache = new Map();
 
@@ -1188,7 +1459,7 @@ export function getEnemySprite(type, color, size, frame, variant = 'normal') {
 
 /** Visual top of an enemy (world y), used to place health bars / markers. */
 export function enemyVisualTop(enemy) {
-    const kind = ENEMY_PAINTERS[enemy.type] ? enemy.type : 'basic';
+    const kind = artKind(enemy);
     const layout = ENEMY_LAYOUT[kind];
     const u = enemy.size * layout.scale;
     return enemy.y + enemy.size * layout.feet + layout.box[2] * u * 0.92;
