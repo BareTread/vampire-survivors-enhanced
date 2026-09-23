@@ -475,27 +475,9 @@ export class Player {
             this.game.camera.addVignette(0.4);
         }
 
-        // Pulsing heart particles
-        if (this.game.systems.particle) {
-            for (let i = 0; i < 3; i++) {
-                const angle = (i / 3) * Math.PI * 2;
-                const distance = 25;
-                this.game.systems.particle.create(
-                    this.x + Math.cos(angle) * distance,
-                    this.y + Math.sin(angle) * distance,
-                    {
-                        vx: 0,
-                        vy: -30,
-                        life: 1.0,
-                        size: 4,
-                        color: '#FF0000',
-                        glow: true,
-                        fadeOut: true,
-                        pulse: true
-                    }
-                );
-            }
-        }
+        // The heartbeat pulse ring is drawn at the hunter's feet by
+        // SpriteManager.drawPlayer whenever health is low — no particles
+        // stacked on top of the hero.
 
         // Play heartbeat sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
@@ -1214,7 +1196,7 @@ export class Player {
         }
 
         // Dramatic 'desperation mode' effect with larger text
-        this.addDamageNumber('DESPERATION MODE!', '#FF0000', 'LAST STAND');
+        this.addDamageNumber('LAST STAND!', '#FF4A3A', '');
 
         // ENHANCED Visual drama - dramatic screen shake
         if (this.game && this.game.camera) {
@@ -1360,7 +1342,11 @@ export class Player {
         // Near-death damage reduction for dramatic survivability
         if (this.nearDeath.bonusActive) {
             finalDamage *= 1 - this.nearDeath.damageReduction;
-            this.addDamageNumber('REDUCED!', '#FFAA00', 'LAST STAND');
+            const nowMs = performance.now();
+            if (!this._wardTextAt || nowMs - this._wardTextAt > 1500) {
+                this._wardTextAt = nowMs;
+                this.addDamageNumber('WARDED', '#FFAA00', '');
+            }
         }
 
         const holyBible = this.weapons.get('holy_bible');

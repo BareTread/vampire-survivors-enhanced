@@ -99,6 +99,16 @@ export class SpriteManager {
         ctx.ellipse(player.x, feetY, size * 1.25, size * 0.45, 0, 0, Math.PI * 2);
         ctx.stroke();
 
+        // Low-health heartbeat: a red ring thumping out from the feet
+        if (player.health > 0 && player.health <= player.maxHealth * 0.25) {
+            const beat = (now * 1.4) % 1;
+            ctx.strokeStyle = `rgba(255, 50, 60, ${0.7 * (1 - beat)})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(player.x, feetY, size * (1.2 + beat * 1.6), size * (0.45 + beat * 0.6), 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         // Ground shadow
         ctx.fillStyle = 'rgba(6, 3, 10, 0.45)';
         ctx.beginPath();

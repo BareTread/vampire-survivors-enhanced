@@ -1,4 +1,5 @@
 import { managedSetTimeout } from '../core/TimerManager.js';
+import { bakeSprite, shade, rgba } from './rendering/CharacterArt.js';
 
 export class ExperienceGem {
     constructor(game, x, y, value = 5) {
@@ -67,22 +68,22 @@ export class ExperienceGem {
             // Rare gem
             this.type = 'rare';
             this.size = 8;
-            this.color = '#9B59B6';
-            this.glowColor = '#E74C3C';
+            this.color = '#ff3a5a';
+            this.glowColor = '#ff8a9a';
             this.sparkleCount = 4; // Reduced from 8 to 4
         } else if (this.value >= 20) {
             // Uncommon gem
             this.type = 'uncommon';
             this.size = 6;
-            this.color = '#3498DB';
-            this.glowColor = '#2ECC71';
+            this.color = '#3ee08a';
+            this.glowColor = '#a8ffd0';
             this.sparkleCount = 2; // Reduced from 4 to 2
         } else {
             // Common gem
             this.type = 'common';
             this.size = 4;
-            this.color = '#F1C40F';
-            this.glowColor = '#E67E22';
+            this.color = '#4aa8ff';
+            this.glowColor = '#b8e4ff';
             this.sparkleCount = 1; // Reduced from 2 to 1
         }
     }
@@ -630,11 +631,11 @@ export class ExperienceGem {
         if (this.currentSpawnTime > 0) {
             const spawnProgress = 1 - this.currentSpawnTime / this.spawnTime;
             ctx.globalAlpha = spawnProgress;
-
-            // Scale in effect
-            const scale = 0.3 + 0.7 * spawnProgress;
-            ctx.scale(scale, scale);
         }
+        // Scale-in factor (applied around the gem itself, not the world origin)
+        const spawnScale = this.currentSpawnTime > 0
+            ? 0.3 + 0.7 * (1 - this.currentSpawnTime / this.spawnTime)
+            : 1;
 
         // Fade out near end of lifetime
         if (this.lifetime < this.fadeTime) {
@@ -732,29 +733,119 @@ export class ExperienceGem {
             ctx.restore();
         }
 
-        // Enhanced glow for lucky gems
-        if (this.isLucky && this.glowEffect) {
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = this.size * 5 * pulseIntensity;
-        } else {
-            ctx.shadowColor = this.glowColor;
-            ctx.shadowBlur = this.size * 3 * pulseIntensity;
+        // Soft additive glow (baked) instead of per-gem shadowBlur
+        const color = this.isLucky ? '#FFD700' : this.color;
+        const sprites = ExperienceGem.sprites(this.type, color);
+        if (sprites) {
+            const gr = this.size * (this.isLucky ? 4.2 : 3) * (0.85 + 0.15 * pulseIntensity);
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha *= 0.55;
+            ctx.drawImage(sprites.glow, this.x - gr, gemY - gr, gr * 2, gr * 2);
+            ctx.restore();
+
+            ctx.translate(this.x, gemY);
+            ctx.scale(spawnScale, spawnScale);
+            const g = sprites.gem;
+            ctx.drawImage(g.canvas, -g.ax, -g.ay, g.w, g.h);
+
+            // Periodic glint sweeping across the facet
+            const glint = (performance.now() * 0.001 + this.pulseOffset) % 2.6;
+            if (glint < 0.25) {
+                const a = Math.sin((glint / 0.25) * Math.PI);
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha *= a;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(-this.size * 0.25, -this.size * 0.45, this.size * 0.5, this.size * 0.14, -0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (this.isLucky) {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1;
+                this.renderLuckySparkles(ctx, pulseIntensity);
+            }
+            ctx.restore();
+            return;
         }
 
-        // Draw main gem
+        // Headless fallback: legacy vector gem
         ctx.translate(this.x, gemY);
+        ctx.scale(spawnScale, spawnScale);
         ctx.rotate(this.rotation);
-
         this.renderGem(ctx);
-
-        // Enhanced sparkles for lucky gems
-        if (this.isLucky) {
-            this.renderLuckySparkles(ctx, pulseIntensity);
-        } else {
-            this.renderSparkles(ctx, pulseIntensity);
-        }
-
         ctx.restore();
+    }
+
+    /**
+     * Baked outlined crystal + glow sprite per (type, color). Common =
+     * small shard, uncommon = cut diamond, rare = large faceted heart-stone.
+     */
+    static sprites(type, color) {
+        if (typeof document === 'undefined') return null;
+        const cache = ExperienceGem._spriteCache || (ExperienceGem._spriteCache = new Map());
+        const key = type + '|' + color;
+        let entry = cache.get(key);
+        if (entry !== undefined) return entry;
+
+        const s = type === 'rare' ? 8 : type === 'uncommon' ? 6 : 4.5;
+        const light = shade(color, 0.55);
+        const dark = shade(color, -0.45);
+        const gem = bakeSprite({ l: -s, r: s, t: -s * 1.4, b: s * 1.1 }, (ctx) => {
+            // Crystal silhouette: pointed top, tapered base
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(0, -s * 1.35);
+            ctx.lineTo(s * 0.8, -s * 0.2);
+            ctx.lineTo(s * 0.45, s * 1.0);
+            ctx.lineTo(-s * 0.45, s * 1.0);
+            ctx.lineTo(-s * 0.8, -s * 0.2);
+            ctx.closePath();
+            ctx.fill();
+            // Dark right facet
+            ctx.fillStyle = dark;
+            ctx.beginPath();
+            ctx.moveTo(0, -s * 1.35);
+            ctx.lineTo(s * 0.8, -s * 0.2);
+            ctx.lineTo(s * 0.45, s * 1.0);
+            ctx.lineTo(0, s * 0.25);
+            ctx.closePath();
+            ctx.fill();
+            // Lit left facet
+            ctx.fillStyle = light;
+            ctx.beginPath();
+            ctx.moveTo(0, -s * 1.35);
+            ctx.lineTo(-s * 0.8, -s * 0.2);
+            ctx.lineTo(0, s * 0.25);
+            ctx.closePath();
+            ctx.fill();
+            if (type !== 'common') {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.beginPath();
+                ctx.moveTo(-s * 0.2, -s * 0.9);
+                ctx.lineTo(-s * 0.45, -s * 0.25);
+                ctx.lineTo(-s * 0.15, -s * 0.35);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }, { outline: type === 'common' ? 0.9 : 1.1 });
+
+        let glow = null;
+        const c = document.createElement('canvas');
+        c.width = c.height = 32;
+        const g = c.getContext && c.getContext('2d');
+        if (g) {
+            const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, rgba(color, 0.9));
+            grad.addColorStop(0.4, rgba(color, 0.3));
+            grad.addColorStop(1, rgba(color, 0));
+            g.fillStyle = grad;
+            g.fillRect(0, 0, 32, 32);
+            glow = c;
+        }
+        entry = gem && glow ? { gem, glow } : null;
+        cache.set(key, entry);
+        return entry;
     }
 
     renderGem(ctx) {

@@ -850,14 +850,9 @@ export class ParticleSystemCore {
     }
 
     createHeartbeatEffect(x, y) {
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: '#FF0000',
-            life: 1.0,
-            size: 20,
-            glow: true
-        });
+        // Low-health heartbeat is visualized as a pulse ring under the
+        // player sprite (SpriteManager.drawPlayer); a 20px glowing disc here
+        // used to cover the hero exactly when they most need to be seen.
     }
 
     createImpactEffect(x, y, color = '#FFFF00') {
