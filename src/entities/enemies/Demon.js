@@ -1,3 +1,4 @@
+import { EnemyRenderer } from '../rendering/EnemyRenderer.js';
 import { Enemy } from '../Enemy.js';
 import { managedSetTimeout } from '../../core/TimerManager.js';
 
@@ -565,102 +566,53 @@ export class Demon extends Enemy {
         }
     }
 
-    render(renderer) {
+    render(renderer, detailLevel = 'high') {
         if (!this.active) return;
 
-        const ctx = renderer.ctx;
+        const ctx = renderer.ctx || renderer;
         ctx.save();
 
-        // Spawn animation
-        if (this.currentSpawnTime > 0) {
-            const spawnProgress = 1 - (this.currentSpawnTime / this.spawnTime);
-            ctx.globalAlpha = spawnProgress;
+        // Rage: hellfire glow pooled under the body
+        if (this.rageMode && detailLevel !== 'low') {
+            const flicker = Math.sin(this.flamePulse) * 0.15 + 0.35;
+            const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 2.4);
+            g.addColorStop(0, `rgba(255, 90, 20, ${flicker})`);
+            g.addColorStop(1, 'rgba(255, 40, 0, 0)');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * 2.4, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        // Flash effect when damaged
-        if (this.flashTime > 0) {
-            ctx.shadowColor = '#FFFFFF';
-            ctx.shadowBlur = 10;
+        EnemyRenderer.render(this, ctx, detailLevel);
+
+        if (this.rageMode && detailLevel !== 'low') {
+            this.renderDemonDetails(ctx, this.y);
         }
-
-        // Demonic glow
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = this.glowIntensity + (this.rageMode ? 8 : 0);
-
-        // Body bobbing animation
-        const bobOffset = Math.sin(this.bodyBob) * 3;
-        const renderY = this.y + bobOffset;
-
-        // Draw demon body
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, renderY, this.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw demon details
-        this.renderDemonDetails(ctx, renderY);
 
         // Charging area attack indicator
         if (this.chargingAreaAttack) {
             this.renderAreaAttackCharge(ctx);
         }
 
-        // Health bar for damaged demons
-        if (this.health < this.maxHealth) {
-            this.renderHealthBar(ctx, renderY);
-        }
-
         ctx.restore();
-
-        // Note: Damage numbers now rendered by globalDamageNumberPool
     }
 
     renderDemonDetails(ctx, renderY) {
-        // Demon horns
-        ctx.fillStyle = '#8B0000';
-        ctx.beginPath();
-        ctx.arc(this.x - this.size * 0.4, renderY - this.size * 0.6, 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(this.x + this.size * 0.4, renderY - this.size * 0.6, 3, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Wings (animated)
-        const wingAngle = Math.sin(this.wingFlap) * 0.3;
-        ctx.strokeStyle = '#8B0000';
-        ctx.lineWidth = 3;
-
-        // Left wing
-        ctx.beginPath();
-        ctx.moveTo(this.x - this.size * 0.3, renderY);
-        ctx.lineTo(this.x - this.size * 1.2, renderY - this.size * 0.5 + Math.sin(this.wingFlap) * 8);
-        ctx.stroke();
-
-        // Right wing
-        ctx.beginPath();
-        ctx.moveTo(this.x + this.size * 0.3, renderY);
-        ctx.lineTo(this.x + this.size * 1.2, renderY - this.size * 0.5 + Math.sin(this.wingFlap + Math.PI) * 8);
-        ctx.stroke();
-
-        // Fire aura in rage mode
-        if (this.rageMode) {
-            const flameIntensity = Math.sin(this.flamePulse) * 0.3 + 0.7;
-            ctx.globalAlpha = flameIntensity * 0.6;
-
-            // Fire particles around demon
-            const flameCount = 8;
-            for (let i = 0; i < flameCount; i++) {
-                const angle = (i / flameCount) * Math.PI * 2 + this.flamePulse * 0.5;
-                const distance = this.size + 8 + Math.sin(this.flamePulse + i) * 5;
-                const flameX = this.x + Math.cos(angle) * distance;
-                const flameY = renderY + Math.sin(angle) * distance;
-
-                ctx.fillStyle = this.fireColor;
-                ctx.beginPath();
-                ctx.arc(flameX, flameY, 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
+        // Rage mode: embers orbiting the demon
+        const flameIntensity = Math.sin(this.flamePulse) * 0.3 + 0.7;
+        ctx.save();
+        ctx.globalAlpha *= flameIntensity * 0.7;
+        ctx.fillStyle = this.fireColor;
+        const flameCount = 6;
+        for (let i = 0; i < flameCount; i++) {
+            const angle = (i / flameCount) * Math.PI * 2 + this.flamePulse * 0.5;
+            const distance = this.size + 6 + Math.sin(this.flamePulse + i) * 4;
+            ctx.beginPath();
+            ctx.arc(this.x + Math.cos(angle) * distance, renderY - this.size * 0.6 + Math.sin(angle) * distance * 0.6, 2, 0, Math.PI * 2);
+            ctx.fill();
         }
+        ctx.restore();
     }
 
     renderAreaAttackCharge(ctx) {
@@ -679,36 +631,8 @@ export class Demon extends Enemy {
         ctx.setLineDash([]);
     }
 
-    renderHealthBar(ctx, renderY) {
-        const barWidth = this.size * 2.5;
-        const barHeight = 4;
-        const barX = this.x - barWidth / 2;
-        const barY = renderY - this.size - 12;
-
-        // Background
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Health
-        const healthRatio = this.health / this.maxHealth;
-        let healthColor = '#44FF44';
-
-        if (healthRatio <= this.rageModeThreshold) {
-            healthColor = '#FF4444'; // Red when in rage mode range
-        } else if (healthRatio <= 0.6) {
-            healthColor = '#FFAA44'; // Orange when damaged
-        }
-
-        ctx.fillStyle = healthColor;
-        ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-
-        // Rage mode indicator
-        if (this.rageMode) {
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(barX - 2, barY - 1, 2, barHeight + 2);
-            ctx.fillRect(barX + barWidth, barY - 1, 2, barHeight + 2);
-        }
+    renderHealthBar(ctx, detailLevel = 'high') {
+        EnemyRenderer.drawHealthBar(ctx, this, detailLevel);
     }
 
     // Override death to create spectacular demon death

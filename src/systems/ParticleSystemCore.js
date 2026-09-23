@@ -324,8 +324,8 @@ export class ParticleSystemCore {
             });
         }
 
-        // Add blood splatter
-        this.createBloodSplatter(x, y);
+        // Floor stains are owned by GroundDecalSystem (textured, fading
+        // splats); the old flat purple discs are no longer spawned here.
     }
 
     createBloodSplatter(x, y) {
@@ -538,14 +538,21 @@ export class ParticleSystemCore {
     }
 
     createWhipCrackEffect(x, y, color = '#8B4513') {
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: color,
-            life: 0.3,
-            size: 12,
-            glow: true
-        });
+        // A few hot sparks flicking off the tip (the weapon draws its own
+        // crack flash) — no big static blob
+        for (let i = 0; i < 4; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const sp = 60 + Math.random() * 90;
+            this.createEffectParticle(x, y, {
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp,
+                color: i % 2 ? '#FFD27A' : '#FFF1C8',
+                life: 0.25,
+                size: 1.5,
+                glow: false,
+                priority: 'cosmetic'
+            });
+        }
     }
 
     createMeleeHitEffect(x, y, color = '#FFD700') {

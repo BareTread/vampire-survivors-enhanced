@@ -594,10 +594,14 @@ export class ExperienceGem {
                     200,
                     this
                 );
+            } else if (this.type === 'rare') {
+                color = '#E080FF';
+                size = 18;
+                intensity = 2.0;
             } else {
-                color = this.type === 'rare' ? '#FF00FF' : this.type === 'uncommon' ? '#00AAFF' : '#FFFF00';
-                size = this.type === 'rare' ? 20 : this.type === 'uncommon' ? 16 : 14;
-                intensity = this.type === 'rare' ? 2.0 : 1.0;
+                // Common/uncommon pickups are communicated by the XP bar and
+                // pickup chime — floating text here just buries the hero.
+                return;
             }
 
             this.game.systems.particle.createEnhancedDamageNumber(

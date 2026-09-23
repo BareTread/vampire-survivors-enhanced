@@ -1,3 +1,4 @@
+import { ENEMY_NAMES } from '../data/enemyNames.js';
 import { CHARACTERS } from '../data/characters.js';
 
 /**
@@ -201,7 +202,8 @@ export class RunSummarySystem {
 
         // "Killed by" display — drawn skull + blood text
         if (this.runData.killedBy && this.runData.killedBy.name) {
-            const killerName = this.runData.killedBy.name.charAt(0).toUpperCase() + this.runData.killedBy.name.slice(1);
+            const rawKiller = this.runData.killedBy.name;
+            const killerName = ENEMY_NAMES[rawKiller] || rawKiller.charAt(0).toUpperCase() + rawKiller.slice(1);
             const killY = headerY + (character ? 52 : 32);
             ctx.font = `bold 14px Georgia, serif`;
             const killText = `Killed by ${killerName}`;

@@ -1,3 +1,4 @@
+import { EnemyRenderer } from '../rendering/EnemyRenderer.js';
 import { Enemy } from '../Enemy.js';
 import { managedSetTimeout } from '../../core/TimerManager.js';
 
@@ -408,51 +409,25 @@ export class Wraith extends Enemy {
         }
     }
 
-    render(renderer) {
+    render(renderer, detailLevel = 'high') {
         if (!this.active) return;
 
-        const ctx = renderer.ctx;
+        const ctx = renderer.ctx || renderer;
         ctx.save();
 
-        // Render phase trail first
+        // Phase trail first (behind the body)
         this.renderPhaseTrail(ctx);
 
-        // Spawn animation
-        if (this.currentSpawnTime > 0) {
-            const spawnProgress = 1 - (this.currentSpawnTime / this.spawnTime);
-            ctx.globalAlpha = spawnProgress * this.currentAlpha;
-        } else {
-            ctx.globalAlpha = this.currentAlpha;
+        // Ghostly translucency; flickers while phased out
+        let alpha = this.currentAlpha;
+        if (this.phaseMode) {
+            alpha *= Math.sin(performance.now() * 0.02) * 0.3 + 0.7;
         }
+        ctx.globalAlpha = alpha;
 
-        // Flash effect when damaged
-        if (this.flashTime > 0 && !this.phaseMode) {
-            ctx.shadowColor = '#FFFFFF';
-            ctx.shadowBlur = this.glowIntensity;
-        }
-
-        // Ghostly glow effect
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = this.glowIntensity;
-
-        // Draw wraith body (floating)
-        const renderY = this.y + this.floatOffset;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, renderY, this.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw wraith details
-        this.renderWraithDetails(ctx, renderY);
-
-        // Health bar for damaged wraiths (but not during phase)
-        if (this.health < this.maxHealth && !this.phaseMode) {
-            this.renderHealthBar(ctx, renderY);
-        }
+        EnemyRenderer.render(this, ctx, detailLevel);
 
         ctx.restore();
-
-        // Note: Damage numbers now rendered by globalDamageNumberPool
     }
 
     renderPhaseTrail(ctx) {
@@ -522,21 +497,9 @@ export class Wraith extends Enemy {
         }
     }
 
-    renderHealthBar(ctx, renderY) {
-        const barWidth = this.size * 2;
-        const barHeight = 3;
-        const barX = this.x - barWidth / 2;
-        const barY = renderY - this.size - 10;
-
-        // Background
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Health
-        const healthRatio = this.health / this.maxHealth;
-        ctx.fillStyle = healthRatio > 0.5 ? '#9370DB' : '#FF4444';
-        ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
+    renderHealthBar(ctx, detailLevel = 'high') {
+        if (this.phaseMode) return;
+        EnemyRenderer.drawHealthBar(ctx, this, detailLevel);
     }
 
     // Override death to create special wraith death effect

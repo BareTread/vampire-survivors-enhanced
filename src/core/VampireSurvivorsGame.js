@@ -23,6 +23,7 @@ import { RaritySystem } from '../systems/RaritySystem.js';
 import { BossSystem } from '../systems/BossSystem.js';
 import { DynamicEventSystem } from '../systems/DynamicEventSystem.js';
 import { AmbientParticleSystem } from '../systems/AmbientParticleSystem.js';
+import { GroundDecalSystem } from '../systems/GroundDecalSystem.js';
 import { TitleScreenSystem } from '../systems/TitleScreenSystem.js';
 import { RunSummarySystem } from '../systems/RunSummarySystem.js';
 import { CanvasHUD } from '../systems/CanvasHUD.js?v=20260317-hudfix2';
@@ -138,6 +139,7 @@ export class VampireSurvivorsGame {
             boss: new BossSystem(this),
             dynamicEvents: new DynamicEventSystem(this),
             ambientParticles: new AmbientParticleSystem(this),
+            decals: new GroundDecalSystem(this),
             titleScreen: new TitleScreenSystem(this),
             runSummary: new RunSummarySystem(this),
             canvasHUD: new CanvasHUD(this),
@@ -479,19 +481,20 @@ export class VampireSurvivorsGame {
     }
 
     createNotificationsUI(container) {
-        // Subtle toasts pinned to top-right
+        // Subtle toasts stacked top-center, just under the run timer — clear
+        // of the character panel (left) and the gold/kills panel (right)
         const notifications = document.createElement('div');
         notifications.id = 'notifications';
         notifications.style.cssText = `
             position: absolute;
-            top: 16px; /* fallback */
-            top: max(16px, env(safe-area-inset-top));
-            right: 16px; /* fallback */
-            right: max(16px, env(safe-area-inset-right));
+            top: 60px; /* fallback */
+            top: max(60px, calc(env(safe-area-inset-top) + 52px));
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            align-items: flex-end;
+            gap: 6px;
+            align-items: center;
             pointer-events: none;
             z-index: 300;
         `;
@@ -504,11 +507,12 @@ export class VampireSurvivorsGame {
         const el = document.createElement('div');
         el.textContent = message;
         el.style.cssText = `
-            background: rgba(10, 10, 20, 0.55);
+            background: linear-gradient(180deg, rgba(22, 14, 30, 0.82), rgba(12, 8, 18, 0.82));
             color: ${color};
-            border: 1px solid rgba(120, 120, 160, 0.35);
-            padding: 4px 8px;
-            border-radius: 6px;
+            border: 1px solid rgba(201, 168, 106, 0.45);
+            padding: 4px 12px;
+            border-radius: 4px;
+            white-space: nowrap;
             font-family: 'Cinzel', 'Times New Roman', serif;
             font-size: 12px;
             letter-spacing: 0.3px;
@@ -896,8 +900,9 @@ export class VampireSurvivorsGame {
         // Initialize player
         this.player = new Player(this, 0, 0);
 
-        // Apply character color
+        // Apply character color + identity (drives hunter headgear art)
         this.player.color = character.color;
+        this.player.characterId = character.id;
 
         // Apply character stat modifiers
         for (const [stat, value] of Object.entries(character.statModifiers)) {
@@ -943,6 +948,7 @@ export class VampireSurvivorsGame {
         this.systems.boss.reset();
         this.systems.dynamicEvents.reset();
         this.systems.ambientParticles.reset();
+        this.systems.decals.reset();
         this.systems.canvasHUD.reset();
         this.systems.floorItems.reset();
         this.systems.challenge.reset(); // clear per-run multipliers
@@ -1737,6 +1743,7 @@ export class VampireSurvivorsGame {
                 this.systems.boss.update(dt);
                 this.systems.dynamicEvents.update(dt);
                 this.systems.ambientParticles.update(dt);
+                this.systems.decals.update(dt);
                 this.systems.floorItems.update(dt);
 
                 // 6. Power-ups (benefit from all position updates)
@@ -1816,6 +1823,9 @@ export class VampireSurvivorsGame {
         // 1. Terrain (static background, single draw call)
         this.systems.terrain.render(this.renderer);
 
+        // 1.4 Ground decals — kill splats soaking into the flagstones
+        this.systems.decals.render(this.ctx);
+
         // 1.5 Ambient particles (fog, dust, embers — behind gameplay entities)
         this.systems.ambientParticles.render(this.ctx);
 
@@ -1886,6 +1896,9 @@ export class VampireSurvivorsGame {
         this.ctx.globalAlpha = 1;
         this.ctx.globalCompositeOperation = 'source-over';
 
+        // Torchlight: the world falls off into gloom away from the hunter
+        this.renderTorchlight(this.ctx);
+
         // Camera effects (flash, shake) - no culling needed
         this.camera.renderFlash(this.ctx);
         this.camera.renderPostEffects(this.ctx);
@@ -1908,20 +1921,25 @@ export class VampireSurvivorsGame {
             this.progressionTelemetry.render(this.ctx);
         }
 
+        // The run summary owns the whole screen — no HUD bleeding through it
+        const hudVisible = this.gameState !== 'summary';
+
         // Achievement & micro-challenge overlays (screen space, above debug)
-        if (this.gameState !== 'paused') {
+        if (this.gameState !== 'paused' && this.gameState !== 'levelUp' && hudVisible) {
             this.systems.achievement.render(this.ctx, this.camera);
             this.systems.microChallenge.render(this.ctx, this.camera);
             this.systems.killMilestone.render(this.ctx);
         }
 
         // Run timer HUD (screen space)
-        this.systems.runTimer.render(this.ctx);
-        this.systems.gold.renderHUD(this.ctx);
-        this.systems.synergy.render(this.ctx);
-        this.systems.boss.renderHUD(this.ctx);
-        this.systems.dynamicEvents.render(this.ctx);
-        this.systems.canvasHUD.render(this.ctx);
+        if (hudVisible) {
+            this.systems.runTimer.render(this.ctx);
+            this.systems.gold.renderHUD(this.ctx);
+            this.systems.synergy.render(this.ctx);
+            this.systems.boss.renderHUD(this.ctx);
+            this.systems.dynamicEvents.render(this.ctx);
+            this.systems.canvasHUD.render(this.ctx);
+        }
 
         // Build inventory overlay (renders on top of everything)
         if (this.systems.inventory) {
@@ -1953,6 +1971,35 @@ export class VampireSurvivorsGame {
 
         // OPTIMIZED: End frame processing for batching and statistics
         this.renderer.endFrame();
+    }
+
+    /**
+     * Screen-space darkness falloff centered on the player. One gradient
+     * fill per frame; the gradient object is cached per viewport/position
+     * bucket so it is rebuilt rarely.
+     */
+    renderTorchlight(ctx) {
+        if (!this.player || !this.camera) return;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const p = this.camera.worldToScreen(this.player.x, this.player.y);
+        const px = Math.round(p.x / 4) * 4;
+        const py = Math.round(p.y / 4) * 4;
+        const key = `${w}|${h}|${px}|${py}`;
+        if (this._torchKey !== key) {
+            const inner = Math.min(w, h) * 0.26;
+            const outer = Math.hypot(w, h) * 0.62;
+            const g = ctx.createRadialGradient(px, py, inner, px, py, outer);
+            g.addColorStop(0, 'rgba(6, 3, 12, 0)');
+            g.addColorStop(0.55, 'rgba(6, 3, 12, 0.28)');
+            g.addColorStop(1, 'rgba(4, 2, 8, 0.62)');
+            this._torchGradient = g;
+            this._torchKey = key;
+        }
+        ctx.save();
+        ctx.fillStyle = this._torchGradient;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
     }
 
     renderBackground() {

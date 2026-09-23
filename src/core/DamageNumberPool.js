@@ -40,15 +40,20 @@ export class DamageNumber {
             this.value = 0;
             this.text = String(value ?? '');
         }
-        this.color = color;
-        this.fontSize = isCritical ? 24 : 16;
+        // Crits always read as molten gold; everything else keeps its
+        // caller color (heals green, status ticks tinted, etc.)
+        this.color = isCritical ? '#ffd24a' : color;
+        const isLabel = !/^-?\d+$/.test(this.text);
+        // World-space sizes (camera zoom enlarges them on screen)
+        this.fontSize = isCritical ? 15 : isLabel ? 10 : 11;
         this.opacity = 1;
-        this.velocityY = isCritical ? -3 : -2;
-        this.lifetime = isCritical ? 0.9 : 0.7;
+        this.velocityY = isCritical ? -1.6 : -1.2;
+        this.velocityX = (Math.random() - 0.5) * 0.9;
+        this.lifetime = isCritical ? 0.85 : 0.65;
         this.elapsed = 0;
         this.active = true;
         this.isCritical = isCritical;
-        this.scale = isCritical ? 1.5 : 1;
+        this.scale = 1.7;
     }
 
     /**
@@ -59,20 +64,18 @@ export class DamageNumber {
 
         this.elapsed += deltaTime;
 
-        // Move upward
+        // Drift up and slightly sideways, easing out
         this.y += this.velocityY * 60 * deltaTime;
+        this.x += (this.velocityX || 0) * 60 * deltaTime;
+        this.velocityY *= 0.95;
+        if (this.velocityX) this.velocityX *= 0.92;
 
-        // Slow down over time
-        this.velocityY *= 0.98;
-
-        // Fade out
+        // Pop: overshoot then settle within ~0.12s; fade only in the tail
         const progress = this.elapsed / this.lifetime;
-        this.opacity = Math.max(0, 1 - progress);
-
-        // Scale animation for critical hits
-        if (this.isCritical) {
-            this.scale = 1.5 + Math.sin(progress * Math.PI) * 0.3;
-        }
+        const pop = Math.min(1, this.elapsed / 0.12);
+        const settle = this.isCritical ? 1.15 : 1;
+        this.scale = settle + (1.7 - settle) * (1 - pop) * (1 - pop);
+        this.opacity = progress < 0.55 ? 1 : Math.max(0, 1 - (progress - 0.55) / 0.45);
 
         // Deactivate when lifetime expires
         if (this.elapsed >= this.lifetime) {
@@ -93,21 +96,19 @@ export class DamageNumber {
         const screenX = this.x;
         const screenY = this.y;
 
-        // Set text properties
+        // Chunky outlined numerals — crisp against any floor, no blur cost
+        const size = this.fontSize * this.scale;
         ctx.globalAlpha = this.opacity;
-        ctx.fillStyle = this.color;
-        ctx.font = `bold ${this.fontSize * this.scale}px Arial`;
+        ctx.font = `900 ${size.toFixed(1)}px "Trebuchet MS", "Segoe UI", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-
-        // Add shadow for better visibility
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-
-        // Draw the damage number
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(2, size * 0.22);
+        ctx.strokeStyle = this.isCritical ? '#3a1204' : 'rgba(10, 5, 12, 0.9)';
+        ctx.strokeText(this.text, screenX, screenY);
+        ctx.fillStyle = this.color;
         ctx.fillText(this.text, screenX, screenY);
+
 
         ctx.restore();
     }

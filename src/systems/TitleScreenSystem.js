@@ -1,4 +1,6 @@
 import { CHARACTERS } from '../data/characters.js';
+import { getHunterSprite, getEnemySprite, ENEMY_LAYOUT } from '../entities/rendering/CharacterArt.js';
+import { enemyDisplayName } from '../data/enemyNames.js';
 
 
 /**
@@ -340,10 +342,11 @@ export class TitleScreenSystem {
         // ── Cathedral silhouette (centered, base on the horizon) ──
         const baseY = horizon + 2;
         const bodyW = Math.min(w * 0.30, 430);
-        const bodyH = h * 0.26;
+        // Kept low enough that every spire stays clear of the title block
+        const bodyH = h * 0.2;
         const towerW = bodyW * 0.17;
         const towerH = bodyH * 1.22;
-        const spireH = bodyH * 0.62;
+        const spireH = bodyH * 0.55;
         const silhouette = '#050409';
 
         g.fillStyle = silhouette;
@@ -565,6 +568,12 @@ export class TitleScreenSystem {
         }
         ctx.globalAlpha = 1;
 
+        // 3b. Living scene: the chosen hunter holds the graveyard against
+        // a shambling line of ghouls; bats cross the moon
+        if (this.game.gameState === 'menu') {
+            this._renderMenuActors(ctx, w, h);
+        }
+
         // 4. Title lettering over the moon
         this._renderTitleBlock(ctx, w, h);
 
@@ -635,6 +644,84 @@ export class TitleScreenSystem {
         ctx.restore();
     }
 
+    _renderMenuActors(ctx, w, h) {
+        const t = this.time;
+
+        // Bats drifting across the sky (always — they are small)
+        for (let i = 0; i < 3; i++) {
+            const speed = 38 + i * 14;
+            const span = w + 240;
+            const bx = ((t * speed + i * span * 0.37) % span) - 120;
+            const by = h * (0.24 + i * 0.05) + Math.sin(t * 1.7 + i * 2) * h * 0.02;
+            const frame = Math.floor(t * 9 + i) % 2;
+            const bat = getEnemySprite('fast', '#3a2a4a', 5 + i, frame, 'normal');
+            if (!bat) continue;
+            ctx.save();
+            ctx.globalAlpha = 0.75;
+            ctx.translate(bx, by);
+            ctx.drawImage(bat.canvas, -bat.ax, -bat.ay, bat.w, bat.h);
+            ctx.restore();
+        }
+
+        // Foreground figures need horizontal room beside the menu column
+        if (w < 900) return;
+
+        const persistence = this.game.systems.persistence;
+        const charId = persistence ? persistence.getSelectedCharacter() : 'antonio';
+        const character = CHARACTERS.find((c) => c.id === charId) || CHARACTERS[0];
+
+        // Hunter, lower left, idling with lantern glow
+        const hx = w * 0.17;
+        const hy = h * 0.86;
+        const u = Math.min(40, h * 0.05);
+        const hunter = getHunterSprite(u, character.color, character.id, 0, 'normal');
+        if (hunter) {
+            const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, u * 5);
+            glow.addColorStop(0, character.color + '40');
+            glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.ellipse(hx, hy, u * 5, u * 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            ctx.beginPath();
+            ctx.ellipse(hx, hy, u * 0.9, u * 0.28, 0, 0, Math.PI * 2);
+            ctx.fill();
+            const breathe = Math.sin(t * 2.2) * 0.02;
+            ctx.save();
+            ctx.translate(hx, hy);
+            ctx.scale(1 - breathe, 1 + breathe);
+            ctx.drawImage(hunter.canvas, -hunter.ax, -hunter.ay, hunter.w, hunter.h);
+            ctx.restore();
+        }
+
+        // Ghouls, lower right, lurching in place toward the hunter
+        const ghouls = [
+            { x: 0.8, y: 0.84, s: 13, a: 0.75 },
+            { x: 0.88, y: 0.8, s: 11, a: 0.5 },
+            { x: 0.93, y: 0.88, s: 14, a: 0.85 }
+        ];
+        for (let i = 0; i < ghouls.length; i++) {
+            const g = ghouls[i];
+            const phase = t * 3 + i * 1.3;
+            const frame = Math.sin(phase) > 0 ? 0 : 1;
+            const spr = getEnemySprite('basic', '#8a4a4a', g.s, frame, 'normal');
+            if (!spr) continue;
+            const gx = w * g.x + Math.sin(t * 0.4 + i) * 6;
+            const gy = h * g.y;
+            ctx.save();
+            ctx.globalAlpha = g.a;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.beginPath();
+            ctx.ellipse(gx, gy, g.s * 1.1, g.s * 0.35, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.translate(gx, gy - Math.abs(Math.sin(phase)) * g.s * 0.2);
+            ctx.scale(-1, 1);
+            ctx.drawImage(spr.canvas, -spr.ax, -spr.ay, spr.w, spr.h);
+            ctx.restore();
+        }
+    }
+
     _renderTitleBlock(ctx, w, h) {
         const cy = h * 0.175;
         const size = Math.min(64, Math.max(30, w * 0.058));
@@ -654,6 +741,14 @@ export class TitleScreenSystem {
         ctx.shadowColor = `rgba(224, 138, 60, ${0.22 + 0.14 * this.titleGlow})`;
         ctx.shadowBlur = 16 + 10 * this.titleGlow;
 
+        // Engraved dark outline so the bone letters hold against the moon
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(3, size * 0.09);
+        ctx.strokeStyle = 'rgba(18, 8, 10, 0.95)';
+        ctx.strokeText('VAMPIRE SURVIVORS', w / 2, cy);
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+
         const tg = ctx.createLinearGradient(0, cy - size * 0.5, 0, cy + size * 0.55);
         tg.addColorStop(0, '#F4EBD2');
         tg.addColorStop(0.55, '#D9C9A3');
@@ -670,6 +765,10 @@ export class TitleScreenSystem {
         if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(subSize * 0.5)}px`;
         const subY = cy + size * 0.72;
         const subW = ctx.measureText('ENHANCED').width;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(18, 8, 10, 0.9)';
+        ctx.strokeText('ENHANCED', w / 2, subY);
         ctx.fillStyle = '#C9A86A';
         ctx.fillText('ENHANCED', w / 2, subY);
         if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
@@ -1513,6 +1612,73 @@ export class TitleScreenSystem {
 
     // ---- Render: Character Select ----
 
+    /**
+     * Circular medallion framing the character's hunter sprite. `animate`
+     * cycles the stride frames so the portrait walks in place.
+     */
+    _drawHunterMedallion(ctx, char, cx, cy, r, active, animate) {
+        ctx.save();
+
+        if (active) {
+            const aura = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 1.6);
+            aura.addColorStop(0, char.color + '55');
+            aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = aura;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Dark vaulted backdrop
+        const bg = ctx.createRadialGradient(cx, cy - r * 0.3, 0, cx, cy, r);
+        bg.addColorStop(0, '#2c2636');
+        bg.addColorStop(1, '#0d0b12');
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hunter, clipped to the medallion, standing on its lower rim
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+        ctx.clip();
+        // Medallions frame a head-and-shoulders bust (the showcase shows the full figure)
+        const bust = true;
+        const u = r * 0.62;
+        const frame = animate ? [1, 0, 2, 0][Math.floor(this.time * 5) % 4] : 0;
+        const sprite = getHunterSprite(u, char.color, char.id, frame, 'normal');
+        if (sprite) {
+            const feetY = bust ? cy + u * 2.15 : cy + r * 0.72;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.beginPath();
+            ctx.ellipse(cx, feetY, u * 0.9, u * 0.3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            const bob = animate && frame !== 0 ? u * 0.08 : 0;
+            ctx.drawImage(sprite.canvas, cx - sprite.ax, feetY - bob - sprite.ay, sprite.w, sprite.h);
+        } else {
+            ctx.fillStyle = char.color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // Rims: character color inside, brass outside
+        ctx.strokeStyle = char.color;
+        ctx.lineWidth = Math.max(1.5, r * 0.06);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = active ? 'rgba(240, 220, 170, 0.9)' : 'rgba(200, 185, 150, 0.45)';
+        ctx.lineWidth = Math.max(1, r * 0.04);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
     renderCharacters(ctx) {
         const w = this.game.canvas.width;
         const h = this.game.canvas.height;
@@ -1605,25 +1771,13 @@ export class TitleScreenSystem {
                 ctx.fillStyle = 'rgba(120, 112, 100, 0.55)';
                 ctx.fillText('???', textX, midY + 1);
             } else {
-                // Character color medallion with glow if active
-                if (isActive) {
-                    ctx.shadowColor = char.color;
-                    ctx.shadowBlur = 8;
-                }
-                ctx.beginPath();
-                ctx.arc(iconX, midY, 12, 0, Math.PI * 2);
-                ctx.fillStyle = char.color;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                ctx.strokeStyle = 'rgba(240, 230, 205, 0.75)';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
+                // Mini hunter medallion
+                this._drawHunterMedallion(ctx, char, iconX, midY, 13, isActive, false);
 
                 if (isCurrentChar) {
                     ctx.beginPath();
-                    ctx.arc(iconX, midY, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = '#FFF';
+                    ctx.arc(iconX + 10, midY + 10, 3.5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.theme.brass;
                     ctx.fill();
                 }
 
@@ -1657,8 +1811,21 @@ export class TitleScreenSystem {
         this._characterEquipRect = { x: rightX, y: paneY, w: rightPaneW - 25, h: paneH };
 
         if (!isUnlocked) {
-            // Locked View
-            this._icon(ctx, 'lock', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.32, 30, 'rgba(140, 130, 115, 0.35)');
+            // Locked View — the champion waits in shadow
+            const silX = rightX + (rightPaneW - 25) / 2;
+            const silY = paneY + paneH * 0.42;
+            const sil = getHunterSprite(22, activeChar.color, activeChar.id, 0, 'silhouette');
+            if (sil) {
+                const glow = ctx.createRadialGradient(silX, silY - 30, 0, silX, silY - 30, 90);
+                glow.addColorStop(0, 'rgba(120, 100, 150, 0.18)');
+                glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(silX - 90, silY - 120, 180, 180);
+                ctx.globalAlpha = 0.9;
+                ctx.drawImage(sil.canvas, silX - sil.ax, silY - sil.ay, sil.w, sil.h);
+                ctx.globalAlpha = 1;
+            }
+            this._icon(ctx, 'lock', silX, silY + 12, 12, 'rgba(170, 155, 130, 0.7)');
 
             ctx.textAlign = 'center';
             ctx.font = 'bold 24px "Cinzel", "Georgia", serif';
@@ -1672,35 +1839,34 @@ export class TitleScreenSystem {
         } else {
             // Unlocked View
 
-            // Large Portrait background aura
+            // Large animated portrait
             const portraitX = detailsX + 50;
             const portraitY = paneY + 65;
+            this._drawHunterMedallion(ctx, activeChar, portraitX, portraitY, 48, true, false);
 
-            const auraGrad = ctx.createRadialGradient(portraitX, portraitY, 10, portraitX, portraitY, 60);
-            auraGrad.addColorStop(0, activeChar.color);
-            auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = auraGrad;
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath();
-            ctx.arc(portraitX, portraitY, 70, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-
-            // Character medallion
-            ctx.beginPath();
-            ctx.arc(portraitX, portraitY, 45, 0, Math.PI * 2);
-            ctx.fillStyle = activeChar.color;
-            ctx.fill();
-
-            ctx.strokeStyle = 'rgba(240, 230, 205, 0.85)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Inner styling for portrait
-            ctx.beginPath();
-            ctx.arc(portraitX - 12, portraitY - 12, 18, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-            ctx.fill();
+            // Full-size showcase figure striding in place, lower right
+            if (rightPaneW > 520) {
+                const sx = detailsX + detailsW * 0.42;
+                const sy = paneY + paneH - 38;
+                const su = Math.min(30, paneH * 0.066);
+                const sFrame = [1, 0, 2, 0][Math.floor(this.time * 4) % 4];
+                const show = getHunterSprite(su, activeChar.color, activeChar.id, sFrame, 'normal');
+                if (show) {
+                    const pool = ctx.createRadialGradient(sx, sy, 0, sx, sy, su * 4);
+                    pool.addColorStop(0, activeChar.color + '44');
+                    pool.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = pool;
+                    ctx.beginPath();
+                    ctx.ellipse(sx, sy, su * 4, su * 1.1, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.beginPath();
+                    ctx.ellipse(sx, sy, su * 0.9, su * 0.28, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    const bob = sFrame !== 0 ? su * 0.07 : 0;
+                    ctx.drawImage(show.canvas, sx - show.ax, sy - bob - show.ay, show.w, show.h);
+                }
+            }
 
             // Title and Name
             ctx.textAlign = 'left';
@@ -2611,7 +2777,23 @@ export class TitleScreenSystem {
 
             ctx.textAlign = 'left';
             if (item.discovered) {
-                const displayName = item.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const isEnemy = activeTab.key === 'enemies';
+                const displayName = isEnemy
+                    ? enemyDisplayName(item.id)
+                    : item.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                // Bestiary cards show the creature itself
+                if (isEnemy && ENEMY_LAYOUT[item.id]) {
+                    const spr = getEnemySprite(item.id, '#b0706a', 11, Math.floor(this.time * 3) % 2, 'normal');
+                    if (spr) {
+                        const scale = Math.min(1, (cardH - 10) / spr.h);
+                        ctx.save();
+                        ctx.translate(cx + cardW - 22, cy + cardH - 6);
+                        ctx.scale(-scale, scale);
+                        ctx.drawImage(spr.canvas, -spr.ax, -spr.ay, spr.w, spr.h);
+                        ctx.restore();
+                    }
+                }
                 ctx.font = 'bold 12px Georgia, serif';
                 ctx.fillStyle = this.theme.textPrimary;
                 ctx.fillText(displayName, cx + 8, cy + 22);
