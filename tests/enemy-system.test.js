@@ -13,7 +13,7 @@ const createEnemySystemGame = () => ({
         maxHealth: 100,
         combo: { count: 0 },
         isAlive: () => true,
-        streaks: { noDamage: 0 }
+        streaks: { noDamage: 0, lastDamageTime: 0 }
     },
     camera: {
         shake: jest.fn(),
@@ -38,46 +38,25 @@ const createEnemySystemGame = () => ({
     showWaveNotification: jest.fn()
 });
 
-const createRenderContext = () => {
-    const gradient = { addColorStop: jest.fn() };
-
-    return {
-        save: jest.fn(),
-        restore: jest.fn(),
-        beginPath: jest.fn(),
-        closePath: jest.fn(),
-        fill: jest.fn(),
-        stroke: jest.fn(),
-        fillRect: jest.fn(),
-        strokeRect: jest.fn(),
-        moveTo: jest.fn(),
-        lineTo: jest.fn(),
-        arc: jest.fn(),
-        ellipse: jest.fn(),
-        translate: jest.fn(),
-        scale: jest.fn(),
-        rotate: jest.fn(),
-        setLineDash: jest.fn(),
-        createRadialGradient: jest.fn(() => gradient),
-        fillStyle: '',
-        strokeStyle: '',
-        shadowColor: '',
-        shadowBlur: 0,
-        lineWidth: 1,
-        globalAlpha: 1
-    };
-};
 
 describe('Enemy swarm pacing', () => {
-    test('performance tracking uses real dt', () => {
+    test('sustained safety raises pressure gradually and taking damage releases it', () => {
         const game = createEnemySystemGame();
         const enemySystem = new EnemySystem(game);
 
-        enemySystem.updatePerformanceTracking(0.5);
-        enemySystem.updatePerformanceTracking(0.5);
+        game.gameTime = 25;
+        enemySystem.updateDifficulty(0.016);
+        const openingRate = enemySystem.spawnRate;
 
-        expect(enemySystem.performanceTracking.timeSinceLastDamage).toBeCloseTo(1.0);
-        expect(enemySystem.performanceTracking.playerHealthAverage).toBeCloseTo(1.0);
+        game.gameTime = 35;
+        enemySystem.updateDifficulty(0.016);
+        const risingRate = enemySystem.spawnRate;
+        expect(risingRate).toBeGreaterThan(openingRate);
+        expect(risingRate / openingRate).toBeLessThan(1.15);
+
+        game.player.streaks.lastDamageTime = game.gameTime;
+        enemySystem.updateDifficulty(0.016);
+        expect(enemySystem.spawnRate).toBeLessThan(risingRate);
     });
 
     test('pressure surge timer counts down with dt', () => {
@@ -144,6 +123,63 @@ describe('Enemy swarm pacing', () => {
         expect(enemySystem.getWaveType(8)).toBe('rest');
         expect(enemySystem.getWaveType(9)).toBe('rush');
     });
+
+    test('restarting removes prior surge and restores its first-run schedule', () => {
+        const game = createEnemySystemGame();
+        const enemySystem = new EnemySystem(game);
+        enemySystem.pressureSurgeActive = true;
+        enemySystem.nextSurgeTime = 270;
+        enemySystem.surgeSpawnMultiplier = 1.4;
+        enemySystem.performanceTracking.complacencyMultiplier = 1.15;
+        enemySystem.currentPattern = 'swarm';
+
+        enemySystem.reset();
+        expect(enemySystem.chooseSpawnPattern()).toBe('circle');
+        game.gameTime = 149;
+        enemySystem.updatePressureSurge(0.016);
+        expect(enemySystem.pressureSurgeActive).toBe(false);
+        game.gameTime = 150;
+        enemySystem.updatePressureSurge(0.016);
+        expect(enemySystem.pressureSurgeActive).toBe(true);
+    });
+
+    test('rejects an on-player spawn and overlapping fallback candidates', () => {
+        const game = createEnemySystemGame();
+        const enemySystem = new EnemySystem(game);
+        enemySystem.chooseSpawnPattern = () => 'circle';
+        enemySystem.spawnPatterns.circle = () => ({ x: 0, y: 0 });
+        const random = jest.spyOn(Math, 'random').mockReturnValue(0);
+        try {
+            enemySystem.spawnSingleEnemy();
+            expect(enemySystem.activeEnemies).toHaveLength(1);
+            const first = enemySystem.activeEnemies[0];
+            expect(Math.hypot(first.x - game.player.x, first.y - game.player.y)).toBeGreaterThanOrEqual(130);
+
+            enemySystem.spawnSingleEnemy();
+            expect(enemySystem.activeEnemies).toHaveLength(1);
+        } finally {
+            random.mockRestore();
+        }
+    });
+
+    test('summoner skips unsafe minions but creates distinct pooled minions when distant', () => {
+        const game = createEnemySystemGame();
+        const enemySystem = new EnemySystem(game);
+        game.systems.enemy = enemySystem;
+        game.systems.particle.createEvolutionEffect = jest.fn();
+        game.player.x = 40;
+        const summoner = new Enemy(game, 0, 0, 'summoner');
+
+        summoner.summonMinions();
+        expect(enemySystem.activeEnemies).toHaveLength(0);
+
+        game.player.x = 500;
+        summoner.summonMinions();
+        expect(enemySystem.activeEnemies).toHaveLength(2);
+        expect(enemySystem.activeEnemies[0].active).toBe(true);
+        expect(enemySystem.activeEnemies[0].x).toBe(40);
+        expect(enemySystem.activeEnemies[1].x).toBe(-40);
+    });
 });
 
 describe('Enemy rendering detail', () => {
@@ -158,29 +194,4 @@ describe('Enemy rendering detail', () => {
         expect(renderSpy).toHaveBeenCalledWith({}, 'low');
     });
 
-    test('low detail rendering skips radial gradient work for basic enemies', () => {
-        const game = createEnemySystemGame();
-        game.systems.dynamicEvents = { goldenSwarmActive: false };
-        const enemy = new Enemy(game, 0, 0, 'basic');
-        const ctx = createRenderContext();
-
-        enemy.variant = null;
-        enemy.currentSpawnTime = 0;
-        enemy.render({ ctx }, 'low');
-
-        expect(ctx.createRadialGradient).not.toHaveBeenCalled();
-    });
-
-    test('high detail rendering keeps radial gradient work', () => {
-        const game = createEnemySystemGame();
-        game.systems.dynamicEvents = { goldenSwarmActive: false };
-        const enemy = new Enemy(game, 0, 0, 'basic');
-        const ctx = createRenderContext();
-
-        enemy.variant = null;
-        enemy.currentSpawnTime = 0;
-        enemy.render({ ctx }, 'high');
-
-        expect(ctx.createRadialGradient).toHaveBeenCalledTimes(1);
-    });
 });

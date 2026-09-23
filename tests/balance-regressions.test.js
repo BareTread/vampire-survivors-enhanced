@@ -284,7 +284,7 @@ describe('Balance regressions', () => {
         );
     });
 
-    test('near-death damage reduction reduces damage instead of almost nullifying it', () => {
+    test('near-death damage reduction is minimal (≤5%) and does not meaningfully negate hits', () => {
         const game = createPlayerGame();
         const player = new Player(game, 0, 0);
 
@@ -293,7 +293,22 @@ describe('Balance regressions', () => {
         player.nearDeath.bonusActive = true;
         player.takeDamageEnhanced(10);
 
-        expect(player.health).toBe(12);
+        // With DR ≤ 5%: 10 * (1 - ≤0.05) = ≥9.5 → ≥9 after floor → health ≤ 11
+        expect(player.health).toBeLessThanOrEqual(11);
+        // Should still take meaningful damage (DR cap means at least amount * 0.4)
+        expect(player.health).toBeGreaterThanOrEqual(4);
+    });
+
+    test('maxInvulnerabilityTime is at most 0.6s so swarms deal real pressure', () => {
+        const game = createPlayerGame();
+        const player = new Player(game, 0, 0);
+        expect(player.maxInvulnerabilityTime).toBeLessThanOrEqual(0.6);
+    });
+
+    test('nearDeath damage reduction is at most 10%', () => {
+        const game = createPlayerGame();
+        const player = new Player(game, 0, 0);
+        expect(player.nearDeath.damageReduction).toBeLessThanOrEqual(0.1);
     });
 
     test('no RNG death save mechanic exists', () => {

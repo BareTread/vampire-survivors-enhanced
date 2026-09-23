@@ -164,8 +164,9 @@ export class InputManager {
         this._handlers.keydown = (e) => {
             // Only prevent default for game-specific function keys, not system keys
             // Allow F11 (fullscreen) and F12 (DevTools) to work normally
-            if ((e.key === 'F1' || e.key === 'F2' || e.key === 'F4' || e.key === 'F5') || // Game-specific F-keys only
-                (e.key === 'Tab' && this.canvas === document.activeElement)) {
+            if ((e.key === 'F1' || e.key === 'F2' || e.key === 'F4' || e.key === 'F5') ||
+                (e.key === 'Tab' && this.canvas === document.activeElement) ||
+                (e.key === ' ' && this.canvas === document.activeElement)) {
                 e.preventDefault();
             }
             
@@ -209,6 +210,23 @@ export class InputManager {
             this.emit('keyUp', e.key);
         };
         window.addEventListener('keyup', this._handlers.keyup);
+
+        this._handlers.focusLost = () => {
+            for (const key of Object.keys(this.keys)) {
+                if (this.keys[key]) this.emit('keyUp', key);
+            }
+            this.keys = {};
+            this.keysPressed = {};
+            this.keysReleased = {};
+            this.inputBuffer = [];
+            this.mouse.down = false;
+            this.emit('focusLost');
+        };
+        this._handlers.visibilitychange = () => {
+            if (document.hidden) this._handlers.focusLost();
+        };
+        window.addEventListener('blur', this._handlers.focusLost);
+        document.addEventListener('visibilitychange', this._handlers.visibilitychange);
         
         // Touch events
         this._handlers.touchstart = (e) => {
@@ -497,6 +515,8 @@ export class InputManager {
                 }
                 window.removeEventListener('keydown', this._handlers.keydown, false);
                 window.removeEventListener('keyup', this._handlers.keyup, false);
+                window.removeEventListener('blur', this._handlers.focusLost, false);
+                document.removeEventListener('visibilitychange', this._handlers.visibilitychange, false);
             }
             
             // Clear all listeners

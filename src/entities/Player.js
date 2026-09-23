@@ -14,6 +14,15 @@ export class Player {
         this.maxSpeed = 100; // pixels per second
         this.acceleration = 500;
         this.deceleration = 800;
+        this.dash = {
+            active: false,
+            cooldown: 0,
+            cooldownDuration: 2.4,
+            duration: 0.18,
+            timer: 0,
+            x: 0,
+            y: 0
+        };
 
         // Health and stats
         this.maxHealth = 100;
@@ -43,7 +52,7 @@ export class Player {
         // Combat properties
         this.invulnerable = false;
         this.invulnerabilityTime = 0;
-        this.maxInvulnerabilityTime = 1.0; // 1 second of invulnerability after hit
+        this.maxInvulnerabilityTime = 0.5; // Halved from 1.0s — lets swarm density translate to real pressure
 
         // Equipment
         this.weapons = new Map();
@@ -84,8 +93,8 @@ export class Player {
         this.nearDeath = {
             threshold: 0.2,
             bonusActive: false,
-            damageReduction: 0.2,
-            expMultiplier: 1.25,
+            damageReduction: 0.05, // Reduced from 0.2 — a tiny dramatic last-stand feel without negating threat
+            expMultiplier: 1.0,    // No longer rewards low-health play with free bonus XP
             effectIntensity: 0
         };
 
@@ -246,6 +255,22 @@ export class Player {
         this.targetY = y;
     }
 
+    startDash() {
+        if (this._destroyed || this.game.gameState !== 'playing' || this.game.timeScale <= 0 ||
+            this.game.systems.inventory?.visible || !this.isAlive() || this.dash.active || this.dash.cooldown > 0) return false;
+
+        const input = this.game.inputManager.getMovementVector();
+        const directionX = input.x || input.y ? input.x : Math.cos(this.direction);
+        const directionY = input.x || input.y ? input.y : Math.sin(this.direction);
+        this.dash.x = directionX;
+        this.dash.y = directionY;
+        this.dash.active = true;
+        this.dash.timer = this.dash.duration;
+        this.dash.cooldown = this.dash.cooldownDuration;
+        this.direction = Math.atan2(directionY, directionX);
+        return true;
+    }
+
     update(dt) {
         // Update invulnerability
         if (this.invulnerable) {
@@ -255,6 +280,9 @@ export class Player {
             }
         }
 
+        if (this.dash.cooldown > 0) {
+            this.dash.cooldown = Math.max(0, this.dash.cooldown - dt);
+        }
         // Update movement
         this.updateMovement(dt);
 
@@ -282,6 +310,13 @@ export class Player {
     }
 
     updateMovement(dt) {
+        if (this.dash.active) {
+            const dashStep = Math.min(dt, this.dash.timer);
+            this.moveDash(dashStep);
+            this.dash.timer -= dashStep;
+            if (this.dash.timer <= 0) this.dash.active = false;
+            return;
+        }
         // FIXED: Add WASD movement support
         let moveX = 0;
         let moveY = 0;
@@ -348,6 +383,24 @@ export class Player {
 
         // Boundary enforcement is handled by TerrainSystem to avoid duplication
         // World bounds will be enforced by the TerrainSystem's checkBounds method
+    }
+
+    moveDash(dt) {
+        const terrain = this.game.systems?.terrain;
+        const distance = 540 * dt;
+        const steps = Math.ceil(distance / 8);
+        for (let i = 0; i < steps; i++) {
+            const nextX = this.x + this.dash.x * distance / steps;
+            const nextY = this.y + this.dash.y * distance / steps;
+            if (terrain && !terrain.isPositionValid(nextX, nextY, this.size)) {
+                this.dash.timer = 0;
+                break;
+            }
+            this.x = nextX;
+            this.y = nextY;
+        }
+        this.velocity.x = 0;
+        this.velocity.y = 0;
     }
 
     updateWeapons(dt) {
@@ -615,8 +668,9 @@ export class Player {
             }
         }
 
-        // Healing effect numbers
-        this.addDamageNumber(this.maxHealth, '#00FF88', 'FULL HEAL');
+        // Level-up feedback (partial heal, not full reset)
+        const partialHeal = Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio));
+        this.addDamageNumber(`+${partialHeal} HP`, '#00FF88', 'LEVEL UP');
         this.addDamageNumber(`LEVEL ${this.level}`, '#FFD700', '');
     }
 
@@ -663,9 +717,11 @@ export class Player {
     }
 
     render(renderer) {
-        // Force procedural rendering to ensure player is always visible
-        // Sprite system seems to have issues, so using procedural as primary
-        this.renderProcedural(renderer);
+        if (this.game.spriteManager) {
+            this.game.spriteManager.drawPlayer(this, renderer.ctx);
+        } else {
+            this.renderProcedural(renderer);
+        }
 
         // Always render UI elements
         this.renderHealthBar(renderer.ctx);
@@ -673,61 +729,6 @@ export class Player {
         this.renderManualAiming(renderer);
     }
 
-    renderWithSprites(renderer) {
-        // Determine sprite variant based on state
-        let spriteName = 'player_base';
-        let spriteOptions = {};
-
-        // Apply invulnerability flashing
-        if (this.invulnerable) {
-            const flashRate = 10;
-            const flash = Math.sin(this.invulnerabilityTime * flashRate * Math.PI * 2);
-            spriteOptions.alpha = flash < 0 ? 0.5 : 1.0;
-        }
-
-        // Apply level up glow effect
-        if (this.levelUpEffect) {
-            const glowIntensity = this.levelUpEffectTime;
-            spriteOptions.glow = true;
-            spriteOptions.glowColor = '#FFD700';
-            spriteOptions.glowIntensity = 20 * glowIntensity;
-        }
-
-        // Apply desperation mode effects
-        if (this.desperationMode && this.desperationMode.active) {
-            spriteOptions.tint = '#FF0000';
-            spriteOptions.glow = true;
-            spriteOptions.glowColor = '#FF0000';
-            spriteOptions.glowIntensity = 8;
-        }
-
-        // Damage indication
-        if (this.health < this.maxHealth * 0.5) {
-            spriteName = 'player_damaged';
-        }
-
-        // Draw the player sprite using the renderer's sprite manager
-        if (renderer.spriteManager) {
-            // Use the renderer's sprite manager (LayeredRenderer compatibility)
-            const originalCtx = renderer.spriteManager.renderer?.ctx;
-            if (renderer.spriteManager.renderer) {
-                renderer.spriteManager.renderer.ctx = renderer.ctx;
-            }
-            renderer.spriteManager.drawSprite(spriteName, this.x, this.y, spriteOptions);
-            if (renderer.spriteManager.renderer && originalCtx) {
-                renderer.spriteManager.renderer.ctx = originalCtx;
-            }
-        } else if (renderer.drawSprite) {
-            // Use renderer's drawSprite method
-            renderer.drawSprite(spriteName, this.x, this.y, spriteOptions);
-        } else {
-            // Fallback to game's sprite manager
-            this.game.spriteManager.drawSprite(spriteName, this.x, this.y, spriteOptions);
-        }
-
-        // Add directional indicator (small sprite or line)
-        this.renderDirectionIndicator(renderer);
-    }
 
     renderProcedural(renderer) {
         // Fallback to original rendering
@@ -1337,11 +1338,10 @@ export class Player {
     takeDamageEnhanced(amount, source = null) {
         // Invincibility power-up
         if (this.powerUps.invincible.active) {
-            this.addDamageNumber('INVINCIBLE!', '#FFD700', '');
             return false;
         }
 
-        if (this.invulnerable || this.health <= 0) return false;
+        if (this.dash.active || this.invulnerable || this.health <= 0) return false;
 
         // Track damage source for death screen
         this.lastDamageSource = {
@@ -1669,14 +1669,7 @@ export class Player {
         // FIXED: Separate method for updating only visual effects during level-up pause
         // This prevents gameplay mechanics from updating while keeping UI smooth
 
-        // Update invulnerability visual effects
-        if (this.invulnerable) {
-            this.invulnerabilityTime -= dt;
-            if (this.invulnerabilityTime <= 0) {
-                this.invulnerable = false;
-            }
-        }
-
+        // Gameplay timers, including dash immunity, are frozen while choosing an upgrade.
         // Update level up effect
         if (this.levelUpEffect) {
             this.levelUpEffectTime -= dt;

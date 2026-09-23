@@ -47,8 +47,8 @@ export class FlowStateSystem {
         };
         
         // Adaptive damage multiplier read by enemies
-        // < 1.0 = player struggling (enemies deal less damage)
-        // > 1.0 = player dominating (enemies deal more damage)
+        // < 1.0 = player struggling (enemies ease off a little)
+        // > 1.0 = player dominating (enemies hit harder to compensate)
         this.adaptiveDamageMultiplier = 1.0;
         
         // === INTERNAL TRACKING ===
@@ -79,9 +79,9 @@ export class FlowStateSystem {
         this.targetStressLevel = 0.5;
         this.stressSmoothing = 0.1; // Very slow transitions to avoid whiplash
         
-        // Damage multiplier config
-        this.minDamageMultiplier = 0.7;   // Floor when player is struggling
-        this.maxDamageMultiplier = 1.3;   // Ceiling when player is dominating
+        // Damage multiplier config — expanded range so domination is actually punished
+        this.minDamageMultiplier = 0.85;  // Floor when player is struggling (was 0.7 — too generous)
+        this.maxDamageMultiplier = 1.5;   // Ceiling when player is dominating (was 1.3 — too narrow)
         this.damageMultiplierSmoothing = 0.05; // Even slower than stress
         this.targetDamageMultiplier = 1.0;
         
@@ -91,9 +91,11 @@ export class FlowStateSystem {
             lowKillRate: 0.5,
             highKillRate: 3.0,
             
-            // Damage taken thresholds (damage/sec)
+            // Damage taken thresholds (damage/sec).
+            // With 0.5s iframes, a hit-heavy run peaks around 20–22 dmg/s.
+            // Setting high at 9 means "taking a hit every ~2s" is considered stressful.
             lowDamageTaken: 2,
-            highDamageTaken: 15,
+            highDamageTaken: 9,
             
             // Combo thresholds (combos/min)
             lowComboRate: 0.5,

@@ -1,507 +1,596 @@
 /**
  * EnemyRenderer.js
- * 
- * Handles enemy rendering and visual effects
- * Extracted from Enemy.js for better code organization
+ *
+ * Sprite-cached enemy rendering. Each (type, color, size, variant) body is
+ * baked once to an offscreen canvas — per-frame cost is a shadow ellipse,
+ * one rotated drawImage, and the live overlays (health bar, telegraphs,
+ * auras) which stay delegated to the enemy's own methods so gameplay
+ * visuals keep a single source of truth.
+ *
+ * Active path: Enemy.render(renderer, detailLevel) delegates wholesale:
+ *     EnemyRenderer.render(this, renderer, detailLevel);
+ * The renderer argument may be a renderer ({ctx}) or a raw 2d context.
+ *
+ * Silhouette language (readable without color):
+ *   basic     — slouched husk, hunched shoulders
+ *   fast      — lean darting imp, swept-back horns
+ *   tank      — broad plated brute
+ *   ranged    — robed acolyte, pale diamond core
+ *   elite     — horned dreadlord with mantle
+ *   berserker — jagged spiked silhouette
+ *   summoner  — tall hooded robe with staff
+ *   juggernaut— massive fortress slab
  */
-
 export class EnemyRenderer {
-    constructor(enemy) {
-        this.enemy = enemy;
-        this.game = enemy.game;
-        
-        // Visual properties
-        this.flashTime = 0;
-        this.flashColor = '#FFFFFF';
-        this.glowIntensity = 0;
-        this.shadowAlpha = 0.3;
-        
-        // Elite visual effects
-        this.eliteAuraTime = 0;
-        this.eliteAuraRadius = 50;
-        this.eliteAuraColor = '#FF6B6B';
-        
-        // Animation
-        this.animationFrame = 0;
-        this.animationSpeed = 0.1;
-        this.spriteOffset = { x: 0, y: 0 };
-    }
-    
-    render(ctx) {
-        if (!this.enemy.active) return;
-        
+    // ------------------------------------------------------------------
+    // Public API
+    // ------------------------------------------------------------------
+
+    /**
+     * Full enemy render: shadow, body sprite, type details, health bar.
+     * Mirrors the semantics of Enemy.render — spawn/death/freeze transforms,
+     * golden swarm tint, hit flash — so it is a drop-in replacement.
+     */
+    static render(enemy, renderer, detailLevel = 'high') {
+        if (!enemy.active) return;
+
+        const ctx = renderer && renderer.ctx ? renderer.ctx : renderer;
+        if (!ctx) return;
+
         ctx.save();
-        
-        // Apply flash effect
-        if (this.enemy.flashTime > 0) {
-            ctx.globalAlpha = 0.8 + Math.sin(this.enemy.flashTime * 20) * 0.2;
+
+        // Death scale pop animation: scale up to 1.3x then shrink to 0
+        if (enemy.dying) {
+            const t = enemy.deathScaleTimer / enemy.deathScaleDuration; // 1→0
+            const scale = t > 0.5 ? 1.0 + (1 - t) * 0.6 : t * 2.6;
+            ctx.translate(enemy.x, enemy.y);
+            ctx.scale(scale, scale);
+            ctx.translate(-enemy.x, -enemy.y);
+            ctx.globalAlpha = Math.max(0, t);
         }
-        
-        // Draw shadow
-        this.drawShadow(ctx);
-        
-        // Draw elite aura if applicable
-        if (this.enemy.type === 'elite') {
-            this.drawEliteAura(ctx);
+
+        // Hit freeze-frame: enlarge slightly
+        if (enemy.freezeTimer > 0 && !enemy.dying) {
+            ctx.translate(enemy.x, enemy.y);
+            ctx.scale(1.1, 1.1);
+            ctx.translate(-enemy.x, -enemy.y);
         }
-        
-        // Draw enemy body
-        this.drawBody(ctx);
-        
-        // Draw health bar
-        this.drawHealthBar(ctx);
-        
-        // Draw status effects
-        this.drawStatusEffects(ctx);
-        
-        // Draw debug info if enabled
-        if (this.game.showDebug) {
-            this.drawDebugInfo(ctx);
+
+        // Spawn animation
+        if (enemy.currentSpawnTime > 0) {
+            const spawnProgress = 1 - enemy.currentSpawnTime / enemy.spawnTime;
+            ctx.globalAlpha = spawnProgress;
+            ctx.translate(enemy.x, enemy.y);
+            ctx.scale(spawnProgress, spawnProgress);
+            ctx.translate(-enemy.x, -enemy.y);
         }
-        
-        ctx.restore();
-    }
-    
-    drawShadow(ctx) {
-        ctx.save();
-        ctx.globalAlpha = this.shadowAlpha;
-        ctx.fillStyle = '#000000';
-        
-        // Elliptical shadow
+
+        // Ground shadow
+        ctx.fillStyle = 'rgba(10, 6, 14, 0.28)';
         ctx.beginPath();
         ctx.ellipse(
-            this.enemy.x, 
-            this.enemy.y + this.enemy.size * 0.8,
-            this.enemy.size * 0.8,
-            this.enemy.size * 0.4,
+            enemy.x, enemy.y + enemy.size * 0.42,
+            enemy.size * 0.92, enemy.size * 0.44,
             0, 0, Math.PI * 2
         );
         ctx.fill();
-        
+
+        // Body sprite — baked per (type, color, size, variant)
+        const isFlashing = enemy.flashTime > 0;
+        const isGoldenSwarm = enemy.game?.systems?.dynamicEvents?.goldenSwarmActive;
+        const variant = isFlashing ? 'flash' : (isGoldenSwarm ? 'gold' : 'normal');
+        const sprite = EnemyRenderer._sprite(enemy, variant);
+
+        if (sprite) {
+            if (isGoldenSwarm) {
+                ctx.shadowColor = '#FFD700';
+                ctx.shadowBlur = 6;
+            }
+            ctx.save();
+            ctx.translate(enemy.x, enemy.y);
+            ctx.rotate(enemy.direction || 0);
+            ctx.drawImage(sprite.canvas, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        } else {
+            // Headless fallback: plain body circle (same as old simplify path)
+            ctx.fillStyle = isFlashing ? '#FFFFFF' : (isGoldenSwarm ? '#FFD700' : enemy.color);
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Type-specific details + telegraphs stay on the enemy (single
+        // source of truth for gameplay-readable overlays)
+        if (typeof enemy.renderTypeDetails === 'function') {
+            enemy.renderTypeDetails(ctx, detailLevel);
+        }
+        if (typeof enemy.renderHealthBar === 'function') {
+            enemy.renderHealthBar(ctx, detailLevel);
+        }
+
         ctx.restore();
     }
-    
-    drawEliteAura(ctx) {
-        const time = performance.now() * 0.001;
-        const pulseScale = 1 + Math.sin(time * 3) * 0.1;
-        
-        ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin(time * 2) * 0.1;
-        
-        // Outer glow
-        const gradient = ctx.createRadialGradient(
-            this.enemy.x, this.enemy.y, 0,
-            this.enemy.x, this.enemy.y, this.eliteAuraRadius * pulseScale
-        );
-        gradient.addColorStop(0, this.eliteAuraColor + '40');
-        gradient.addColorStop(0.5, this.eliteAuraColor + '20');
-        gradient.addColorStop(1, 'transparent');
-        
-        ctx.fillStyle = gradient;
+
+    static clearCache() {
+        EnemyRenderer._cache.clear();
+    }
+
+    // ------------------------------------------------------------------
+    // Sprite cache + baking
+    // ------------------------------------------------------------------
+
+    static _sprite(enemy, variant) {
+        if (typeof document === 'undefined') return null;
+
+        const size = Math.max(4, Math.round(enemy.size));
+        const key = `${enemy.type}|${enemy.color}|${size}|${variant}`;
+
+        let sprite = EnemyRenderer._cache.get(key);
+        if (sprite === undefined) {
+            sprite = EnemyRenderer._bake(enemy.type, enemy.color, size, variant);
+            EnemyRenderer._cache.set(key, sprite);
+        }
+        return sprite; // may be null if canvas unsupported
+    }
+
+    /**
+     * Bake a body sprite facing +X. Supersampled 2x then drawn at half size
+     * for crisp edges at normal zoom.
+     */
+    static _bake(type, color, size, variant) {
+        const SS = 2;
+        const pad = Math.ceil(size * 0.7) + 4;
+        const logical = size * 2 + pad * 2;      // drawn size in world px
+        const canvas = document.createElement('canvas');
+        canvas.width = logical * SS;
+        canvas.height = logical * SS;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        ctx.scale(SS, SS);
+        ctx.translate(logical / 2, logical / 2);
+
+        const pal = EnemyRenderer._palette(color, variant);
+        const paint = EnemyRenderer._painters[type] || EnemyRenderer._painters.basic;
+        paint(ctx, size, pal);
+
+        return { canvas, w: logical, h: logical };
+    }
+
+    static _palette(color, variant) {
+        if (variant === 'flash') {
+            return { body: '#FFFFFF', dark: '#DDDDDD', rim: '#FFFFFF', accent: '#FFFFFF', eye: '#FFFFFF' };
+        }
+        if (variant === 'gold') {
+            return {
+                body: '#8a6a1a', dark: '#4a380e', rim: '#d8b04a',
+                accent: '#FFD700', eye: '#FFF3B0'
+            };
+        }
+        const c = EnemyRenderer._norm(color);
+        return {
+            body: EnemyRenderer._shade(c, -0.12),   // near-true type color
+            dark: EnemyRenderer._shade(c, -0.45),
+            rim: EnemyRenderer._shade(c, 0.3),      // lit edge
+            accent: c,                              // archetype accent
+            eye: '#FFB35C'                          // ember eyes
+        };
+    }
+
+    // ------------------------------------------------------------------
+    // Archetype painters — all draw facing +X, centered on origin,
+    // silhouette inside ~size radius so sprites never lie about hitboxes.
+    // ------------------------------------------------------------------
+
+    static get _painters() {
+        if (!EnemyRenderer._painterMap) {
+            EnemyRenderer._painterMap = {
+                basic: EnemyRenderer._paintHusk,
+                fast: EnemyRenderer._paintImp,
+                tank: EnemyRenderer._paintBrute,
+                ranged: EnemyRenderer._paintAcolyte,
+                elite: EnemyRenderer._paintDreadlord,
+                berserker: EnemyRenderer._paintBerserker,
+                summoner: EnemyRenderer._paintSummoner,
+                juggernaut: EnemyRenderer._paintJuggernaut
+            };
+        }
+        return EnemyRenderer._painterMap;
+    }
+
+    // Slouched husk — hunched shambling corpse
+    static _paintHusk(ctx, s, p) {
+        // Body: hunched mass, wider at the shoulders (rear), tapering forward
+        ctx.fillStyle = p.body;
         ctx.beginPath();
-        ctx.arc(
-            this.enemy.x, 
-            this.enemy.y, 
-            this.eliteAuraRadius * pulseScale, 
-            0, 
-            Math.PI * 2
-        );
+        ctx.moveTo(s * 0.95, 0);
+        ctx.quadraticCurveTo(s * 0.7, -s * 0.75, -s * 0.1, -s * 0.85);
+        ctx.quadraticCurveTo(-s * 0.9, -s * 0.9, -s * 0.95, -s * 0.2);
+        ctx.quadraticCurveTo(-s * 1.0, s * 0.5, -s * 0.4, s * 0.85);
+        ctx.quadraticCurveTo(s * 0.4, s * 0.95, s * 0.95, 0);
+        ctx.closePath();
         ctx.fill();
-        
-        // Inner ring
-        ctx.strokeStyle = this.eliteAuraColor;
-        ctx.lineWidth = 2;
+
+        // Rim light on the upper edge
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.12);
         ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        ctx.arc(
-            this.enemy.x,
-            this.enemy.y,
-            this.enemy.size + 5,
-            0,
-            Math.PI * 2
-        );
+        ctx.moveTo(-s * 0.7, -s * 0.55);
+        ctx.quadraticCurveTo(-s * 0.1, -s * 0.85, s * 0.6, -s * 0.4);
         ctx.stroke();
-        
-        ctx.restore();
-    }
-    
-    drawBody(ctx) {
-        ctx.save();
-        
-        // Apply enemy-specific rendering
-        switch (this.enemy.type) {
-            case 'basic':
-                this.drawBasicEnemy(ctx);
-                break;
-            case 'fast':
-                this.drawFastEnemy(ctx);
-                break;
-            case 'tank':
-                this.drawTankEnemy(ctx);
-                break;
-            case 'ranged':
-                this.drawRangedEnemy(ctx);
-                break;
-            case 'elite':
-                this.drawEliteEnemy(ctx);
-                break;
-            default:
-                this.drawBasicEnemy(ctx);
-        }
-        
-        ctx.restore();
-    }
-    
-    drawBasicEnemy(ctx) {
-        // Simple circle with gradient
-        const gradient = ctx.createRadialGradient(
-            this.enemy.x - this.enemy.size * 0.3,
-            this.enemy.y - this.enemy.size * 0.3,
-            0,
-            this.enemy.x,
-            this.enemy.y,
-            this.enemy.size
-        );
-        
-        const baseColor = this.enemy.flashTime > 0 ? '#FFFFFF' : this.enemy.color;
-        gradient.addColorStop(0, this.lightenColor(baseColor, 30));
-        gradient.addColorStop(0.7, baseColor);
-        gradient.addColorStop(1, this.darkenColor(baseColor, 30));
-        
-        ctx.fillStyle = gradient;
+        ctx.globalAlpha = 1;
+        // Ragged hem
+        ctx.fillStyle = p.dark;
         ctx.beginPath();
-        ctx.arc(this.enemy.x, this.enemy.y, this.enemy.size, 0, Math.PI * 2);
+        ctx.moveTo(-s * 0.9, s * 0.3);
+        ctx.lineTo(-s * 0.6, s * 0.8);
+        ctx.lineTo(-s * 0.3, s * 0.5);
+        ctx.lineTo(0, s * 0.9);
+        ctx.lineTo(s * 0.3, s * 0.6);
+        ctx.lineTo(s * 0.5, s * 0.85);
+        ctx.lineTo(s * 0.8, s * 0.4);
+        ctx.closePath();
         ctx.fill();
-        
-        // Border
-        ctx.strokeStyle = this.darkenColor(baseColor, 50);
-        ctx.lineWidth = 2;
+
+        // Ember eyes, forward side
+        ctx.fillStyle = p.eye;
+        ctx.beginPath();
+        ctx.arc(s * 0.45, -s * 0.22, Math.max(1, s * 0.13), 0, Math.PI * 2);
+        ctx.arc(s * 0.45, s * 0.22, Math.max(1, s * 0.13), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Lean darting imp — narrow body, swept-back horns, forward snout
+    static _paintImp(ctx, s, p) {
+        // Swept horns
+        ctx.strokeStyle = p.dark;
+        ctx.lineWidth = Math.max(1, s * 0.18);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(s * 0.15, -s * 0.35);
+        ctx.quadraticCurveTo(-s * 0.5, -s * 0.7, -s * 0.95, -s * 0.55);
+        ctx.moveTo(s * 0.15, s * 0.35);
+        ctx.quadraticCurveTo(-s * 0.5, s * 0.7, -s * 0.95, s * 0.55);
+        ctx.stroke();
+
+        // Narrow dart body
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.moveTo(s * 1.05, 0);
+        ctx.quadraticCurveTo(s * 0.3, -s * 0.6, -s * 0.55, -s * 0.45);
+        ctx.lineTo(-s * 0.85, 0);
+        ctx.lineTo(-s * 0.55, s * 0.45);
+        ctx.quadraticCurveTo(s * 0.3, s * 0.6, s * 1.05, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Rim
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.1);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.5, -s * 0.4);
+        ctx.quadraticCurveTo(s * 0.3, -s * 0.55, s * 0.95, -s * 0.05);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Single forward eye
+        ctx.fillStyle = p.eye;
+        ctx.beginPath();
+        ctx.arc(s * 0.5, 0, Math.max(1, s * 0.16), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Broad plated brute — heavy shoulders, armored shell
+    static _paintBrute(ctx, s, p) {
+        // Shoulder pauldrons
+        ctx.fillStyle = p.dark;
+        ctx.beginPath();
+        ctx.arc(-s * 0.1, -s * 0.7, s * 0.42, 0, Math.PI * 2);
+        ctx.arc(-s * 0.1, s * 0.7, s * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Massive torso — wide hexagon
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.9, 0);
+        ctx.lineTo(s * 0.45, -s * 0.7);
+        ctx.lineTo(-s * 0.45, -s * 0.8);
+        ctx.lineTo(-s * 0.9, -s * 0.35);
+        ctx.lineTo(-s * 0.9, s * 0.35);
+        ctx.lineTo(-s * 0.45, s * 0.8);
+        ctx.lineTo(s * 0.45, s * 0.7);
+        ctx.closePath();
+        ctx.fill();
+
+        // Armor plate seams
+        ctx.strokeStyle = p.dark;
+        ctx.lineWidth = Math.max(1, s * 0.09);
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.5, -s * 0.45);
+        ctx.lineTo(s * 0.5, -s * 0.35);
+        ctx.moveTo(-s * 0.55, s * 0.45);
+        ctx.lineTo(s * 0.5, s * 0.35);
+        ctx.stroke();
+
+        // Rim on top edge
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.11);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.45, -s * 0.75);
+        ctx.lineTo(s * 0.45, -s * 0.65);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Cyclops slit visor
+        ctx.fillStyle = p.eye;
+        ctx.fillRect(s * 0.35, -s * 0.1, s * 0.45, s * 0.2);
+    }
+
+    // Robed acolyte — hooded diamond silhouette, pale core
+    static _paintAcolyte(ctx, s, p) {
+        // Robe: diamond tapering to a hem point behind
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.95, 0);
+        ctx.lineTo(s * 0.15, -s * 0.85);
+        ctx.lineTo(-s * 0.85, -s * 0.25);
+        ctx.lineTo(-s * 0.7, 0);
+        ctx.lineTo(-s * 0.85, s * 0.25);
+        ctx.lineTo(s * 0.15, s * 0.85);
+        ctx.closePath();
+        ctx.fill();
+
+        // Hood shadow over the face
+        ctx.fillStyle = p.dark;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.95, 0);
+        ctx.lineTo(s * 0.35, -s * 0.45);
+        ctx.lineTo(s * 0.35, s * 0.45);
+        ctx.closePath();
+        ctx.fill();
+
+        // Rim
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.1);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.8, -s * 0.22);
+        ctx.lineTo(s * 0.15, -s * 0.8);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Pale diamond core in the hood shadow
+        ctx.fillStyle = p.accent;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.55, -s * 0.16);
+        ctx.lineTo(s * 0.72, 0);
+        ctx.lineTo(s * 0.55, s * 0.16);
+        ctx.lineTo(s * 0.38, 0);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Horned dreadlord — crowned mantle, broad and regal
+    static _paintDreadlord(ctx, s, p) {
+        // Horns curving up/back from the crown
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1.5, s * 0.14);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(s * 0.35, -s * 0.4);
+        ctx.quadraticCurveTo(s * 0.1, -s * 0.95, -s * 0.45, -s * 1.0);
+        ctx.moveTo(s * 0.35, s * 0.4);
+        ctx.quadraticCurveTo(s * 0.1, s * 0.95, -s * 0.45, s * 1.0);
+        ctx.stroke();
+
+        // Mantle: broad shoulders sweeping back
+        ctx.fillStyle = p.dark;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.5, -s * 0.55);
+        ctx.quadraticCurveTo(-s * 0.4, -s * 1.0, -s * 1.0, -s * 0.5);
+        ctx.lineTo(-s * 0.85, 0);
+        ctx.lineTo(-s * 1.0, s * 0.5);
+        ctx.quadraticCurveTo(-s * 0.4, s * 1.0, s * 0.5, s * 0.55);
+        ctx.closePath();
+        ctx.fill();
+
+        // Core body
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crown band
+        ctx.strokeStyle = p.accent;
+        ctx.lineWidth = Math.max(1, s * 0.1);
+        ctx.beginPath();
+        ctx.arc(s * 0.15, 0, s * 0.5, -Math.PI * 0.45, Math.PI * 0.45);
+        ctx.stroke();
+
+        // Ember eyes
+        ctx.fillStyle = p.eye;
+        ctx.beginPath();
+        ctx.arc(s * 0.4, -s * 0.18, Math.max(1, s * 0.11), 0, Math.PI * 2);
+        ctx.arc(s * 0.4, s * 0.18, Math.max(1, s * 0.11), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Jagged berserker — spiked, aggressive silhouette
+    static _paintBerserker(ctx, s, p) {
+        const spikes = 7;
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        for (let i = 0; i < spikes * 2; i++) {
+            const angle = (i / (spikes * 2)) * Math.PI * 2;
+            const r = i % 2 === 0 ? s * 1.0 : s * 0.62;
+            const px = Math.cos(angle) * r;
+            const py = Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner mass
+        ctx.fillStyle = p.dark;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Rim
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.08);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.55, -Math.PI * 0.7, -Math.PI * 0.1);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Fury eyes — angled slits
+        ctx.strokeStyle = p.eye;
+        ctx.lineWidth = Math.max(1, s * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(s * 0.15, -s * 0.3);
+        ctx.lineTo(s * 0.5, -s * 0.15);
+        ctx.moveTo(s * 0.15, s * 0.3);
+        ctx.lineTo(s * 0.5, s * 0.15);
         ctx.stroke();
     }
-    
-    drawFastEnemy(ctx) {
-        // Streamlined triangle shape
-        const angle = Math.atan2(this.enemy.velocity.y, this.enemy.velocity.x);
-        
-        ctx.save();
-        ctx.translate(this.enemy.x, this.enemy.y);
-        ctx.rotate(angle);
-        
-        const gradient = ctx.createLinearGradient(
-            -this.enemy.size, 0,
-            this.enemy.size, 0
-        );
-        gradient.addColorStop(0, this.enemy.color);
-        gradient.addColorStop(1, this.lightenColor(this.enemy.color, 40));
-        
-        ctx.fillStyle = gradient;
+
+    // Tall hooded summoner — robe + raised staff
+    static _paintSummoner(ctx, s, p) {
+        // Staff held forward
+        ctx.strokeStyle = p.dark;
+        ctx.lineWidth = Math.max(1.5, s * 0.12);
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(this.enemy.size, 0);
-        ctx.lineTo(-this.enemy.size, -this.enemy.size * 0.7);
-        ctx.lineTo(-this.enemy.size * 0.5, 0);
-        ctx.lineTo(-this.enemy.size, this.enemy.size * 0.7);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Speed lines
-        if (Math.abs(this.enemy.velocity.x) + Math.abs(this.enemy.velocity.y) > 50) {
-            ctx.strokeStyle = this.enemy.color + '40';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.moveTo(-this.enemy.size - i * 5, -this.enemy.size * 0.3 + i * 3);
-                ctx.lineTo(-this.enemy.size * 2 - i * 10, -this.enemy.size * 0.3 + i * 3);
-                ctx.stroke();
-            }
-        }
-        
-        ctx.restore();
-    }
-    
-    drawTankEnemy(ctx) {
-        // Heavy hexagon shape
-        const sides = 6;
-        
-        // Outer armor
-        ctx.fillStyle = this.darkenColor(this.enemy.color, 20);
-        ctx.beginPath();
-        for (let i = 0; i < sides; i++) {
-            const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
-            const x = this.enemy.x + Math.cos(angle) * (this.enemy.size + 3);
-            const y = this.enemy.y + Math.sin(angle) * (this.enemy.size + 3);
-            
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        }
-        ctx.closePath();
-        ctx.fill();
-        
-        // Inner body
-        const gradient = ctx.createRadialGradient(
-            this.enemy.x, this.enemy.y, 0,
-            this.enemy.x, this.enemy.y, this.enemy.size
-        );
-        gradient.addColorStop(0, this.lightenColor(this.enemy.color, 20));
-        gradient.addColorStop(1, this.enemy.color);
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        for (let i = 0; i < sides; i++) {
-            const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
-            const x = this.enemy.x + Math.cos(angle) * this.enemy.size;
-            const y = this.enemy.y + Math.sin(angle) * this.enemy.size;
-            
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        }
-        ctx.closePath();
-        ctx.fill();
-        
-        // Armor plates
-        ctx.strokeStyle = this.darkenColor(this.enemy.color, 40);
-        ctx.lineWidth = 2;
+        ctx.moveTo(s * 0.1, s * 0.55);
+        ctx.lineTo(s * 0.95, -s * 0.55);
         ctx.stroke();
-    }
-    
-    drawRangedEnemy(ctx) {
-        // Diamond shape with energy core
-        ctx.save();
-        ctx.translate(this.enemy.x, this.enemy.y);
-        
-        // Outer diamond
-        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.enemy.size);
-        gradient.addColorStop(0, this.lightenColor(this.enemy.color, 40));
-        gradient.addColorStop(0.7, this.enemy.color);
-        gradient.addColorStop(1, this.darkenColor(this.enemy.color, 20));
-        
-        ctx.fillStyle = gradient;
+        // Staff head orb
+        ctx.fillStyle = p.accent;
         ctx.beginPath();
-        ctx.moveTo(0, -this.enemy.size);
-        ctx.lineTo(this.enemy.size, 0);
-        ctx.lineTo(0, this.enemy.size);
-        ctx.lineTo(-this.enemy.size, 0);
+        ctx.arc(s * 0.95, -s * 0.55, Math.max(1.5, s * 0.18), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Robe: tall triangle flaring to the hem
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.7, 0);
+        ctx.quadraticCurveTo(s * 0.3, -s * 0.7, -s * 0.2, -s * 0.75);
+        ctx.lineTo(-s * 0.85, -s * 0.55);
+        ctx.lineTo(-s * 0.95, 0);
+        ctx.lineTo(-s * 0.85, s * 0.55);
+        ctx.lineTo(-s * 0.2, s * 0.75);
+        ctx.quadraticCurveTo(s * 0.3, s * 0.7, s * 0.7, 0);
         ctx.closePath();
         ctx.fill();
-        
-        // Energy core (pulsing)
-        const pulseScale = 1 + Math.sin(performance.now() * 0.005) * 0.2;
-        ctx.fillStyle = '#FFFF00';
-        ctx.globalAlpha = 0.8;
+
+        // Hood
+        ctx.fillStyle = p.dark;
         ctx.beginPath();
-        ctx.arc(0, 0, this.enemy.size * 0.3 * pulseScale, 0, Math.PI * 2);
+        ctx.moveTo(s * 0.7, 0);
+        ctx.quadraticCurveTo(s * 0.35, -s * 0.5, s * 0.05, -s * 0.5);
+        ctx.quadraticCurveTo(s * 0.05, s * 0.5, s * 0.7, 0);
+        ctx.closePath();
         ctx.fill();
-        
-        ctx.restore();
-    }
-    
-    drawEliteEnemy(ctx) {
-        // Spiked circle with rotating spikes
-        const time = performance.now() * 0.001;
-        const spikeCount = 8;
-        
-        // Main body
-        const gradient = ctx.createRadialGradient(
-            this.enemy.x, this.enemy.y, 0,
-            this.enemy.x, this.enemy.y, this.enemy.size
-        );
-        gradient.addColorStop(0, '#FF0000');
-        gradient.addColorStop(0.5, this.enemy.color);
-        gradient.addColorStop(1, this.darkenColor(this.enemy.color, 30));
-        
-        ctx.fillStyle = gradient;
+
+        // Rim
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.09);
+        ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        ctx.arc(this.enemy.x, this.enemy.y, this.enemy.size, 0, Math.PI * 2);
+        ctx.moveTo(-s * 0.8, -s * 0.5);
+        ctx.quadraticCurveTo(-s * 0.2, -s * 0.72, s * 0.3, -s * 0.55);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Eyes in the hood shadow
+        ctx.fillStyle = p.eye;
+        ctx.beginPath();
+        ctx.arc(s * 0.35, -s * 0.12, Math.max(1, s * 0.1), 0, Math.PI * 2);
+        ctx.arc(s * 0.35, s * 0.12, Math.max(1, s * 0.1), 0, Math.PI * 2);
         ctx.fill();
-        
-        // Rotating spikes
-        ctx.save();
-        ctx.translate(this.enemy.x, this.enemy.y);
-        ctx.rotate(time);
-        
-        ctx.fillStyle = this.darkenColor(this.enemy.color, 40);
-        for (let i = 0; i < spikeCount; i++) {
-            const angle = (Math.PI * 2 * i) / spikeCount;
-            
-            ctx.save();
-            ctx.rotate(angle);
-            
-            ctx.beginPath();
-            ctx.moveTo(this.enemy.size, 0);
-            ctx.lineTo(this.enemy.size + 10, -3);
-            ctx.lineTo(this.enemy.size + 15, 0);
-            ctx.lineTo(this.enemy.size + 10, 3);
-            ctx.closePath();
-            ctx.fill();
-            
-            ctx.restore();
-        }
-        
-        ctx.restore();
-        
-        // Elite symbol
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('★', this.enemy.x, this.enemy.y);
     }
-    
-    drawHealthBar(ctx) {
-        if (this.enemy.health >= this.enemy.maxHealth) return;
-        
-        const barWidth = this.enemy.size * 2;
-        const barHeight = 4;
-        const barY = this.enemy.y - this.enemy.size - 10;
-        
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(
-            this.enemy.x - barWidth / 2,
-            barY,
-            barWidth,
-            barHeight
-        );
-        
-        // Health fill
-        const healthPercent = Math.max(0, this.enemy.health / this.enemy.maxHealth);
-        let healthColor;
-        
-        if (healthPercent > 0.6) {
-            healthColor = '#00FF00';
-        } else if (healthPercent > 0.3) {
-            healthColor = '#FFFF00';
+
+    // Massive fortress slab — the juggernaut
+    static _paintJuggernaut(ctx, s, p) {
+        // Layered slab body — near-rectangular fortress mass
+        ctx.fillStyle = p.dark;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.85, -s * 0.55);
+        ctx.lineTo(-s * 0.7, -s * 0.85);
+        ctx.lineTo(-s * 0.95, -s * 0.5);
+        ctx.lineTo(-s * 0.95, s * 0.5);
+        ctx.lineTo(-s * 0.7, s * 0.85);
+        ctx.lineTo(s * 0.85, s * 0.55);
+        ctx.lineTo(s * 0.95, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = p.body;
+        ctx.beginPath();
+        ctx.moveTo(s * 0.8, -s * 0.45);
+        ctx.lineTo(-s * 0.6, -s * 0.7);
+        ctx.lineTo(-s * 0.8, -s * 0.4);
+        ctx.lineTo(-s * 0.8, s * 0.4);
+        ctx.lineTo(-s * 0.6, s * 0.7);
+        ctx.lineTo(s * 0.8, s * 0.45);
+        ctx.lineTo(s * 0.85, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Plate seams
+        ctx.strokeStyle = p.dark;
+        ctx.lineWidth = Math.max(1, s * 0.07);
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.6, -s * 0.35);
+        ctx.lineTo(s * 0.6, -s * 0.25);
+        ctx.moveTo(-s * 0.6, s * 0.35);
+        ctx.lineTo(s * 0.6, s * 0.25);
+        ctx.stroke();
+
+        // Rim
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = Math.max(1, s * 0.09);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.6, -s * 0.68);
+        ctx.lineTo(s * 0.75, -s * 0.42);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Cyclops slit
+        ctx.fillStyle = p.eye;
+        ctx.fillRect(s * 0.3, -s * 0.08, s * 0.4, s * 0.16);
+    }
+
+    // ------------------------------------------------------------------
+    // Color helpers
+    // ------------------------------------------------------------------
+
+    static _norm(color) {
+        if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) return color;
+        return '#8a8a8a';
+    }
+
+    static _shade(hex, factor) {
+        // factor -1..1: negative darkens, positive lightens
+        const num = parseInt(hex.slice(1), 16);
+        let r = num >> 16, g = (num >> 8) & 0xff, b = num & 0xff;
+        if (factor < 0) {
+            r *= 1 + factor; g *= 1 + factor; b *= 1 + factor;
         } else {
-            healthColor = '#FF0000';
+            r += (255 - r) * factor; g += (255 - g) * factor; b += (255 - b) * factor;
         }
-        
-        ctx.fillStyle = healthColor;
-        ctx.fillRect(
-            this.enemy.x - barWidth / 2,
-            barY,
-            barWidth * healthPercent,
-            barHeight
-        );
-        
-        // Border
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(
-            this.enemy.x - barWidth / 2,
-            barY,
-            barWidth,
-            barHeight
-        );
-    }
-    
-    drawStatusEffects(ctx) {
-        let iconOffset = 0;
-        
-        // Burning effect
-        if (this.enemy.statusEffects && this.enemy.statusEffects.burning) {
-            ctx.fillStyle = '#FF6600';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('🔥', this.enemy.x + iconOffset, this.enemy.y - this.enemy.size - 20);
-            iconOffset += 15;
-        }
-        
-        // Frozen effect
-        if (this.enemy.statusEffects && this.enemy.statusEffects.frozen) {
-            ctx.fillStyle = '#00CCFF';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('❄️', this.enemy.x + iconOffset, this.enemy.y - this.enemy.size - 20);
-            iconOffset += 15;
-        }
-        
-        // Poisoned effect
-        if (this.enemy.statusEffects && this.enemy.statusEffects.poisoned) {
-            ctx.fillStyle = '#00FF00';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('☠️', this.enemy.x + iconOffset, this.enemy.y - this.enemy.size - 20);
-            iconOffset += 15;
-        }
-    }
-    
-    drawDebugInfo(ctx) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        
-        // Type and ID
-        ctx.fillText(
-            `${this.enemy.type}#${this.enemy.id}`,
-            this.enemy.x,
-            this.enemy.y + this.enemy.size + 15
-        );
-        
-        // AI state if available
-        if (this.enemy.aiState) {
-            ctx.fillText(
-                this.enemy.aiState,
-                this.enemy.x,
-                this.enemy.y + this.enemy.size + 25
-            );
-        }
-        
-        // Velocity vector
-        ctx.strokeStyle = '#00FF00';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(this.enemy.x, this.enemy.y);
-        ctx.lineTo(
-            this.enemy.x + this.enemy.velocity.x * 0.2,
-            this.enemy.y + this.enemy.velocity.y * 0.2
-        );
-        ctx.stroke();
-    }
-    
-    // Utility methods
-    lightenColor(color, percent) {
-        const num = parseInt(color.replace('#', ''), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) + amt;
-        const G = (num >> 8 & 0x00FF) + amt;
-        const B = (num & 0x0000FF) + amt;
-        
-        return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-            (B < 255 ? B < 1 ? 0 : B : 255))
-            .toString(16).slice(1);
-    }
-    
-    darkenColor(color, percent) {
-        const num = parseInt(color.replace('#', ''), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) - amt;
-        const G = (num >> 8 & 0x00FF) - amt;
-        const B = (num & 0x0000FF) - amt;
-        
-        return '#' + (0x1000000 + (R > 0 ? R : 0) * 0x10000 +
-            (G > 0 ? G : 0) * 0x100 +
-            (B > 0 ? B : 0))
-            .toString(16).slice(1);
-    }
-    
-    update(deltaTime) {
-        // Update flash effect
-        if (this.enemy.flashTime > 0) {
-            this.enemy.flashTime -= deltaTime;
-        }
-        
-        // Update elite aura animation
-        if (this.enemy.type === 'elite') {
-            this.eliteAuraTime += deltaTime;
-        }
-        
-        // Update animation frame
-        this.animationFrame += this.animationSpeed * deltaTime;
+        return `rgb(${r | 0}, ${g | 0}, ${b | 0})`;
     }
 }
+
+// Module-level sprite cache shared by all enemies
+EnemyRenderer._cache = new Map();
+EnemyRenderer._painterMap = null;

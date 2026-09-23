@@ -1,6 +1,6 @@
 // Vampire Survivors Game - Main Entry Point
 
-import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js?v=20260317-hudfix2';
+import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js?v=20260923-gothic1';
 import { InputManager } from './core/InputManager.js';
 import { AudioManager } from './core/AudioManager.js';
 
@@ -175,7 +175,7 @@ class VampireGameBootstrap {
         // Update progress bar
         const progressBar = document.getElementById('loadingProgress');
         if (progressBar) {
-            progressBar.style.width = progress + '%';
+            progressBar.style.transform = `scaleX(${progress / 100})`;
         }
 
         // Update status text
@@ -188,32 +188,46 @@ class VampireGameBootstrap {
     createLoadingScreen() {
         const loadingScreen = document.createElement('div');
         loadingScreen.id = 'loadingScreen';
+        // Inline critical styles so the fallback works even if stylesheet order shifts
         loadingScreen.style.cssText = `
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, #06070c 0%, #0d0c15 55%, #120d14 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
-            color: white;
-            font-family: Arial, sans-serif;
+            flex-direction: column;
+            z-index: 9999;
+            color: #ede3c8;
+            font-family: Georgia, 'Times New Roman', serif;
         `;
 
         loadingScreen.innerHTML = `
             <div style="text-align: center;">
-                <h1 style="font-size: 3rem; margin-bottom: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
-                    🧛 VAMPIRE SURVIVORS
+                <div style="width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 34px;
+                    background: radial-gradient(circle at 38% 34%, #f0e7ce 0%, #dccfaf 62%, #b9a888 100%);
+                    box-shadow: 0 0 34px rgba(232,220,190,0.28), 0 0 90px rgba(232,220,190,0.12);"></div>
+                <h1 style="font-family: 'Cinzel', Georgia, serif; font-size: clamp(26px, 5vw, 44px);
+                    letter-spacing: 0.14em; margin: 0 0 6px; color: #ede3c8;
+                    text-shadow: 0 2px 0 rgba(0,0,0,0.8), 0 0 26px rgba(224,138,60,0.25);">
+                    VAMPIRE SURVIVORS
                 </h1>
-                <div style="width: 300px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 10px; overflow: hidden; margin-bottom: 1rem;">
-                    <div id="loadingProgress" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #feca57); transition: width 0.3s ease;"></div>
+                <div style="color: #c9a86a; font-size: 13px; letter-spacing: 0.5em; text-indent: 0.5em; margin-bottom: 44px;">
+                    ENHANCED
                 </div>
-                <p id="loadingStatus" style="font-size: 1.2rem; margin: 0;">Initializing...</p>
-                <p style="font-size: 0.9rem; margin-top: 2rem; opacity: 0.8;">
-                    Survive the endless horde! WASD to move, auto-attacks enabled.
+                <div style="width: min(320px, 70vw); height: 8px; margin: 0 auto;
+                    background: rgba(28,24,18,0.9); border: 1px solid rgba(198,160,92,0.35);
+                    border-radius: 4px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+                    <div id="loadingProgress" style="width: 100%; height: 100%; transform: scaleX(0); transform-origin: left;
+                        background: linear-gradient(90deg, #5a4210, #b8862e 55%, #e8c96a);
+                        transition: transform 0.35s ease;"></div>
+                </div>
+                <p id="loadingStatus" style="font-size: 13px; margin: 16px 0 0; color: rgba(190,180,160,0.75); letter-spacing: 0.06em;">Raising the dead…</p>
+                <p style="font-size: 12px; margin-top: 40px; color: rgba(170,158,132,0.5); letter-spacing: 0.04em;">
+                    WASD move &nbsp;·&nbsp; SPACE evade &nbsp;·&nbsp; auto-attacks do the rest
                 </p>
             </div>
         `;
@@ -246,35 +260,39 @@ class VampireGameBootstrap {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+                background: linear-gradient(180deg, #0c0608 0%, #140a0c 100%);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 z-index: 1001;
-                color: white;
-                font-family: Arial, sans-serif;
+                color: #ede3c8;
+                font-family: Georgia, 'Times New Roman', serif;
             `;
         }
 
         errorScreen.innerHTML = `
             <div style="text-align: center; max-width: 500px; padding: 2rem;">
-                <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">❌ Error</h1>
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Failed to load the game:</p>
-                <p style="font-size: 1rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 5px; margin-bottom: 2rem;">
+                <h1 style="font-family: 'Cinzel', Georgia, serif; font-size: 2rem; margin-bottom: 1rem;
+                    color: #d94a3a; letter-spacing: 0.08em;">THE RITUAL FAILED</h1>
+                <p style="font-size: 1.05rem; margin-bottom: 1rem; color: rgba(190,180,160,0.85);">The game could not be summoned:</p>
+                <p style="font-size: 0.9rem; background: rgba(0,0,0,0.4); padding: 1rem;
+                    border: 1px solid rgba(198,160,92,0.25); border-radius: 6px; margin-bottom: 2rem;
+                    color: rgba(226,216,192,0.9);">
                     ${error.message}
                 </p>
                 <button onclick="location.reload()" style="
-                    background: white; 
-                    color: #ee5a24; 
-                    border: none; 
-                    padding: 15px 30px; 
-                    border-radius: 5px; 
-                    font-size: 1.1rem; 
-                    font-weight: bold;
+                    background: linear-gradient(180deg, #4a3e30, #241e1a);
+                    color: #f0e2bc;
+                    border: 1px solid rgba(216,180,106,0.6);
+                    padding: 14px 30px;
+                    border-radius: 6px;
+                    font-size: 1rem;
+                    font-family: 'Cinzel', Georgia, serif;
+                    letter-spacing: 0.08em;
                     cursor: pointer;
                     transition: transform 0.2s ease;
                 " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                    🔄 Reload Game
+                    RAISE IT AGAIN
                 </button>
             </div>
         `;

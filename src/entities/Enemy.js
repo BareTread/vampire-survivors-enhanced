@@ -1,4 +1,5 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+import { EnemyRenderer } from './rendering/EnemyRenderer.js';
 
 export class Enemy {
     constructor(game, x, y, type = 'basic') {
@@ -159,7 +160,14 @@ export class Enemy {
         const difficultyMultiplier = this.getDifficultyMultiplier();
 
         this.maxHealth = Math.floor(stats.maxHealth * difficultyMultiplier);
-        this.speed = stats.speed;
+
+        // Mild speed scaling with time: enemies close the gap more credibly by mid-game.
+        // Summoner/juggernaut are excluded — their slow speed is intentional to their role.
+        const gameTimeMinForSpeed = this.game?.gameTime ? this.game.gameTime / 60 : 0;
+        const speedFactor = ['summoner', 'juggernaut'].includes(type)
+            ? 1.0
+            : Math.min(1.3, 1 + gameTimeMinForSpeed * 0.012);
+        this.speed = stats.speed * speedFactor;
 
         // Apply adaptive damage from flow state
         let finalDamageMultiplier = difficultyMultiplier;
@@ -1079,130 +1087,7 @@ export class Enemy {
     }
 
     render(renderer, detailLevel = 'high') {
-        if (!this.active) return;
-
-        const ctx = renderer.ctx;
-        const simplifyBody = detailLevel !== 'high' && !['elite', 'summoner', 'juggernaut'].includes(this.type);
-        ctx.save();
-
-        // Death scale pop animation: scale up to 1.3x then shrink to 0
-        if (this.dying) {
-            const t = this.deathScaleTimer / this.deathScaleDuration; // 1→0
-            // First half: scale up to 1.3x, second half: shrink to 0
-            const scale = t > 0.5 ? 1.0 + (1 - t) * 0.6 : t * 2.6;
-            ctx.translate(this.x, this.y);
-            ctx.scale(scale, scale);
-            ctx.translate(-this.x, -this.y);
-            ctx.globalAlpha = Math.max(0, t);
-        }
-
-        // Hit freeze-frame: enlarge slightly with white flash
-        if (this.freezeTimer > 0 && !this.dying) {
-            ctx.translate(this.x, this.y);
-            ctx.scale(1.1, 1.1);
-            ctx.translate(-this.x, -this.y);
-        }
-
-        // Spawn animation
-        if (this.currentSpawnTime > 0) {
-            const spawnProgress = 1 - this.currentSpawnTime / this.spawnTime;
-            ctx.globalAlpha = spawnProgress;
-            ctx.translate(this.x, this.y);
-            ctx.scale(spawnProgress, spawnProgress);
-            ctx.translate(-this.x, -this.y);
-        }
-
-        // 1. Ground shadow
-        ctx.fillStyle = 'rgba(10, 6, 14, 0.28)';
-        ctx.beginPath();
-        ctx.ellipse(this.x, this.y + this.size * 0.42, this.size * 0.92, this.size * 0.44, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Flash effect when damaged
-        const isFlashing = this.flashTime > 0;
-        if (isFlashing) {
-            ctx.shadowColor = '#FFFFFF';
-            ctx.shadowBlur = 10;
-        }
-
-        // Draw enemy body (Golden Swarm tint)
-        const isGoldenSwarm = this.game.systems.dynamicEvents?.goldenSwarmActive;
-        let bodyColor = this.color;
-        if (isGoldenSwarm) {
-            bodyColor = '#FFD700';
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 6;
-        }
-
-        if (simplifyBody) {
-            ctx.fillStyle = isFlashing ? '#FFFFFF' : bodyColor;
-        } else {
-            const grad = ctx.createRadialGradient(
-                this.x - this.size * 0.2,
-                this.y - this.size * 0.2,
-                0,
-                this.x,
-                this.y,
-                this.size
-            );
-            grad.addColorStop(0, isFlashing ? '#FFFFFF' : this.lightenColor(bodyColor, 0.28));
-            grad.addColorStop(0.7, bodyColor);
-            grad.addColorStop(1, this.darkenColor(bodyColor, 0.45));
-            ctx.fillStyle = grad;
-        }
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (isGoldenSwarm) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-        }
-        ctx.shadowBlur = 0; // Turn off shadow blur for internal details
-
-        // 4. Internal Details (personality/menace)
-        if (!isFlashing && detailLevel === 'high') {
-            ctx.save();
-            // Rotate facing player
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.direction);
-
-            // "Eyes" or core slits depending on enemy type
-            if (this.type === 'ranged' || this.type === 'summoner') {
-                // Central glowing diamond core
-                ctx.fillStyle = '#FFFFFF';
-                ctx.beginPath();
-                ctx.moveTo(0, -this.size * 0.28);
-                ctx.lineTo(this.size * 0.24, 0);
-                ctx.lineTo(0, this.size * 0.28);
-                ctx.lineTo(-this.size * 0.24, 0);
-                ctx.closePath();
-                ctx.fill();
-            } else if (this.type === 'juggernaut' || this.type === 'tank') {
-                // Single cyclops slit
-                ctx.fillStyle = '#FFEB3B';
-                ctx.fillRect(-this.size * 0.12, -this.size * 0.28, this.size * 0.24, this.size * 0.56);
-            } else {
-                // Classic aggressive dual hollow eyes
-                ctx.fillStyle = '#FFDDDD';
-                ctx.beginPath();
-                ctx.arc(-this.size * 0.22, -this.size * 0.12, this.size * 0.16, 0, Math.PI * 2);
-                ctx.arc(this.size * 0.22, -this.size * 0.12, this.size * 0.16, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.restore();
-        }
-
-        // Draw type-specific details
-        this.renderTypeDetails(ctx, detailLevel);
-
-        this.renderHealthBar(ctx, detailLevel);
-
-        ctx.restore();
-
-        // Note: Damage numbers now rendered by globalDamageNumberPool
+        EnemyRenderer.render(this, renderer, detailLevel);
     }
 
     renderTypeDetails(ctx, detailLevel = 'high') {
@@ -1818,7 +1703,7 @@ export class Enemy {
     summonMinions() {
         if (!this.game.systems.enemy) return;
 
-        // Spawn 2 basic enemies near the summoner
+        // Spawn up to 2 fast enemies near the summoner
         for (let i = 0; i < 2; i++) {
             const angle = (i / 2) * Math.PI * 2;
             const distance = 40;
@@ -1826,11 +1711,11 @@ export class Enemy {
             const y = this.y + Math.sin(angle) * distance;
 
             // Don't exceed enemy limits
-            if (this.game.systems.enemy.activeEnemies.length < this.game.systems.enemy.maxActiveEnemies) {
-                const enemy = this.game.systems.enemy.createEnemyByType('fast');
+            if (this.game.systems.enemy.activeEnemies.length < this.game.systems.enemy.maxActiveEnemies &&
+                this.game.systems.enemy.isSpawnSafe(x, y)) {
+                const enemy = this.game.systems.enemy.getEnemyFromPool('fast');
                 if (enemy) {
-                    enemy.x = x;
-                    enemy.y = y;
+                    enemy.reset(x, y, 'fast');
                     this.game.systems.enemy.activeEnemies.push(enemy);
                 }
             }

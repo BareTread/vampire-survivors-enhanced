@@ -11,11 +11,11 @@
  *   │ └─────────────────────┘               └────────────────┘  │
  *   │                        [GAMEPLAY]                          │
  *   │                                                            │
- *   │ ┌─INVENTORY PANEL──────────────────┐  ┌─MINIMAP────────┐  │
  *   │ │ WEAPONS  [W][W][W][W][W][W]      │  │   [mini-map]   │  │
  *   │ │ ITEMS    [I][I][I]               │  └────────────────┘  │
  *   │ │ [Synergy-A]  [Synergy-B]         │                      │
  *   │ └──────────────────────────────────┘                      │
+ *   │            [SPACE EVADE chip]   [first-run hints]           │
  *   └────────────────────────────────────────────────────────────┘
  *
  * GoldSystem.renderHUD() is suppressed when this HUD is active.
@@ -24,54 +24,59 @@ export class CanvasHUD {
 
     // ─── Design tokens ──────────────────────────────────────────────────
     static C = {
-        // Panels  — noticeably darker/more purple than the game bg (#0f0f23)
-        panelBg:         'rgba(16, 9, 30, 0.96)',
-        panelBorder:     'rgba(210, 155, 45, 0.90)',
-        panelGlow:       'rgba(200, 145, 40, 0.28)',   // shadow colour for border glow
+        // Panels — charcoal slate stone, translucent so the world breathes through
+        panelBg:         'rgba(15, 14, 19, 0.92)',
+        panelBorder:     'rgba(198, 160, 92, 0.55)',
+        panelGlow:       'rgba(198, 160, 92, 0.16)',   // shadow colour for border glow
 
-        // XP bar
-        xpTrack:         'rgba(35, 26, 8, 0.75)',
-        xpA:             '#4A3500',
-        xpB:             '#B87A00',
-        xpC:             '#FFD966',
-        xpEdge:          '#FFE890',
+        // XP bar — aged brass
+        xpTrack:         'rgba(28, 24, 18, 0.80)',
+        xpA:             '#5A4210',
+        xpB:             '#B8862E',
+        xpC:             '#E8C96A',
+        xpEdge:          '#F4E2A0',
 
-        // HP
-        hpTrack:         'rgba(70, 0, 0, 0.65)',
-        hpHigh:          '#1D9954',
+        // HP — blood is reserved for danger
+        hpTrack:         'rgba(60, 8, 8, 0.60)',
+        hpHigh:          '#2E9E5B',
         hpMid:           '#C47A00',
         hpLow:           '#B81000',
         hpTrail:         'rgba(195, 35, 35, 0.52)',
 
-        // Economy
-        gold:            '#FFD700',
-        goldDim:         'rgba(200, 160, 60, 0.80)',   // visible label
-        kills:           '#E07A00',
-        killsDim:        'rgba(190, 120, 40, 0.80)',   // visible label
-        bank:            'rgba(155, 125, 55, 0.72)',
+        // Economy — deliberately quiet
+        gold:            '#E8C96A',
+        goldDim:         'rgba(190, 160, 95, 0.70)',   // visible label
+        kills:           '#D97A3A',
+        killsDim:        'rgba(180, 120, 70, 0.70)',   // visible label
+        bank:            'rgba(150, 130, 90, 0.60)',
 
-        // Text
-        labelBright:     '#EDE1C0',
-        labelDim:        'rgba(165, 145, 105, 0.62)',
+        // Text — bone lettering
+        labelBright:     '#EDE3C8',
+        labelDim:        'rgba(170, 158, 132, 0.60)',
 
         // Level / Wave
-        levelColor:      '#FFD700',
-        waveColor:       'rgba(185, 148, 230, 0.92)',
+        levelColor:      '#E8C96A',
+        waveColor:       'rgba(196, 184, 156, 0.88)',
 
         // Inventory
-        slotBg:          'rgba(14, 9, 28, 0.92)',
-        slotBorder:      'rgba(95, 68, 128, 0.65)',
-        evolvedBorder:   '#C8A020',
+        slotBg:          'rgba(16, 14, 20, 0.90)',
+        slotBorder:      'rgba(110, 98, 80, 0.55)',
+        evolvedBorder:   '#D8B45A',
 
         // Minimap
-        minimapBg:       'rgba(10, 6, 22, 0.92)',
-        minimapBorder:   'rgba(200, 148, 42, 0.88)',
+        minimapBg:       'rgba(10, 9, 14, 0.90)',
+        minimapBorder:   'rgba(198, 160, 92, 0.55)',
         minimapGrid:     'rgba(255,255,255,0.06)',
+
+        // Evade chip
+        dashReady:       '#E8C96A',
+        dashActive:      '#FF9A4A',
+        dashDim:         'rgba(170, 158, 132, 0.55)',
     };
 
     constructor(game) {
         this.game = game;
-        this.version = '20260317-hudfix2';
+        this.version = '20260923-gothic1';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;
@@ -179,16 +184,13 @@ export class CanvasHUD {
         // Ensure we are always in clean screen-space regardless of prior dirty state
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = 'transparent';
-        ctx.filter = 'none';
-
         this._renderXPBar(ctx, player, W, H);
         this._renderCharPanel(ctx, player, W, H);
         this._renderEconomyPanel(ctx, player, W, H);
         this._renderInventoryPanel(ctx, player, W, H);
         this._renderMinimap(ctx, W, H);
+        this._renderDashChip(ctx, player, W, H);
+        this._renderFirstRunHints(ctx, W, H);
 
         ctx.restore();
     }
@@ -409,11 +411,9 @@ export class CanvasHUD {
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.ceil(this.displayHealth)} / ${maxHP}`, bx + bw / 2, by + bh / 2 + 0.5);
 
-        // Heart icon to the left of bar
-        ctx.font        = `14px Arial, sans-serif`;
-        ctx.fillStyle   = hpR < 0.3 ? '#FF4444' : '#FF7777';
-        ctx.textAlign   = 'right';
-        ctx.fillText('♥', bx - 3, by + bh / 2 + 1);
+        // Heart icon to the left of bar (drawn, not a glyph)
+        this._icon(ctx, 'heart', bx - 10, by + bh / 2, 7,
+            hpR < 0.3 ? '#FF4444' : '#E86A6A');
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -441,11 +441,8 @@ export class CanvasHUD {
             ctx.shadowColor = C.gold;
             ctx.shadowBlur  = 10 * this.goldFlash;
         }
-        // Diamond icon — always shown even at 0
-        ctx.font      = `17px Arial, sans-serif`;
-        ctx.fillStyle = C.gold;
-        ctx.textAlign = 'left';
-        ctx.fillText('♦', PX + 10, goldY);
+        // Coin icon — always shown even at 0 (drawn, not a glyph)
+        this._icon(ctx, 'coin', PX + 16, goldY, 7, C.gold);
         // "GOLD" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.goldDim;
@@ -474,11 +471,9 @@ export class CanvasHUD {
             ctx.shadowColor = C.kills;
             ctx.shadowBlur  = 12 * this.killFlash;
         }
-        // Skull icon
-        ctx.font      = `16px Arial, sans-serif`;
-        ctx.fillStyle = this.killFlash > 0.01 ? '#FFD700' : C.kills;
-        ctx.textAlign = 'left';
-        ctx.fillText('☠', PX + 10, killsY);
+        // Skull icon (drawn, not a glyph)
+        this._icon(ctx, 'skull', PX + 16, killsY, 7,
+            this.killFlash > 0.01 ? '#E8C96A' : C.kills);
         // "KILLS" label inline
         ctx.font      = `bold 10px "Courier New", monospace`;
         ctx.fillStyle = C.killsDim;
@@ -505,11 +500,11 @@ export class CanvasHUD {
         if (!player.powerUps) return;
 
         const configs = [
-            { key: 'invincible',  label: 'INVINCIBLE', icon: '◊', color: '#FFD700' },
-            { key: 'speedBoost',  label: 'SPEED',      icon: '»', color: '#00E5FF' },
-            { key: 'damageBoost', label: 'DAMAGE',     icon: '☄', color: '#FF6622' },
-            { key: 'fireRate',    label: 'FIRE RATE',  icon: '‹›', color: '#EE44FF' },
-            { key: 'magnetBoost', label: 'MAGNET',     icon: '◎', color: '#44FF99' },
+            { key: 'invincible',  label: 'INVINCIBLE', icon: 'shield', color: '#E8C96A' },
+            { key: 'speedBoost',  label: 'SPEED',      icon: 'bolt',   color: '#4AD8E8' },
+            { key: 'damageBoost', label: 'DAMAGE',     icon: 'swords', color: '#FF6622' },
+            { key: 'fireRate',    label: 'FIRE RATE',  icon: 'burst',  color: '#D878FF' },
+            { key: 'magnetBoost', label: 'MAGNET',     icon: 'magnet', color: '#44FF99' },
         ];
 
         const active = [];
@@ -574,12 +569,8 @@ export class CanvasHUD {
             ctx.arc(pillX + 1.5, y + PH - 3, 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Icon
-            ctx.font      = `11px Arial, sans-serif`;
-            ctx.fillStyle = pu.color;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(pu.icon, pillX + 7, y + PH / 2 + 0.5);
+            // Icon (drawn glyph)
+            this._icon(ctx, pu.icon, pillX + 12, y + PH / 2, 5.5, pu.color);
 
             // Label
             ctx.font      = `bold 8px "Georgia", serif`;
@@ -1042,10 +1033,251 @@ export class CanvasHUD {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    //  EVADE CHIP  (bottom-center — Space dash status)
+    //  Contract: player.dash = {active, cooldown, cooldownDuration, duration, timer}
+    //  cooldown counts down from cooldownDuration; timer counts down while active.
+    // ════════════════════════════════════════════════════════════════════
+    _renderDashChip(ctx, player, W, H) {
+        const dash = player.dash;
+        if (!dash) return; // Feature absent — render nothing rather than lie
+
+        const C = CanvasHUD.C;
+        const chipW = 148;
+        const chipH = 30;
+        const chipX = (W - chipW) / 2;
+        const chipY = H - chipH - 12 - this._getBottomHUDOffset();
+
+        const cdDur = Math.max(0.01, dash.cooldownDuration || 1);
+        const cdRatio = Math.min(1, Math.max(0, (dash.cooldown || 0) / cdDur));
+        const ready = !dash.active && cdRatio <= 0;
+
+        ctx.save();
+
+        // Chip body — stone
+        const grad = ctx.createLinearGradient(chipX, chipY, chipX, chipY + chipH);
+        grad.addColorStop(0, 'rgba(38, 35, 42, 0.88)');
+        grad.addColorStop(1, 'rgba(18, 16, 21, 0.92)');
+        this._roundRect(ctx, chipX, chipY, chipW, chipH, 6);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Cooldown sweep — dark fill draining left-to-right as it recharges
+        if (!dash.active && cdRatio > 0) {
+            ctx.save();
+            this._roundRect(ctx, chipX, chipY, chipW, chipH, 6);
+            ctx.clip();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            ctx.fillRect(chipX + chipW * (1 - cdRatio), chipY, chipW * cdRatio, chipH);
+            // Recharge edge
+            ctx.fillStyle = 'rgba(232, 201, 106, 0.35)';
+            ctx.fillRect(chipX + chipW * (1 - cdRatio) - 1, chipY, 2, chipH);
+            ctx.restore();
+        }
+
+        // Border — ember while dashing, brass when ready, dim while cooling
+        const borderCol = dash.active ? C.dashActive : ready ? C.dashReady : 'rgba(120, 110, 95, 0.5)';
+        ctx.strokeStyle = borderCol;
+        ctx.lineWidth = dash.active || ready ? 1.4 : 1;
+        this._roundRect(ctx, chipX, chipY, chipW, chipH, 6);
+        ctx.stroke();
+
+        // SPACE keycap
+        const capW = 44;
+        const capH = 18;
+        const capX = chipX + 7;
+        const capY = chipY + (chipH - capH) / 2;
+        const capCol = dash.active ? C.dashActive : ready ? C.dashReady : C.dashDim;
+        this._roundRect(ctx, capX, capY, capW, capH, 3);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fill();
+        ctx.strokeStyle = capCol;
+        ctx.lineWidth = 1;
+        this._roundRect(ctx, capX, capY, capW, capH, 3);
+        ctx.stroke();
+        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.fillStyle = capCol;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('SPACE', capX + capW / 2, capY + capH / 2 + 0.5);
+
+        // State label
+        ctx.font = 'bold 11px Georgia, serif';
+        ctx.textAlign = 'left';
+        if (dash.active) {
+            ctx.fillStyle = C.dashActive;
+            ctx.fillText('EVADE', capX + capW + 9, chipY + chipH / 2 + 0.5);
+        } else if (ready) {
+            ctx.fillStyle = C.labelBright;
+            ctx.fillText('EVADE', capX + capW + 9, chipY + chipH / 2 + 0.5);
+        } else {
+            ctx.fillStyle = C.dashDim;
+            ctx.fillText(`${(dash.cooldown || 0).toFixed(1)}s`, capX + capW + 9, chipY + chipH / 2 + 0.5);
+        }
+
+        ctx.restore();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  FIRST-RUN CONTROL HINTS — concise, fade out as the run begins
+    // ════════════════════════════════════════════════════════════════════
+    _renderFirstRunHints(ctx, W, H) {
+        const runTimer = this.game.systems.runTimer;
+        const t = runTimer ? runTimer.runTime : (this.game.gameTime || 0);
+
+        // Only coach genuinely new hunters (first 3 lifetime runs), first 9s
+        const totalRuns = this.game.systems.persistence?.data?.records?.totalRuns ?? 0;
+        if (totalRuns > 3 || t > 9) return;
+
+        const alpha = Math.min(1, t / 0.6) * Math.min(1, Math.max(0, (9 - t) / 1.5));
+        if (alpha <= 0.01) return;
+
+        const hints = 'WASD move   ·   SPACE evade   ·   TAB build   ·   ESC pause';
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.font = '12px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(hints).width;
+        const bx = (W - tw) / 2 - 14;
+        const by = H - 92 - this._getBottomHUDOffset();
+        const bw = tw + 28;
+        const bh = 22;
+
+        this._roundRect(ctx, bx, by, bw, bh, 5);
+        ctx.fillStyle = 'rgba(12, 11, 15, 0.72)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(198, 160, 92, 0.28)';
+        ctx.lineWidth = 1;
+        this._roundRect(ctx, bx, by, bw, bh, 5);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(226, 216, 192, 0.9)';
+        ctx.fillText(hints, W / 2, by + bh / 2 + 0.5);
+        ctx.restore();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ICON GLYPHS — small authored shapes, one stroke weight, no emoji
+    //  (x, y) is the center; s is roughly the half-size.
+    // ════════════════════════════════════════════════════════════════════
+    _icon(ctx, name, x, y, s, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = Math.max(1, s * 0.18);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        switch (name) {
+            case 'heart': {
+                ctx.beginPath();
+                ctx.moveTo(x, y + s * 0.65);
+                ctx.bezierCurveTo(x - s, y - s * 0.05, x - s * 0.55, y - s * 0.8, x, y - s * 0.25);
+                ctx.bezierCurveTo(x + s * 0.55, y - s * 0.8, x + s, y - s * 0.05, x, y + s * 0.65);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'coin': {
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.75, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            case 'skull': {
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.15, s * 0.62, Math.PI * 0.85, Math.PI * 2.15);
+                ctx.lineTo(x + s * 0.4, y + s * 0.55);
+                ctx.lineTo(x - s * 0.4, y + s * 0.55);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.beginPath();
+                ctx.arc(x - s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.arc(x + s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'shield': {
+                ctx.beginPath();
+                ctx.moveTo(x, y - s * 0.75);
+                ctx.lineTo(x + s * 0.6, y - s * 0.45);
+                ctx.lineTo(x + s * 0.6, y + s * 0.1);
+                ctx.quadraticCurveTo(x + s * 0.6, y + s * 0.6, x, y + s * 0.85);
+                ctx.quadraticCurveTo(x - s * 0.6, y + s * 0.6, x - s * 0.6, y + s * 0.1);
+                ctx.lineTo(x - s * 0.6, y - s * 0.45);
+                ctx.closePath();
+                ctx.stroke();
+                break;
+            }
+            case 'bolt': {
+                ctx.beginPath();
+                ctx.moveTo(x + s * 0.15, y - s * 0.8);
+                ctx.lineTo(x - s * 0.4, y + s * 0.1);
+                ctx.lineTo(x + s * 0.02, y + s * 0.1);
+                ctx.lineTo(x - s * 0.15, y + s * 0.8);
+                ctx.lineTo(x + s * 0.4, y - s * 0.1);
+                ctx.lineTo(x - s * 0.02, y - s * 0.1);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'swords': {
+                for (const dir of [-1, 1]) {
+                    ctx.beginPath();
+                    ctx.moveTo(x - dir * s * 0.7, y + s * 0.7);
+                    ctx.lineTo(x + dir * s * 0.7, y - s * 0.7);
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'burst': {
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const a = (i * Math.PI) / 4;
+                    const r1 = s * 0.3;
+                    const r2 = i % 2 === 0 ? s * 0.8 : s * 0.5;
+                    ctx.moveTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+                    ctx.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2);
+                }
+                ctx.stroke();
+                break;
+            }
+            case 'magnet': {
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.05, s * 0.55, Math.PI, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.55, y - s * 0.05);
+                ctx.lineTo(x - s * 0.55, y + s * 0.55);
+                ctx.moveTo(x + s * 0.55, y - s * 0.05);
+                ctx.lineTo(x + s * 0.55, y + s * 0.55);
+                ctx.stroke();
+                break;
+            }
+            default: {
+                ctx.beginPath();
+                ctx.moveTo(x, y - s * 0.6);
+                ctx.lineTo(x + s * 0.6, y);
+                ctx.lineTo(x, y + s * 0.6);
+                ctx.lineTo(x - s * 0.6, y);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     //  UTILITIES
     // ════════════════════════════════════════════════════════════════════
 
     /** Reserve bottom space when other bottom-center HUD cards are active. */
+
     _getBottomHUDOffset() {
         const mc = this.game.systems?.microChallenge;
         if (mc?.activeChallenge) {

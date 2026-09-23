@@ -6,7 +6,7 @@
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
         <meta http-equiv="Expires" content="0" />
-        <title>🧛 Vampire Survivors</title>
+        <title>Vampire Survivors Enhanced</title>
         <link rel="icon" href="data:," />
         <style>
             * {
@@ -32,8 +32,8 @@
                 max-width: 100vw;
                 max-height: 100vh;
                 overflow: hidden !important; /* CRITICAL: Prevent any element from extending viewport */
-                background: #0f0f23;
-                font-family: Arial, sans-serif;
+                background: #0a0a10;
+                font-family: Georgia, 'Times New Roman', serif;
                 position: relative;
                 box-sizing: border-box;
             }
@@ -49,7 +49,7 @@
                 display: block !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+                background: linear-gradient(180deg, #06070c 0%, #0d0c15 55%, #14101a 100%);
                 z-index: 1;
                 box-sizing: border-box;
             }
@@ -75,44 +75,111 @@
                 margin: 2px 0;
             }
 
-            /* Loading screen */
+            /* Loading screen — gothic threshold: charcoal stone, bone lettering, ember progress */
             #loadingScreen {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: #0f0f23;
+                background:
+                    radial-gradient(ellipse 80% 60% at 50% 38%, rgba(60, 52, 44, 0.18), transparent 70%),
+                    linear-gradient(180deg, #06070c 0%, #0d0c15 55%, #120d14 100%);
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 z-index: 9999;
                 flex-direction: column;
+                color: #ede3c8;
+            }
+
+            #loadingScreen::after {
+                /* vignette */
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.55) 100%);
+                pointer-events: none;
+            }
+
+            #loadingScreen .load-moon {
+                width: 72px;
+                height: 72px;
+                border-radius: 50%;
+                background: radial-gradient(circle at 38% 34%, #f0e7ce 0%, #dccfaf 62%, #b9a888 100%);
+                box-shadow:
+                    0 0 34px rgba(232, 220, 190, 0.28),
+                    0 0 90px rgba(232, 220, 190, 0.12);
+                margin-bottom: 34px;
+                animation: moonbreathe 3.2s ease-in-out infinite;
+            }
+
+            @keyframes moonbreathe {
+                0%,
+                100% {
+                    box-shadow:
+                        0 0 30px rgba(232, 220, 190, 0.22),
+                        0 0 80px rgba(232, 220, 190, 0.1);
+                }
+                50% {
+                    box-shadow:
+                        0 0 42px rgba(232, 220, 190, 0.34),
+                        0 0 110px rgba(232, 220, 190, 0.16);
+                }
             }
 
             #loadingScreen h1 {
-                color: #ffd700;
-                font-size: 48px;
-                margin-bottom: 20px;
-                text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+                color: #ede3c8;
+                font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+                font-weight: bold;
+                font-size: clamp(26px, 5vw, 44px);
+                letter-spacing: 0.14em;
+                margin: 0 0 6px 0;
+                text-shadow:
+                    0 2px 0 rgba(0, 0, 0, 0.8),
+                    0 0 26px rgba(224, 138, 60, 0.25);
             }
 
-            .loading-spinner {
-                width: 50px;
-                height: 50px;
-                border: 3px solid rgba(255, 215, 0, 0.3);
-                border-top: 3px solid #ffd700;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
+            #loadingScreen .load-sub {
+                color: #c9a86a;
+                font-family: 'Cinzel', Georgia, serif;
+                font-size: clamp(11px, 1.6vw, 14px);
+                letter-spacing: 0.5em;
+                text-indent: 0.5em;
+                margin-bottom: 44px;
             }
 
-            @keyframes spin {
-                0% {
-                    transform: rotate(0deg);
-                }
-                100% {
-                    transform: rotate(360deg);
-                }
+            #loadingScreen .load-track {
+                width: min(320px, 70vw);
+                height: 8px;
+                background: rgba(28, 24, 18, 0.9);
+                border: 1px solid rgba(198, 160, 92, 0.35);
+                border-radius: 4px;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            }
+
+            #loadingProgress {
+                width: 100%;
+                transform: scaleX(0);
+                transform-origin: left;
+                height: 100%;
+                background: linear-gradient(90deg, #5a4210, #b8862e 55%, #e8c96a);
+                transition: transform 0.35s ease;
+            }
+
+            #loadingStatus {
+                margin-top: 16px;
+                font-size: 13px;
+                color: rgba(190, 180, 160, 0.75);
+                letter-spacing: 0.06em;
+            }
+
+            #loadingScreen .load-hint {
+                margin-top: 40px;
+                font-size: 12px;
+                color: rgba(170, 158, 132, 0.5);
+                letter-spacing: 0.04em;
             }
         </style>
     </head>
@@ -129,8 +196,12 @@
 
         <!-- Loading Screen -->
         <div id="loadingScreen">
-            <h1>🧛 Vampire Survivors</h1>
-            <div class="loading-spinner"></div>
+            <div class="load-moon"></div>
+            <h1>VAMPIRE SURVIVORS</h1>
+            <div class="load-sub">ENHANCED</div>
+            <div class="load-track"><div id="loadingProgress"></div></div>
+            <p id="loadingStatus">Raising the dead…</p>
+            <p class="load-hint">WASD move &nbsp;·&nbsp; SPACE evade &nbsp;·&nbsp; auto-attacks do the rest</p>
         </div>
 
         <script type="module">
@@ -189,11 +260,10 @@
             window.addEventListener('unhandledrejection', (e) => {
                 console.error('Unhandled promise rejection:', e.reason);
             });
-
             // Load the game
             console.log('🎮 Loading Vampire Survivors...');
 
-            import('./src/vampireMain.js?v=20260317-hudfix2')
+            import('./src/vampireMain.js?v=20260923-gothic1')
                 .then(() => {
                     console.log('✅ Game loaded successfully');
 

@@ -34,24 +34,24 @@ export class RunSummarySystem {
                 label: 'TIME SURVIVED',
                 format: 'time',
                 recordKey: 'longestSurvival',
-                icon: '\u23F1'
+                icon: 'hourglass'
             },
-            { key: 'kills', label: 'ENEMIES SLAIN', format: 'number', recordKey: 'highestKillCount', icon: '\u2620' },
-            { key: 'level', label: 'LEVEL REACHED', format: 'number', recordKey: 'maxLevel', icon: '\u2B50' },
-            { key: 'combo', label: 'BEST COMBO', format: 'number', recordKey: 'highestCombo', icon: '\u26A1' },
+            { key: 'kills', label: 'ENEMIES SLAIN', format: 'number', recordKey: 'highestKillCount', icon: 'skull' },
+            { key: 'level', label: 'LEVEL REACHED', format: 'number', recordKey: 'maxLevel', icon: 'star' },
+            { key: 'combo', label: 'BEST COMBO', format: 'number', recordKey: 'highestCombo', icon: 'bolt' },
             {
                 key: 'goldEarned',
                 label: 'GOLD EARNED',
                 format: 'number',
                 recordKey: 'mostGoldSingleRun',
-                icon: '\uD83D\uDCB0'
+                icon: 'coin'
             },
             {
                 key: 'damageDealt',
                 label: 'DAMAGE DEALT',
                 format: 'number',
                 recordKey: 'totalDamageDealt',
-                icon: '\u2694'
+                icon: 'swords'
             }
         ];
     }
@@ -79,7 +79,7 @@ export class RunSummarySystem {
                 vy: -Math.random() * 0.015 - 0.005,
                 size: 1 + Math.random() * 2,
                 alpha: 0.1 + Math.random() * 0.2,
-                color: Math.random() > 0.6 ? '#FF4444' : Math.random() > 0.3 ? '#FFD700' : '#8844AA'
+                color: Math.random() > 0.6 ? '#C03828' : Math.random() > 0.3 ? '#E8C96A' : '#8A8070'
             });
         }
 
@@ -140,7 +140,7 @@ export class RunSummarySystem {
         const h = this.game.canvas.height;
 
         // 1. Dark overlay with vignette
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+        ctx.fillStyle = 'rgba(3, 3, 6, 0.80)';
         ctx.fillRect(0, 0, w, h);
 
         // Vignette gradient overlay
@@ -150,7 +150,7 @@ export class RunSummarySystem {
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, w, h);
 
-        // Floating particles (behind content)
+        // Floating embers (behind content)
         for (const p of this._particles) {
             ctx.fillStyle = p.color;
             ctx.globalAlpha = p.alpha;
@@ -160,13 +160,13 @@ export class RunSummarySystem {
         }
         ctx.globalAlpha = 1;
 
-        // Red decorative line at top
+        // Blood-red decorative line at top — danger accent
         const lineGrad = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
-        lineGrad.addColorStop(0, 'rgba(255, 60, 40, 0)');
-        lineGrad.addColorStop(0.3, 'rgba(255, 60, 40, 0.6)');
-        lineGrad.addColorStop(0.5, 'rgba(255, 60, 40, 0.8)');
-        lineGrad.addColorStop(0.7, 'rgba(255, 60, 40, 0.6)');
-        lineGrad.addColorStop(1, 'rgba(255, 60, 40, 0)');
+        lineGrad.addColorStop(0, 'rgba(192, 56, 40, 0)');
+        lineGrad.addColorStop(0.3, 'rgba(192, 56, 40, 0.55)');
+        lineGrad.addColorStop(0.5, 'rgba(192, 56, 40, 0.75)');
+        lineGrad.addColorStop(0.7, 'rgba(192, 56, 40, 0.55)');
+        lineGrad.addColorStop(1, 'rgba(192, 56, 40, 0)');
 
         const topLineY = h * 0.06;
         ctx.fillStyle = lineGrad;
@@ -176,49 +176,42 @@ export class RunSummarySystem {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // 2. Header — "FALLEN IN BATTLE" with glow
+        // 2. Header — "FALLEN IN BATTLE" carved bone over a blood glow
         const headerY = h * 0.1;
         const fontSize = Math.min(44, w * 0.048);
 
-        // Text glow layers
-        ctx.shadowColor = 'rgba(255, 40, 30, 0.8)';
-        ctx.shadowBlur = 30;
-        ctx.font = `bold ${fontSize}px 'Cinzel', 'Times New Roman', serif`;
-        ctx.fillStyle = '#FF3333';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
-        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(192, 56, 40, 0.7)';
+        ctx.shadowBlur = 26;
+        ctx.font = `bold ${fontSize}px 'Cinzel', 'Georgia', 'Times New Roman', serif`;
+        ctx.fillStyle = '#EDE3C8';
         ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
         ctx.shadowBlur = 0;
         ctx.shadowColor = 'transparent';
-
-        // Lighter text on top
-        ctx.fillStyle = '#FF8888';
-        ctx.fillText('FALLEN IN BATTLE', w / 2, headerY);
 
         // Character name and title
         const charId = this.game.systems.persistence ? this.game.systems.persistence.getSelectedCharacter() : 'antonio';
         const character = CHARACTERS.find((c) => c.id === charId);
         if (character) {
-            ctx.font = `bold 15px Arial, sans-serif`;
+            ctx.font = `bold 15px Georgia, serif`;
             ctx.fillStyle = character.color;
             ctx.globalAlpha = 0.9;
             ctx.fillText(`${character.name} \u2014 ${character.title}`, w / 2, headerY + 30);
             ctx.globalAlpha = 1;
         }
 
-        // "Killed by" display
+        // "Killed by" display — drawn skull + blood text
         if (this.runData.killedBy && this.runData.killedBy.name) {
-            ctx.font = `bold 14px Arial, sans-serif`;
-            ctx.fillStyle = '#FF6666';
-            ctx.globalAlpha = 0.95;
             const killerName = this.runData.killedBy.name.charAt(0).toUpperCase() + this.runData.killedBy.name.slice(1);
-            ctx.fillText(`\u2620 Killed by: ${killerName}`, w / 2, headerY + (character ? 50 : 30));
+            const killY = headerY + (character ? 52 : 32);
+            ctx.font = `bold 14px Georgia, serif`;
+            const killText = `Killed by ${killerName}`;
+            const killW = ctx.measureText(killText).width;
+            this._icon(ctx, 'skull', w / 2 - killW / 2 - 14, killY, 8, '#D94A3A');
+            ctx.fillStyle = '#E86A5A';
+            ctx.globalAlpha = 0.95;
+            ctx.fillText(killText, w / 2 + 8, killY);
             ctx.globalAlpha = 1;
         }
-
-        // Decorative line below header
-        ctx.fillStyle = lineGrad;
-        ctx.fillRect(w * 0.2, headerY + 62, w * 0.6, 1);
 
         // 3. Stats panel — card-style with background
         const panelX = w * 0.18;
@@ -227,13 +220,16 @@ export class RunSummarySystem {
         const statSpacing = Math.min(40, (h * 0.48) / this.statDefs.length);
         const panelH = this.statDefs.length * statSpacing + 20;
 
-        // Panel background
-        ctx.fillStyle = 'rgba(20, 15, 30, 0.5)';
-        this.roundRect(ctx, panelX, statsStartY - 15, panelW, panelH, 12);
+        // Panel background — charcoal stone slab
+        const pGrad = ctx.createLinearGradient(panelX, statsStartY - 15, panelX, statsStartY - 15 + panelH);
+        pGrad.addColorStop(0, 'rgba(26, 24, 30, 0.72)');
+        pGrad.addColorStop(1, 'rgba(13, 12, 16, 0.78)');
+        ctx.fillStyle = pGrad;
+        this.roundRect(ctx, panelX, statsStartY - 15, panelW, panelH, 10);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 60, 40, 0.15)';
+        ctx.strokeStyle = 'rgba(198, 160, 92, 0.30)';
         ctx.lineWidth = 1;
-        this.roundRect(ctx, panelX, statsStartY - 15, panelW, panelH, 12);
+        this.roundRect(ctx, panelX, statsStartY - 15, panelW, panelH, 10);
         ctx.stroke();
 
         const revealDelay = 0.25;
@@ -259,23 +255,20 @@ export class RunSummarySystem {
                 ctx.fillRect(panelX + 4, sy - statSpacing / 2 + 2, panelW - 8, statSpacing);
             }
 
-            // Icon
-            ctx.font = '16px Arial, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillStyle = 'rgba(200, 200, 220, 0.5)';
-            ctx.fillText(def.icon, panelX + 16 + slideX, sy);
+            // Icon — drawn glyph
+            this._icon(ctx, def.icon, panelX + 22 + slideX, sy, 8, 'rgba(190, 175, 145, 0.65)');
 
             // Label
-            ctx.font = '13px Arial, sans-serif';
+            ctx.font = '13px Georgia, serif';
             ctx.textAlign = 'left';
-            ctx.fillStyle = 'rgba(160, 160, 180, 0.85)';
+            ctx.fillStyle = 'rgba(178, 168, 146, 0.85)';
             ctx.fillText(def.label, panelX + 40 + slideX, sy);
 
             // Value — larger, brighter
             ctx.font = 'bold 20px "Courier New", monospace';
             ctx.textAlign = 'right';
             const isRecord = this.newRecords.has(def.key);
-            ctx.fillStyle = isRecord ? '#FFD700' : '#E8E8F8';
+            ctx.fillStyle = isRecord ? '#E8C96A' : '#EDE6D4';
             ctx.fillText(displayVal, panelX + panelW - 20 + slideX, sy);
 
             // NEW RECORD badge
@@ -287,10 +280,10 @@ export class RunSummarySystem {
                 const pulse = 0.7 + 0.3 * Math.sin(this.revealTimer * 5);
                 ctx.save();
                 ctx.globalAlpha = fadeT * pulse;
-                ctx.font = 'bold 9px Arial, sans-serif';
+                ctx.font = 'bold 9px Georgia, serif';
                 ctx.textAlign = 'right';
-                ctx.fillStyle = '#FFD700';
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
+                ctx.fillStyle = '#E8C96A';
+                ctx.shadowColor = 'rgba(232, 201, 106, 0.7)';
                 ctx.shadowBlur = 8;
                 ctx.fillText('\u2605 NEW RECORD', badgeX, badgeY);
                 ctx.shadowBlur = 0;
@@ -311,9 +304,9 @@ export class RunSummarySystem {
         if (nextMilestone && this.revealTimer > 1.5) {
             const hintFade = Math.min(1, (this.revealTimer - 1.5) / 0.4);
             ctx.globalAlpha = hintFade * 0.7;
-            ctx.font = 'italic 12px Arial, sans-serif';
+            ctx.font = 'italic 12px Georgia, serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#AAAACC';
+            ctx.fillStyle = 'rgba(178, 168, 146, 0.8)';
             const remaining = nextMilestone - kills;
             ctx.fillText(`${remaining} kills away from ${this.formatNumber(nextMilestone)} milestone`, w / 2, statsStartY + panelH + 6);
             ctx.globalAlpha = 1;
@@ -324,9 +317,9 @@ export class RunSummarySystem {
         if (this.revealTimer > 1.8 && this.runData.weaponsUsed && this.runData.weaponsUsed.length > 0) {
             const weapFade = Math.min(1, (this.revealTimer - 1.8) / 0.4);
             ctx.globalAlpha = weapFade;
-            ctx.font = '11px Arial, sans-serif';
+            ctx.font = '11px Georgia, serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = 'rgba(150, 150, 170, 0.6)';
+            ctx.fillStyle = 'rgba(170, 158, 132, 0.6)';
             ctx.fillText('ARSENAL', w / 2, weaponsY);
 
             // Weapon name pills
@@ -334,15 +327,19 @@ export class RunSummarySystem {
             const totalLen = names.reduce((s, n) => s + n.length * 8 + 20, 0);
             let px = w / 2 - totalLen / 2;
 
-            ctx.font = '12px Arial, sans-serif';
+            ctx.font = '12px Georgia, serif';
             for (const name of names) {
                 const tw = ctx.measureText(name).width + 16;
-                // Pill background
-                ctx.fillStyle = 'rgba(80, 60, 120, 0.4)';
-                this.roundRect(ctx, px, weaponsY + 6, tw, 22, 6);
+                // Pill background — stone chip
+                ctx.fillStyle = 'rgba(38, 35, 42, 0.7)';
+                this.roundRect(ctx, px, weaponsY + 6, tw, 22, 5);
                 ctx.fill();
+                ctx.strokeStyle = 'rgba(150, 128, 92, 0.35)';
+                ctx.lineWidth = 1;
+                this.roundRect(ctx, px, weaponsY + 6, tw, 22, 5);
+                ctx.stroke();
                 // Text
-                ctx.fillStyle = 'rgba(200, 190, 230, 0.9)';
+                ctx.fillStyle = 'rgba(226, 216, 192, 0.9)';
                 ctx.textAlign = 'center';
                 ctx.fillText(name, px + tw / 2, weaponsY + 18);
                 px += tw + 8;
@@ -363,10 +360,10 @@ export class RunSummarySystem {
         if (this.revealTimer > 2.8) {
             const hintFade = Math.min(1, (this.revealTimer - 2.8) / 0.4);
             ctx.globalAlpha = hintFade * 0.4;
-            ctx.font = '12px Arial, sans-serif';
+            ctx.font = '12px Georgia, serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#AAAACC';
-            ctx.fillText('R - Play Again    M - Main Menu    ESC - Main Menu', w / 2, buttonsY + 54);
+            ctx.fillStyle = 'rgba(178, 168, 146, 0.9)';
+            ctx.fillText('R  Play Again    ·    M / ESC  Main Menu', w / 2, buttonsY + 54);
             ctx.globalAlpha = 1;
         }
 
@@ -375,15 +372,15 @@ export class RunSummarySystem {
 
     renderButtons(ctx, w, y) {
         this._buttonRects = [];
-        const btnW = 170;
+        const btnW = 180;
         const btnH = 46;
         const gap = 30;
         const totalW = btnW * 2 + gap;
         const startX = (w - totalW) / 2;
 
         const buttons = [
-            { label: 'PLAY AGAIN', baseColor: [60, 160, 70], accent: '#4CAF50' },
-            { label: 'MAIN MENU', baseColor: [100, 50, 140], accent: '#8844AA' }
+            { label: 'PLAY AGAIN', primary: true },
+            { label: 'MAIN MENU', primary: false }
         ];
 
         for (let i = 0; i < buttons.length; i++) {
@@ -395,47 +392,49 @@ export class RunSummarySystem {
 
             this._buttonRects.push({ x: bx, y, w: btnW, h: btnH });
 
-            // Button gradient background
-            const [r, g, b] = btn.baseColor;
-            const brightness = active ? 1.3 : 1.0;
+            // Stone slab gradient
             const bgGrad = ctx.createLinearGradient(bx, y, bx, y + btnH);
-            bgGrad.addColorStop(0, `rgba(${r * brightness}, ${g * brightness}, ${b * brightness}, 0.85)`);
-            bgGrad.addColorStop(
-                1,
-                `rgba(${r * brightness * 0.7}, ${g * brightness * 0.7}, ${b * brightness * 0.7}, 0.85)`
-            );
+            if (active) {
+                bgGrad.addColorStop(0, 'rgba(74, 62, 48, 0.95)');
+                bgGrad.addColorStop(1, 'rgba(36, 30, 26, 0.95)');
+            } else {
+                bgGrad.addColorStop(0, 'rgba(52, 48, 54, 0.92)');
+                bgGrad.addColorStop(1, 'rgba(24, 22, 27, 0.95)');
+            }
 
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 3;
             ctx.fillStyle = bgGrad;
-            this.roundRect(ctx, bx, y, btnW, btnH, 10);
+            this.roundRect(ctx, bx, y, btnW, btnH, 8);
             ctx.fill();
+            ctx.restore();
 
-            // Border
-            ctx.strokeStyle = active ? btn.accent : 'rgba(255, 255, 255, 0.15)';
-            ctx.lineWidth = active ? 2 : 1;
-            this.roundRect(ctx, bx, y, btnW, btnH, 10);
+            // Border — brass when active, dim stone otherwise
+            ctx.strokeStyle = active ? 'rgba(216, 180, 106, 0.8)' : 'rgba(150, 128, 92, 0.4)';
+            ctx.lineWidth = active ? 1.6 : 1;
+            this.roundRect(ctx, bx, y, btnW, btnH, 8);
             ctx.stroke();
 
             // Selection glow
             if (active) {
-                ctx.shadowColor = btn.accent;
-                ctx.shadowBlur = 16;
-                this.roundRect(ctx, bx, y, btnW, btnH, 10);
+                ctx.shadowColor = 'rgba(216, 180, 106, 0.5)';
+                ctx.shadowBlur = 14;
+                this.roundRect(ctx, bx, y, btnW, btnH, 8);
                 ctx.stroke();
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             }
 
-            // Text with subtle shadow
-            ctx.font = `bold 15px 'Cinzel', 'Times New Roman', serif`;
+            // Label
+            ctx.font = `bold 15px 'Cinzel', 'Georgia', serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = active ? '#FFFFFF' : 'rgba(230, 230, 240, 0.9)';
-            ctx.fillText(btn.label, bx + btnW / 2, y + btnH / 2);
+            ctx.fillStyle = active ? '#F0E2BC' : 'rgba(201, 180, 137, 0.85)';
+            ctx.fillText(btn.label, bx + btnW / 2, y + btnH / 2 + 1);
         }
     }
-
-    // ---- Input ----
-
     handleInput(key) {
         if (!this.active) return;
 
@@ -490,9 +489,104 @@ export class RunSummarySystem {
     // ---- Helpers ----
 
     formatTime(seconds) {
+
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    /**
+     * Small authored icon glyphs — one consistent stroke weight, no emoji.
+     * (x, y) is the center; s is roughly the half-size.
+     */
+    _icon(ctx, name, x, y, s, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = Math.max(1, s * 0.18);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        switch (name) {
+            case 'hourglass': {
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.55, y - s * 0.75);
+                ctx.lineTo(x + s * 0.55, y - s * 0.75);
+                ctx.lineTo(x + s * 0.15, y);
+                ctx.lineTo(x + s * 0.55, y + s * 0.75);
+                ctx.lineTo(x - s * 0.55, y + s * 0.75);
+                ctx.lineTo(x - s * 0.15, y);
+                ctx.closePath();
+                ctx.stroke();
+                break;
+            }
+            case 'skull': {
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.15, s * 0.62, Math.PI * 0.85, Math.PI * 2.15);
+                ctx.lineTo(x + s * 0.4, y + s * 0.55);
+                ctx.lineTo(x - s * 0.4, y + s * 0.55);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.beginPath();
+                ctx.arc(x - s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.arc(x + s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'star': {
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    const a = -Math.PI / 2 + (i * Math.PI * 4) / 5;
+                    const px = x + Math.cos(a) * s * 0.75;
+                    const py = y + Math.sin(a) * s * 0.75;
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'bolt': {
+                ctx.beginPath();
+                ctx.moveTo(x + s * 0.15, y - s * 0.8);
+                ctx.lineTo(x - s * 0.4, y + s * 0.1);
+                ctx.lineTo(x + s * 0.02, y + s * 0.1);
+                ctx.lineTo(x - s * 0.15, y + s * 0.8);
+                ctx.lineTo(x + s * 0.4, y - s * 0.1);
+                ctx.lineTo(x - s * 0.02, y - s * 0.1);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'coin': {
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.75, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            case 'swords': {
+                for (const dir of [-1, 1]) {
+                    ctx.beginPath();
+                    ctx.moveTo(x - dir * s * 0.7, y + s * 0.7);
+                    ctx.lineTo(x + dir * s * 0.7, y - s * 0.7);
+                    ctx.stroke();
+                }
+                break;
+            }
+            default: {
+                ctx.beginPath();
+                ctx.moveTo(x, y - s * 0.6);
+                ctx.lineTo(x + s * 0.6, y);
+                ctx.lineTo(x, y + s * 0.6);
+                ctx.lineTo(x - s * 0.6, y);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
     }
 
     formatNumber(n) {

@@ -1,14 +1,26 @@
 import { CHARACTERS } from '../data/characters.js';
 
+
 /**
  * TitleScreenSystem - Canvas-rendered title screen with menu navigation, upgrade shop,
  * and character selection.
+ *
+ * Visual direction: an authored procedural gothic threshold — the player stands in a
+ * dark colonnade looking across a graveyard at a cathedral silhouette under a pale
+ * moon. Charcoal/slate stone, bone lettering, ember/brass accents; blood is reserved
+ * for danger. The static scene (sky, moon, cathedral, graves, columns, vignette) is
+ * rendered once into an offscreen canvas and blitted each frame; only embers, fog,
+ * window flicker and drips animate.
  *
  * Handles game states:
  *   - 'menu'       : Main title screen
  *   - 'characters' : Character selection overlay
  *   - 'upgrades'   : Upgrade shop overlay
  *   - 'challenges' : Challenge modifier selection overlay
+ *   - 'statistics' : Lifetime records overlay
+ *   - 'codex'      : Bestiary / discovery overlay
+ *   - 'settings'   : Canvas settings overlay
+ *   - 'paused'     : In-game pause menu (renderPauseMenu)
  */
 export class TitleScreenSystem {
     constructor(game) {
@@ -29,6 +41,7 @@ export class TitleScreenSystem {
         this.characterHoveredIndex = -1;
         this._characterRects = [];
         this._characterBackRect = null;
+        this._characterEquipRect = null;
 
         // Challenge select state
         this.challengeSelectedIndex = 0;
@@ -39,11 +52,13 @@ export class TitleScreenSystem {
         // Codex state
         this.codexTabIndex = 0;
         this._codexBackRect = null;
+        this._codexTabRects = [];
 
         // Settings state
         this.settingsSelectedIndex = 0;
         this._settingsBackRect = null;
         this._settingsItemRects = [];
+        this._settingsResetRect = null;
 
         // Pause menu state
         this.pauseSelectedIndex = 0;
@@ -62,51 +77,58 @@ export class TitleScreenSystem {
         this._backButtonRect = null;
         this._statsBackRect = null;
 
+        // Cached static scenery (rebuilt on resize)
+        this._scene = null;          // { canvas, w, h }
+        this._windows = [];          // cathedral window glows (normalized coords)
+        this._emberSprites = null;   // pre-rendered ember glow sprites
+
         this.theme = {
-            // Accent colors
-            accentFill: 'rgba(154, 78, 36, 0.22)',
-            accentStroke: 'rgba(214, 138, 68, 0.72)',
-            accentMuted: '#CBB48A',
-            // Panel colors
-            panelFill: 'rgba(18, 12, 24, 0.95)',
-            panelStroke: 'rgba(196, 118, 54, 0.58)',
-            panelGradTop: '#1c1528',
-            panelGradBottom: '#0e0b14',
+            // Accent — aged brass / ember
+            accentFill: 'rgba(196, 148, 62, 0.16)',
+            accentStroke: 'rgba(216, 180, 106, 0.75)',
+            accentMuted: '#C9B489',
+            brass: '#D8B45A',
+            ember: '#E08A3C',
+            // Panel — charcoal slate stone
+            panelFill: 'rgba(16, 15, 20, 0.96)',
+            panelStroke: 'rgba(198, 160, 92, 0.45)',
+            panelGradTop: '#1a191f',
+            panelGradBottom: '#0c0b10',
             // Back button
-            backFill: 'rgba(68, 34, 24, 0.72)',
-            backStroke: 'rgba(214, 150, 90, 0.55)',
+            backFill: 'rgba(52, 40, 30, 0.75)',
+            backStroke: 'rgba(216, 180, 106, 0.5)',
             // Typography
-            sectionLabel: '#D9A45C',
-            headerGold: '#FFD700',
-            titleRed: '#FF4444',
-            textPrimary: '#E0E0F0',
-            textMuted: 'rgba(180, 180, 200, 0.6)',
+            sectionLabel: '#C9A86A',
+            headerGold: '#E8DCC0',
+            titleRed: '#B8321F',
+            textPrimary: '#E8E2D2',
+            textMuted: 'rgba(190, 180, 160, 0.55)',
             // Gothic accents
-            bloodRed: '#8B0000',
-            boneWhite: '#F5F0E0',
-            shadowPurple: '#2D1B4E',
-            fogColor: 'rgba(120, 100, 140, 0.04)',
+            bloodRed: '#8B1A12',
+            boneWhite: '#EDE3C8',
+            shadowPurple: '#16121f',
+            fogColor: 'rgba(148, 132, 118, 0.05)',
             // Stone tablet buttons
-            stoneGradTop: 'rgba(60, 45, 35, 0.85)',
-            stoneGradBottom: 'rgba(30, 22, 18, 0.92)',
-            stoneBorder: 'rgba(140, 110, 80, 0.5)',
-            stoneHighlight: 'rgba(200, 170, 120, 0.12)',
+            stoneGradTop: 'rgba(52, 48, 54, 0.92)',
+            stoneGradBottom: 'rgba(24, 22, 27, 0.95)',
+            stoneBorder: 'rgba(150, 128, 92, 0.45)',
+            stoneHighlight: 'rgba(230, 210, 170, 0.10)',
             // Status
-            successGreen: '#44CC88',
-            dangerRed: '#FF4466'
+            successGreen: '#4CAF7D',
+            dangerRed: '#D94A3A'
         };
 
         // Fog layers — 4 sine-wave bands rendered behind menu content
         this.fogLayers = [];
         for (let i = 0; i < 4; i++) {
             this.fogLayers.push({
-                y: 0.2 + i * 0.2, // Spread across screen height
-                amplitude: 15 + i * 8,
+                y: 0.55 + i * 0.12, // Low bands hugging the graveyard
+                amplitude: 12 + i * 7,
                 frequency: 0.003 + i * 0.001,
                 speed: 0.15 + i * 0.08,
-                alpha: 0.03 + i * 0.015,
+                alpha: 0.035 + i * 0.012,
                 phase: Math.random() * Math.PI * 2,
-                thickness: 40 + i * 20
+                thickness: 34 + i * 16
             });
         }
 
@@ -116,9 +138,9 @@ export class TitleScreenSystem {
 
         // Animated silhouettes — faint character shapes at screen edges
         this.silhouettes = [
-            { x: 0.08, y: 0.5, scale: 1.0, alpha: 0, targetAlpha: 0.06, type: 'vampire', sway: 0 },
-            { x: 0.92, y: 0.55, scale: 0.9, alpha: 0, targetAlpha: 0.05, type: 'werewolf', sway: 0 },
-            { x: 0.05, y: 0.7, scale: 0.7, alpha: 0, targetAlpha: 0.04, type: 'skeleton', sway: 0 }
+            { x: 0.07, y: 0.52, scale: 1.0, alpha: 0, targetAlpha: 0.07, type: 'vampire', sway: 0 },
+            { x: 0.93, y: 0.56, scale: 0.9, alpha: 0, targetAlpha: 0.06, type: 'werewolf', sway: 0 },
+            { x: 0.05, y: 0.72, scale: 0.7, alpha: 0, targetAlpha: 0.05, type: 'skeleton', sway: 0 }
         ];
 
         // Screen transition state
@@ -135,17 +157,17 @@ export class TitleScreenSystem {
 
     initParticles() {
         this.particles = [];
-        // Embers particles
-        for (let i = 0; i < 80; i++) {
+        // Embers drifting up from the graveyard
+        for (let i = 0; i < 70; i++) {
             this.particles.push({
                 x: Math.random(),
                 y: Math.random(),
                 vx: (Math.random() - 0.5) * 0.015,
                 vy: -(Math.random() * 0.02 + 0.005), // Float upwards like embers
-                size: 0.5 + Math.random() * 2.0,
-                alpha: 0.08 + Math.random() * 0.28,
+                size: 0.6 + Math.random() * 2.0,
+                alpha: 0.10 + Math.random() * 0.30,
                 phase: Math.random() * Math.PI * 2,
-                color: Math.random() > 0.82 ? [255, 205, 120] : [255, 120 + Math.random() * 30, 36]
+                warm: Math.random() > 0.22 // most embers are orange; a few burn pale gold
             });
         }
     }
@@ -234,131 +256,330 @@ export class TitleScreenSystem {
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  AUTHORED SCENE — static backdrop cached to an offscreen canvas
+    // ════════════════════════════════════════════════════════════════════
+
+    _ensureScene(w, h) {
+        if (this._scene && this._scene.w === w && this._scene.h === h) {
+            return this._scene.canvas;
+        }
+        if (typeof document === 'undefined') return null;
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const g = c.getContext('2d');
+        if (!g) return null;
+        this._buildScene(g, w, h);
+        this._scene = { canvas: c, w, h };
+        return c;
+    }
+
+    _buildScene(g, w, h) {
+        const horizon = h * 0.60;
+        const cx = w / 2;
+
+        // Deterministic RNG so the cached scene is stable
+        let seed = 20260923;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+        // ── Sky: cold charcoal zenith warming to ember haze at the horizon ──
+        const sky = g.createLinearGradient(0, 0, 0, horizon);
+        sky.addColorStop(0, '#06070c');
+        sky.addColorStop(0.55, '#0d0c15');
+        sky.addColorStop(0.85, '#161019');
+        sky.addColorStop(1, '#1d1214');
+        g.fillStyle = sky;
+        g.fillRect(0, 0, w, horizon + 1);
+
+        // ── Stars ──
+        for (let i = 0; i < 150; i++) {
+            const sx = rnd() * w;
+            const sy = rnd() * horizon * 0.8;
+            const a = 0.10 + rnd() * 0.45;
+            const s = rnd() < 0.92 ? 1 : 1.7;
+            g.fillStyle = `rgba(224, 218, 200, ${a})`;
+            g.fillRect(sx, sy, s, s);
+        }
+
+        // ── Moon: pale bone disc with soft halo, centered above the spire ──
+        const moonX = cx;
+        const moonY = h * 0.175;
+        const moonR = Math.min(w, h) * 0.088;
+
+        const halo = g.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 3.4);
+        halo.addColorStop(0, 'rgba(232, 220, 190, 0.20)');
+        halo.addColorStop(0.5, 'rgba(210, 190, 160, 0.07)');
+        halo.addColorStop(1, 'rgba(210, 190, 160, 0)');
+        g.fillStyle = halo;
+        g.fillRect(moonX - moonR * 3.4, moonY - moonR * 3.4, moonR * 6.8, moonR * 6.8);
+
+        const disc = g.createRadialGradient(moonX - moonR * 0.25, moonY - moonR * 0.3, moonR * 0.2, moonX, moonY, moonR);
+        disc.addColorStop(0, '#F0E7CE');
+        disc.addColorStop(0.75, '#DCCFAF');
+        disc.addColorStop(1, '#B9A888');
+        g.fillStyle = disc;
+        g.beginPath();
+        g.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+        g.fill();
+
+        // Crater blotches
+        g.fillStyle = 'rgba(160, 145, 115, 0.25)';
+        for (let i = 0; i < 5; i++) {
+            const a = rnd() * Math.PI * 2;
+            const d = rnd() * moonR * 0.55;
+            g.beginPath();
+            g.arc(moonX + Math.cos(a) * d, moonY + Math.sin(a) * d, moonR * (0.08 + rnd() * 0.12), 0, Math.PI * 2);
+            g.fill();
+        }
+
+        // ── Distant ridge lines ──
+        this._ridge(g, w, horizon, h * 0.045, '#0a0912', rnd);
+        this._ridge(g, w, horizon, h * 0.02, '#070610', rnd);
+
+        // ── Cathedral silhouette (centered, base on the horizon) ──
+        const baseY = horizon + 2;
+        const bodyW = Math.min(w * 0.30, 430);
+        const bodyH = h * 0.26;
+        const towerW = bodyW * 0.17;
+        const towerH = bodyH * 1.22;
+        const spireH = bodyH * 0.62;
+        const silhouette = '#050409';
+
+        g.fillStyle = silhouette;
+
+        // Nave
+        g.fillRect(cx - bodyW / 2, baseY - bodyH, bodyW, bodyH);
+        // Central gable
+        g.beginPath();
+        g.moveTo(cx - bodyW * 0.28, baseY - bodyH);
+        g.lineTo(cx, baseY - bodyH - bodyH * 0.28);
+        g.lineTo(cx + bodyW * 0.28, baseY - bodyH);
+        g.closePath();
+        g.fill();
+        // Central spire
+        const spireW = bodyW * 0.10;
+        g.beginPath();
+        g.moveTo(cx - spireW, baseY - bodyH - bodyH * 0.20);
+        g.lineTo(cx, baseY - bodyH - bodyH * 0.20 - spireH);
+        g.lineTo(cx + spireW, baseY - bodyH - bodyH * 0.20);
+        g.closePath();
+        g.fill();
+        // Flanking towers + spires
+        for (const side of [-1, 1]) {
+            const tx = cx + side * (bodyW / 2 - towerW / 2);
+            g.fillRect(tx - towerW / 2, baseY - towerH, towerW, towerH);
+            g.beginPath();
+            g.moveTo(tx - towerW * 0.62, baseY - towerH);
+            g.lineTo(tx, baseY - towerH - spireH * 0.7);
+            g.lineTo(tx + towerW * 0.62, baseY - towerH);
+            g.closePath();
+            g.fill();
+        }
+
+        // Faint moonlit rim on the left edges of the silhouette
+        g.strokeStyle = 'rgba(214, 196, 158, 0.10)';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(cx - bodyW / 2, baseY);
+        g.lineTo(cx - bodyW / 2, baseY - bodyH);
+        g.lineTo(cx - bodyW * 0.28, baseY - bodyH);
+        g.lineTo(cx, baseY - bodyH - bodyH * 0.28);
+        g.stroke();
+
+        // ── Cathedral windows (positions stored; glow animated per frame) ──
+        this._windows = [];
+        const winW = Math.max(5, bodyW * 0.045);
+        const winH = bodyH * 0.42;
+        // Three lancets on the nave
+        for (const off of [-0.22, 0, 0.22]) {
+            this._windows.push({
+                x: cx + off * bodyW - winW / 2,
+                y: baseY - bodyH * 0.72,
+                w: winW,
+                h: winH,
+                phase: rnd() * Math.PI * 2
+            });
+        }
+        // One narrow slit per tower
+        for (const side of [-1, 1]) {
+            const tx = cx + side * (bodyW / 2 - towerW / 2);
+            this._windows.push({
+                x: tx - winW * 0.35,
+                y: baseY - towerH * 0.62,
+                w: winW * 0.7,
+                h: winH * 0.55,
+                phase: rnd() * Math.PI * 2
+            });
+        }
+        // Rose window — a dim ring on the gable
+        this._windows.push({
+            x: cx - winW * 1.4,
+            y: baseY - bodyH - bodyH * 0.16 - winW * 1.4,
+            w: winW * 2.8,
+            h: winW * 2.8,
+            round: true,
+            phase: rnd() * Math.PI * 2
+        });
+
+        // ── Graveyard: slabs and crosses along the horizon edges ──
+        g.fillStyle = '#08070d';
+        for (let i = 0; i < 26; i++) {
+            const gx = rnd() * w;
+            // Keep the center clear for the cathedral
+            if (gx > cx - bodyW * 0.7 && gx < cx + bodyW * 0.7) continue;
+            const gy = baseY + rnd() * (h - baseY) * 0.35;
+            const gs = 4 + rnd() * 9;
+            if (rnd() < 0.4) {
+                // Cross marker
+                g.fillRect(gx - gs * 0.12, gy - gs, gs * 0.24, gs);
+                g.fillRect(gx - gs * 0.45, gy - gs * 0.72, gs * 0.9, gs * 0.22);
+            } else {
+                // Slab
+                g.fillRect(gx - gs * 0.4, gy - gs * 0.8, gs * 0.8, gs * 0.8);
+                g.beginPath();
+                g.arc(gx, gy - gs * 0.8, gs * 0.4, Math.PI, 0);
+                g.fill();
+            }
+        }
+
+        // ── Ground ──
+        const ground = g.createLinearGradient(0, horizon, 0, h);
+        ground.addColorStop(0, 'rgba(10, 8, 13, 0.0)');
+        ground.addColorStop(0.25, '#0b0910');
+        ground.addColorStop(1, '#050407');
+        g.fillStyle = ground;
+        g.fillRect(0, horizon, w, h - horizon);
+
+        // ── Threshold columns: dark pillars framing the view ──
+        const colW = Math.max(18, w * 0.045);
+        for (const side of [0, 1]) {
+            const colX = side === 0 ? 0 : w - colW;
+            const colGrad = g.createLinearGradient(colX, 0, colX + colW, 0);
+            if (side === 0) {
+                colGrad.addColorStop(0, '#030307');
+                colGrad.addColorStop(1, '#0a0910');
+            } else {
+                colGrad.addColorStop(0, '#0a0910');
+                colGrad.addColorStop(1, '#030307');
+            }
+            g.fillStyle = colGrad;
+            g.fillRect(colX, 0, colW, h);
+            // Inner edge highlight — faint stone catching moonlight
+            g.fillStyle = 'rgba(206, 186, 148, 0.07)';
+            g.fillRect(side === 0 ? colX + colW - 2 : colX, 0, 2, h);
+            // Capital block
+            g.fillStyle = '#040308';
+            g.fillRect(colX - (side === 0 ? 0 : 4), 0, colW + 4, h * 0.05);
+        }
+
+        // ── Vignette ──
+        const vig = g.createRadialGradient(cx, h * 0.45, Math.min(w, h) * 0.35, cx, h * 0.5, Math.max(w, h) * 0.75);
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+        g.fillStyle = vig;
+        g.fillRect(0, 0, w, h);
+    }
+
+    _ridge(g, w, baseY, amp, color, rnd) {
+        g.fillStyle = color;
+        g.beginPath();
+        g.moveTo(0, baseY);
+        let y = baseY - rnd() * amp;
+        for (let x = 0; x <= w; x += w / 24) {
+            y = baseY - rnd() * amp;
+            g.lineTo(x, y);
+        }
+        g.lineTo(w, baseY);
+        g.closePath();
+        g.fill();
+    }
+
+    // Pre-rendered ember glow sprites (avoids per-particle shadowBlur)
+    _getEmberSprites() {
+        if (this._emberSprites) return this._emberSprites;
+        if (typeof document === 'undefined') return null;
+        const make = (r, g, b) => {
+            const c = document.createElement('canvas');
+            c.width = c.height = 24;
+            const x = c.getContext('2d');
+            if (!x) return null;
+            const grad = x.createRadialGradient(12, 12, 0, 12, 12, 12);
+            grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+            grad.addColorStop(0.35, `rgba(${r},${g},${b},0.55)`);
+            grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            x.fillStyle = grad;
+            x.fillRect(0, 0, 24, 24);
+            return c;
+        };
+        this._emberSprites = {
+            warm: make(255, 132, 44),
+            pale: make(255, 208, 130)
+        };
+        return this._emberSprites;
+    }
+
     // ---- Render: Main Menu ----
 
     render(ctx) {
         const w = this.game.canvas.width;
         const h = this.game.canvas.height;
 
-        // 1. Dark background with subtle animated gradient (closer to ash/void)
-        const pulse = Math.sin(this.time * 0.5) * 0.5 + 0.5;
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, `rgba(${10 + pulse * 5}, ${8 + pulse * 3}, ${15 + pulse * 5}, 1)`);
-        grad.addColorStop(1, `rgba(${5 + pulse * 2}, ${3 + pulse}, ${8 + pulse * 3}, 1)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
+        // 1. Cached gothic scene (cathedral, moon, graveyard, threshold columns)
+        const scene = this._ensureScene(w, h);
+        if (scene) {
+            ctx.drawImage(scene, 0, 0);
+        } else {
+            // Fallback for environments without canvas2d on offscreen
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, '#0a0a10');
+            grad.addColorStop(1, '#050408');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
 
-        // 1.5 Render deep background elements (fog and silhouettes)
+        // 2. Animated atmosphere: moon veil, window candlelight, fog, silhouettes
+        this._renderMoonVeil(ctx, w, h);
+        this._renderWindows(ctx);
         this.renderFog(ctx, w, h);
         this.renderSilhouettes(ctx, w, h);
 
-        // 2. Ember particles
+        // 3. Ember particles (sprite-based, no per-particle shadowBlur)
+        const sprites = this._getEmberSprites();
         for (const p of this.particles) {
             const px = p.x * w;
             const py = p.y * h;
-            const flicker = p.alpha + 0.3 * Math.sin(this.time * 5.0 + p.phase);
-            const [r, g, b] = p.color;
-
-            // Ember glow
-            ctx.shadowBlur = p.size * 2.5;
-            ctx.shadowColor = `rgba(${r}, ${g * 0.75}, ${Math.max(20, b)}, 0.45)`;
-
-            // Core
-            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.max(0, flicker)})`;
-
-            ctx.beginPath();
-            ctx.arc(px, py, p.size, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = 'transparent';
-        }
-
-        // 3. Title — positioned at 18% of screen height for more room below
-        const titleY = h * 0.18;
-        this.renderTitle(ctx, w, titleY);
-
-        // 4. Menu items — adaptive layout that fits any screen size
-        this._menuRects = [];
-        const menuCount = this.menuItems.length;
-        // Reserve space: title ends ~titleY+55, controls hint at h-30, records ~40px above that
-        const menuTopY = titleY + 65;
-        const menuBottomY = h - 80; // leave room for records + controls hint
-        const availableH = menuBottomY - menuTopY;
-        // Spacing: divide available height evenly, cap at 56px for comfort
-        const menuSpacing = Math.min(56, Math.floor(availableH / menuCount));
-        // Center the menu block vertically in the available space
-        const menuBlockH = (menuCount - 1) * menuSpacing;
-        const menuStartY = menuTopY + (availableH - menuBlockH) / 2;
-
-        for (let i = 0; i < menuCount; i++) {
-            const y = menuStartY + i * menuSpacing;
-            const isSelected = i === this.selectedIndex;
-            const isHovered = i === this.hoveredIndex;
-            const label = this.menuItems[i];
-
-            // Gold balance next to UPGRADES
-            let displayLabel = label;
-            if (label === 'UPGRADES') {
-                const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
-                displayLabel = `UPGRADES  [${gold} Gold]`;
-            }
-
-            // Adaptive font: scale down slightly on smaller screens
-            const baseFontSize = Math.min(26, Math.max(18, menuSpacing * 0.46));
-            const fontSize = isSelected || isHovered ? baseFontSize + 3 : baseFontSize;
-            ctx.font = `bold ${fontSize}px 'Cinzel', 'Times New Roman', serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            const textWidth = ctx.measureText(displayLabel).width;
-            const rectW = textWidth + 50;
-            const rectH = Math.min(46, menuSpacing - 6);
-            const rectX = w / 2 - rectW / 2;
-            const rectY = y - rectH / 2;
-
-            this._menuRects.push({ x: rectX, y: rectY, w: rectW, h: rectH });
-
-            // Button background
-            if (isSelected || isHovered) {
-                ctx.fillStyle = this.theme.accentFill;
-                ctx.strokeStyle = this.theme.accentStroke;
-                ctx.lineWidth = 2;
-                this.roundRect(ctx, rectX, rectY, rectW, rectH, 10);
+            const flicker = Math.max(0, p.alpha + 0.25 * Math.sin(this.time * 5.0 + p.phase));
+            const sprite = sprites ? (p.warm ? sprites.warm : sprites.pale) : null;
+            if (sprite) {
+                const s = p.size * 5;
+                ctx.globalAlpha = flicker;
+                ctx.drawImage(sprite, px - s / 2, py - s / 2, s, s);
+            } else {
+                ctx.globalAlpha = flicker;
+                ctx.fillStyle = p.warm ? '#FF842C' : '#FFD082';
+                ctx.beginPath();
+                ctx.arc(px, py, p.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.stroke();
             }
-
-            // Text glow
-            if (isSelected || isHovered) {
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.6)';
-                ctx.shadowBlur = 15;
-            }
-
-            ctx.fillStyle = isSelected || isHovered ? '#FFD700' : this.theme.accentMuted;
-            ctx.fillText(displayLabel, w / 2, y);
-
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
         }
+        ctx.globalAlpha = 1;
 
-        // 5. Selection indicator (arrow)
-        const selY = menuStartY + this.selectedIndex * menuSpacing;
-        const arrowX = w / 2 - (this._menuRects[this.selectedIndex]?.w / 2 || 100) - 16;
-        const bounce = Math.sin(this.time * 4) * 4;
-        ctx.font = `bold ${Math.min(20, menuSpacing * 0.38)}px serif`;
-        ctx.fillStyle = '#FFD700';
-        ctx.textAlign = 'right';
-        ctx.fillText('>', arrowX + bounce, selY);
+        // 4. Title lettering over the moon
+        this._renderTitleBlock(ctx, w, h);
+
+        // 5. Menu — PLAY slab, ENDLESS slab, secondary chips
+        this._renderMenu(ctx, w, h);
 
         // 6. Personal records — compact, pinned above controls hint
         this.renderRecords(ctx, w, h);
 
         // 7. Controls hint
-        ctx.font = '13px Arial, sans-serif';
-        ctx.fillStyle = 'rgba(200, 200, 220, 0.4)';
+        ctx.font = '12px Georgia, serif';
+        ctx.fillStyle = 'rgba(190, 180, 160, 0.42)';
         ctx.textAlign = 'center';
-        ctx.fillText('Arrow Keys / Mouse to navigate  |  Enter / Click to select', w / 2, h - 14);
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Arrow Keys / Mouse to navigate   ·   Enter / Click to select', w / 2, h - 14);
 
         // 8. Overlays
         if (this.game.gameState === 'upgrades') this.renderUpgrades(ctx);
@@ -375,33 +596,275 @@ export class TitleScreenSystem {
         this.renderTransition(ctx, w, h);
     }
 
-    renderTitle(ctx, w, y) {
-        // Main title
+    // Slow breathing halo over the moon
+    _renderMoonVeil(ctx, w, h) {
+        const moonX = w / 2;
+        const moonY = h * 0.175;
+        const moonR = Math.min(w, h) * 0.088;
+        const a = 0.05 + 0.035 * Math.sin(this.time * 0.7);
+        const veil = ctx.createRadialGradient(moonX, moonY, moonR, moonX, moonY, moonR * 4.2);
+        veil.addColorStop(0, `rgba(232, 220, 190, ${a})`);
+        veil.addColorStop(1, 'rgba(232, 220, 190, 0)');
+        ctx.fillStyle = veil;
+        ctx.fillRect(moonX - moonR * 4.2, moonY - moonR * 4.2, moonR * 8.4, moonR * 8.4);
+    }
+
+    // Candle-lit lancet windows, flickering gently
+    _renderWindows(ctx) {
+        if (!this._windows || this._windows.length === 0) return;
+        ctx.save();
+        for (const win of this._windows) {
+            const a = 0.10 + 0.09 * (0.5 + 0.5 * Math.sin(this.time * 2.1 + win.phase));
+            ctx.fillStyle = `rgba(255, 158, 64, ${a})`;
+            if (win.round) {
+                ctx.beginPath();
+                ctx.arc(win.x + win.w / 2, win.y + win.h / 2, win.w / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Lancet: rect with pointed arch top
+                ctx.beginPath();
+                ctx.moveTo(win.x, win.y + win.h);
+                ctx.lineTo(win.x, win.y + win.w * 0.6);
+                ctx.quadraticCurveTo(win.x, win.y, win.x + win.w / 2, win.y);
+                ctx.quadraticCurveTo(win.x + win.w, win.y, win.x + win.w, win.y + win.w * 0.6);
+                ctx.lineTo(win.x + win.w, win.y + win.h);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    _renderTitleBlock(ctx, w, h) {
+        const cy = h * 0.175;
+        const size = Math.min(64, Math.max(30, w * 0.058));
+
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(size * 0.06)}px`;
 
-        // Title glow effect
-        const glowAlpha = 0.3 + 0.3 * this.titleGlow;
-        ctx.shadowColor = `rgba(255, 80, 40, ${glowAlpha})`;
-        ctx.shadowBlur = 25 + 15 * this.titleGlow;
+        ctx.font = `bold ${size}px 'Cinzel', 'Georgia', 'Times New Roman', serif`;
 
-        ctx.font = `bold ${Math.min(56, w * 0.06)}px 'Cinzel', 'Times New Roman', serif`;
-        ctx.fillStyle = '#FF4444';
-        ctx.fillText('VAMPIRE SURVIVORS', w / 2, y);
+        // Carved shadow — letters cut into the night
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillText('VAMPIRE SURVIVORS', w / 2 + 2, cy + size * 0.06);
 
-        // Second pass for gold highlight
-        ctx.shadowColor = `rgba(255, 215, 0, ${glowAlpha * 0.5})`;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = `rgba(255, 215, 0, ${0.15 + 0.1 * this.titleGlow})`;
-        ctx.fillText('VAMPIRE SURVIVORS', w / 2, y);
+        // Ember rim glow behind bone lettering
+        ctx.shadowColor = `rgba(224, 138, 60, ${0.22 + 0.14 * this.titleGlow})`;
+        ctx.shadowBlur = 16 + 10 * this.titleGlow;
 
-        // Subtitle
-        ctx.shadowColor = 'rgba(217, 164, 92, 0.45)';
-        ctx.shadowBlur = 12;
-        ctx.font = `bold ${Math.min(24, w * 0.025)}px 'Cinzel', 'Times New Roman', serif`;
-        ctx.fillStyle = this.theme.sectionLabel;
-        ctx.fillText('ENHANCED', w / 2, y + 42);
+        const tg = ctx.createLinearGradient(0, cy - size * 0.5, 0, cy + size * 0.55);
+        tg.addColorStop(0, '#F4EBD2');
+        tg.addColorStop(0.55, '#D9C9A3');
+        tg.addColorStop(1, '#93835F');
+        ctx.fillStyle = tg;
+        ctx.fillText('VAMPIRE SURVIVORS', w / 2, cy);
+
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+
+        // Subtitle with flanking engraved rules
+        const subSize = Math.max(12, size * 0.28);
+        ctx.font = `bold ${subSize}px 'Cinzel', 'Georgia', serif`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(subSize * 0.5)}px`;
+        const subY = cy + size * 0.72;
+        const subW = ctx.measureText('ENHANCED').width;
+        ctx.fillStyle = '#C9A86A';
+        ctx.fillText('ENHANCED', w / 2, subY);
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+        // Rules + end diamonds
+        const ruleY = subY;
+        const inner = w / 2 - subW / 2 - 16;
+        const outer = w / 2 - subW / 2 - Math.min(90, w * 0.08);
+        ctx.strokeStyle = 'rgba(201, 168, 106, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(outer, ruleY);
+        ctx.lineTo(inner, ruleY);
+        ctx.moveTo(w - inner, ruleY);
+        ctx.lineTo(w - outer, ruleY);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(201, 168, 106, 0.7)';
+        for (const dx of [outer - 6, w - outer + 6]) {
+            ctx.beginPath();
+            ctx.moveTo(dx, ruleY - 3.5);
+            ctx.lineTo(dx + 3.5, ruleY);
+            ctx.lineTo(dx, ruleY + 3.5);
+            ctx.lineTo(dx - 3.5, ruleY);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    _renderMenu(ctx, w, h) {
+        const cx = w / 2;
+        this._menuRects = new Array(this.menuItems.length).fill(null);
+
+        const isSelected = (i) => i === this.selectedIndex;
+        const isHovered = (i) => i === this.hoveredIndex;
+
+        // ── Run intent line: hunter, gold, pending hexes ──
+        const persistence = this.game.systems.persistence;
+        const charId = persistence ? persistence.getSelectedCharacter() : 'antonio';
+        const character = CHARACTERS.find((c) => c.id === charId);
+        const gold = persistence ? persistence.getGold() : 0;
+        const challenge = this.game.systems.challenge;
+        const pendingHexes = challenge && challenge.pendingModifiers ? challenge.pendingModifiers.size : 0;
+
+        const intentY = h * 0.335;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '13px Georgia, serif';
+        let intent = character ? `Hunter: ${character.name}` : '';
+        if (gold > 0) intent += `   ·   ${gold} gold`;
+        if (pendingHexes > 0) intent += `   ·   ${pendingHexes} hex${pendingHexes > 1 ? 'es' : ''} bound`;
+        if (intent) {
+            ctx.fillStyle = 'rgba(201, 168, 106, 0.75)';
+            ctx.fillText(intent, cx, intentY);
+        }
+        ctx.restore();
+
+        // ── PLAY slab ──
+        const playW = Math.min(340, w * 0.55);
+        const playH = Math.min(56, h * 0.075);
+        const playY = h * 0.375;
+        const playRect = { x: cx - playW / 2, y: playY, w: playW, h: playH };
+        this._menuRects[0] = playRect;
+        this._stoneButton(ctx, playRect, 'PLAY', {
+            active: isSelected(0) || isHovered(0),
+            primary: true,
+            fontSize: Math.min(26, playH * 0.46)
+        });
+
+        // ── ENDLESS slab ──
+        const endW = playW * 0.72;
+        const endH = Math.min(40, h * 0.055);
+        const endY = playY + playH + Math.max(8, h * 0.012);
+        const endRect = { x: cx - endW / 2, y: endY, w: endW, h: endH };
+        this._menuRects[1] = endRect;
+        this._stoneButton(ctx, endRect, 'ENDLESS MODE', {
+            active: isSelected(1) || isHovered(1),
+            fontSize: Math.min(16, endH * 0.42)
+        });
+
+        // ── Secondary chips: two columns, column-major ──
+        //   CHARACTERS   STATISTICS
+        //   UPGRADES     CODEX
+        //   CHALLENGES   SETTINGS
+        const chipTop = endY + endH + Math.max(18, h * 0.03);
+        const chipBottom = h - 58;
+        const narrow = w < 560;
+        const cols = narrow ? 1 : 2;
+        const rows = narrow ? 6 : 3;
+        this._menuCols = cols;
+        this._menuRows = rows;
+        const gapX = 14;
+        const gapY = Math.max(6, Math.min(10, (chipBottom - chipTop) * 0.04));
+        const chipW = narrow
+            ? Math.min(240, w * 0.7)
+            : Math.min(240, (Math.min(w * 0.62, 560) - gapX) / 2);
+        const chipH = Math.min(40, (chipBottom - chipTop - (rows - 1) * gapY) / rows);
+        const gridW = cols * chipW + (cols - 1) * gapX;
+        const startX = cx - gridW / 2;
+
+        for (let i = 2; i < this.menuItems.length; i++) {
+            const idx = i - 2;
+            const col = Math.floor(idx / rows);
+            const row = idx % rows;
+            const rect = {
+                x: startX + col * (chipW + gapX),
+                y: chipTop + row * (chipH + gapY),
+                w: chipW,
+                h: chipH
+            };
+            this._menuRects[i] = rect;
+            this._stoneButton(ctx, rect, this.menuItems[i], {
+                active: isSelected(i) || isHovered(i),
+                fontSize: Math.min(14, chipH * 0.38)
+            });
+        }
+
+        // ── Selection marker: small diamond left of the active item ──
+        const selRect = this._menuRects[this.selectedIndex];
+        if (selRect) {
+            const bounce = Math.sin(this.time * 4) * 3;
+            const dx = selRect.x - 16 + bounce;
+            const dy = selRect.y + selRect.h / 2;
+            ctx.save();
+            ctx.fillStyle = this.theme.brass;
+            ctx.shadowColor = 'rgba(216, 180, 90, 0.6)';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(dx, dy - 5);
+            ctx.lineTo(dx + 5, dy);
+            ctx.lineTo(dx, dy + 5);
+            ctx.lineTo(dx - 5, dy);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    /**
+     * Shared stone-slab button: charcoal gradient, brass border when active,
+     * bone lettering, subtle inner top highlight.
+     */
+    _stoneButton(ctx, rect, label, opts = {}) {
+        const { active = false, primary = false, fontSize = 16 } = opts;
+        const r = primary ? 6 : 5;
+
+        ctx.save();
+
+        // Drop shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+        ctx.shadowBlur = primary ? 14 : 8;
+        ctx.shadowOffsetY = 3;
+
+        const grad = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
+        if (active) {
+            grad.addColorStop(0, 'rgba(74, 62, 48, 0.95)');
+            grad.addColorStop(1, 'rgba(36, 30, 26, 0.95)');
+        } else {
+            grad.addColorStop(0, this.theme.stoneGradTop);
+            grad.addColorStop(1, this.theme.stoneGradBottom);
+        }
+        this.roundRect(ctx, rect.x, rect.y, rect.w, rect.h, r);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.shadowColor = 'transparent';
+
+        // Border
+        ctx.strokeStyle = active ? this.theme.accentStroke : this.theme.stoneBorder;
+        ctx.lineWidth = active ? 1.6 : 1;
+        this.roundRect(ctx, rect.x, rect.y, rect.w, rect.h, r);
+        ctx.stroke();
+
+        // Inner top highlight
+        ctx.strokeStyle = active ? 'rgba(240, 220, 180, 0.22)' : this.theme.stoneHighlight;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rect.x + r, rect.y + 1);
+        ctx.lineTo(rect.x + rect.w - r, rect.y + 1);
+        ctx.stroke();
+
+        // Label
+        ctx.font = `bold ${fontSize}px 'Cinzel', 'Georgia', serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (active) {
+            ctx.shadowColor = 'rgba(255, 200, 110, 0.45)';
+            ctx.shadowBlur = 10;
+        }
+        ctx.fillStyle = active ? '#F0E2BC' : this.theme.accentMuted;
+        ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1);
 
         ctx.restore();
     }
@@ -417,11 +880,12 @@ export class TitleScreenSystem {
         const y = h - 38;
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = '11px Arial, sans-serif';
-        ctx.fillStyle = 'rgba(160, 160, 180, 0.45)';
+        ctx.textBaseline = 'middle';
+        ctx.font = '11px Georgia, serif';
+        ctx.fillStyle = 'rgba(170, 158, 132, 0.5)';
 
         const timeStr = this.formatTime(records.longestSurvival);
-        const line = `Best: ${timeStr}  ·  Kills: ${records.highestKillCount}  ·  Lv ${records.maxLevel}  ·  ${records.totalRuns} Runs`;
+        const line = `Best ${timeStr}   ·   ${records.highestKillCount} kills   ·   Lv ${records.maxLevel}   ·   ${records.totalRuns} runs`;
         ctx.fillText(line, w / 2, y);
         ctx.restore();
     }
@@ -471,7 +935,7 @@ export class TitleScreenSystem {
         for (const sil of this.silhouettes) {
             if (sil.alpha <= 0) continue;
 
-            ctx.fillStyle = `rgba(10, 5, 20, ${sil.alpha})`;
+            ctx.fillStyle = `rgba(8, 6, 12, ${sil.alpha})`;
 
             const x = w * sil.x + sil.sway;
             const y = h * sil.y;
@@ -510,7 +974,7 @@ export class TitleScreenSystem {
 
         ctx.save();
         for (const drip of this.bloodDrips) {
-            ctx.fillStyle = `rgba(139, 0, 0, ${drip.alpha})`; // bloodRed
+            ctx.fillStyle = `rgba(139, 26, 18, ${drip.alpha})`; // bloodRed
 
             const x = w * drip.x;
             const y = drip.y;
@@ -535,6 +999,406 @@ export class TitleScreenSystem {
         ctx.restore();
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  SHARED OVERLAY CHROME — stone panel, header, back button, icons
+    // ════════════════════════════════════════════════════════════════════
+
+    _stonePanel(ctx, x, y, w, h, r = 10) {
+        const grad = ctx.createLinearGradient(x, y, x, y + h);
+        grad.addColorStop(0, this.theme.panelGradTop);
+        grad.addColorStop(1, this.theme.panelGradBottom);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = 28;
+        ctx.shadowOffsetY = 6;
+        this.roundRect(ctx, x, y, w, h, r);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
+
+        // Brass edge
+        ctx.strokeStyle = this.theme.panelStroke;
+        ctx.lineWidth = 1.5;
+        this.roundRect(ctx, x, y, w, h, r);
+        ctx.stroke();
+
+        // Inner top highlight
+        ctx.strokeStyle = 'rgba(230, 210, 170, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y + 1.5);
+        ctx.lineTo(x + w - r, y + 1.5);
+        ctx.stroke();
+    }
+
+    _panelHeader(ctx, w, panelX, panelW, panelY, title) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.min(30, panelW * 0.055)}px 'Cinzel', 'Georgia', serif`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+        ctx.fillStyle = this.theme.boneWhite;
+        ctx.shadowColor = 'rgba(216, 180, 106, 0.25)';
+        ctx.shadowBlur = 12;
+        ctx.fillText(title, w / 2, panelY + 40);
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+        // Engraved divider with center diamond
+        const dy = panelY + 66;
+        const cx = w / 2;
+        ctx.strokeStyle = 'rgba(198, 160, 92, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(panelX + 40, dy);
+        ctx.lineTo(cx - 12, dy);
+        ctx.moveTo(cx + 12, dy);
+        ctx.lineTo(panelX + panelW - 40, dy);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(198, 160, 92, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(cx, dy - 4);
+        ctx.lineTo(cx + 4, dy);
+        ctx.lineTo(cx, dy + 4);
+        ctx.lineTo(cx - 4, dy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    _backButton(ctx, w, rect, label = 'ESC  ·  BACK') {
+        ctx.save();
+        const grad = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
+        grad.addColorStop(0, 'rgba(56, 44, 34, 0.85)');
+        grad.addColorStop(1, 'rgba(30, 24, 20, 0.9)');
+        this.roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 6);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.strokeStyle = this.theme.backStroke;
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 6);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.min(14, rect.h * 0.38)}px 'Cinzel', 'Georgia', serif`;
+        ctx.fillStyle = this.theme.accentMuted;
+        ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1);
+        ctx.restore();
+    }
+
+    /**
+     * Small authored icon glyphs — one consistent stroke weight, no emoji.
+     * (x, y) is the center; s is roughly the half-size.
+     */
+    _icon(ctx, name, x, y, s, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = Math.max(1, s * 0.16);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        switch (name) {
+            case 'lock': {
+                // Padlock: shackle arc + body
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.25, s * 0.45, Math.PI, 0);
+                ctx.stroke();
+                this.roundRect(ctx, x - s * 0.6, y - s * 0.2, s * 1.2, s * 0.9, s * 0.15);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.beginPath();
+                ctx.arc(x, y + s * 0.22, s * 0.14, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'skull': {
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.15, s * 0.62, Math.PI * 0.85, Math.PI * 2.15);
+                ctx.lineTo(x + s * 0.4, y + s * 0.55);
+                ctx.lineTo(x - s * 0.4, y + s * 0.55);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath();
+                ctx.arc(x - s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.arc(x + s * 0.24, y - s * 0.18, s * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'swords': {
+                // Two crossed blades
+                for (const dir of [-1, 1]) {
+                    ctx.beginPath();
+                    ctx.moveTo(x - dir * s * 0.7, y + s * 0.7);
+                    ctx.lineTo(x + dir * s * 0.7, y - s * 0.7);
+                    ctx.stroke();
+                    // Guard
+                    ctx.beginPath();
+                    ctx.moveTo(x - dir * s * 0.52 - s * 0.18, y + s * 0.52 - dir * s * 0.05);
+                    ctx.lineTo(x - dir * s * 0.52 + s * 0.18, y + s * 0.52 + dir * s * 0.05);
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'star': {
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    const a = -Math.PI / 2 + (i * Math.PI * 4) / 5;
+                    const px = x + Math.cos(a) * s * 0.75;
+                    const py = y + Math.sin(a) * s * 0.75;
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'link': {
+                // Chain link: two overlapping rounded rects
+                ctx.beginPath();
+                ctx.ellipse(x - s * 0.28, y, s * 0.45, s * 0.3, -Math.PI / 4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(x + s * 0.28, y, s * 0.45, s * 0.3, -Math.PI / 4, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            case 'bolt': {
+                ctx.beginPath();
+                ctx.moveTo(x + s * 0.15, y - s * 0.8);
+                ctx.lineTo(x - s * 0.4, y + s * 0.1);
+                ctx.lineTo(x + s * 0.02, y + s * 0.1);
+                ctx.lineTo(x - s * 0.15, y + s * 0.8);
+                ctx.lineTo(x + s * 0.4, y - s * 0.1);
+                ctx.lineTo(x - s * 0.02, y - s * 0.1);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            }
+            case 'shield': {
+                ctx.beginPath();
+                ctx.moveTo(x, y - s * 0.75);
+                ctx.lineTo(x + s * 0.6, y - s * 0.45);
+                ctx.lineTo(x + s * 0.6, y + s * 0.1);
+                ctx.quadraticCurveTo(x + s * 0.6, y + s * 0.6, x, y + s * 0.85);
+                ctx.quadraticCurveTo(x - s * 0.6, y + s * 0.6, x - s * 0.6, y + s * 0.1);
+                ctx.lineTo(x - s * 0.6, y - s * 0.45);
+                ctx.closePath();
+                ctx.stroke();
+                break;
+            }
+            case 'paw': {
+                // Three claw marks
+                for (const off of [-0.45, 0, 0.45]) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + off * s - s * 0.12, y + s * 0.6);
+                    ctx.quadraticCurveTo(x + off * s, y, x + off * s + s * 0.12, y - s * 0.6);
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'noheal': {
+                // Heart with strike-through
+                this._iconHeartPath(ctx, x, y, s * 0.8);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.7, y + s * 0.7);
+                ctx.lineTo(x + s * 0.7, y - s * 0.7);
+                ctx.stroke();
+                break;
+            }
+            case 'bowl': {
+                // Empty bowl / famine
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.1, s * 0.65, 0.15, Math.PI - 0.15);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.3, y + s * 0.62);
+                ctx.lineTo(x + s * 0.3, y + s * 0.62);
+                ctx.stroke();
+                break;
+            }
+            case 'heart': {
+                this._iconHeartPath(ctx, x, y, s);
+                ctx.fill();
+                break;
+            }
+            case 'coin': {
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.42, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            case 'hourglass': {
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.55, y - s * 0.75);
+                ctx.lineTo(x + s * 0.55, y - s * 0.75);
+                ctx.lineTo(x + s * 0.15, y);
+                ctx.lineTo(x + s * 0.55, y + s * 0.75);
+                ctx.lineTo(x - s * 0.55, y + s * 0.75);
+                ctx.lineTo(x - s * 0.15, y);
+                ctx.closePath();
+                ctx.stroke();
+                break;
+            }
+            case 'speaker': {
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.7, y - s * 0.25);
+                ctx.lineTo(x - s * 0.2, y - s * 0.25);
+                ctx.lineTo(x + s * 0.25, y - s * 0.65);
+                ctx.lineTo(x + s * 0.25, y + s * 0.65);
+                ctx.lineTo(x - s * 0.2, y + s * 0.25);
+                ctx.lineTo(x - s * 0.7, y + s * 0.25);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + s * 0.35, y, s * 0.45, -Math.PI / 3, Math.PI / 3);
+                ctx.stroke();
+                break;
+            }
+            case 'note': {
+                ctx.beginPath();
+                ctx.ellipse(x - s * 0.3, y + s * 0.45, s * 0.3, s * 0.22, -0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.02, y + s * 0.4);
+                ctx.lineTo(x - s * 0.02, y - s * 0.6);
+                ctx.lineTo(x + s * 0.6, y - s * 0.4);
+                ctx.stroke();
+                break;
+            }
+            case 'spark': {
+                ctx.beginPath();
+                for (let i = 0; i < 4; i++) {
+                    const a = (i * Math.PI) / 2;
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x + Math.cos(a) * s * 0.8, y + Math.sin(a) * s * 0.8);
+                }
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.18, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'shake': {
+                // Vibration marks around a dot
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                for (const d of [-1, 1]) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + d * s * 0.45, y - s * 0.5);
+                    ctx.quadraticCurveTo(x + d * s * 0.7, y, x + d * s * 0.45, y + s * 0.5);
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'burst': {
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const a = (i * Math.PI) / 4;
+                    const r1 = s * 0.3;
+                    const r2 = i % 2 === 0 ? s * 0.8 : s * 0.5;
+                    ctx.moveTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+                    ctx.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2);
+                }
+                ctx.stroke();
+                break;
+            }
+            case 'gauge': {
+                ctx.beginPath();
+                ctx.arc(x, y + s * 0.3, s * 0.65, Math.PI, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y + s * 0.3);
+                ctx.lineTo(x + s * 0.4, y - s * 0.15);
+                ctx.stroke();
+                break;
+            }
+            case 'gear': {
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+                for (let i = 0; i < 6; i++) {
+                    const a = (i * Math.PI) / 3;
+                    ctx.beginPath();
+                    ctx.moveTo(x + Math.cos(a) * s * 0.45, y + Math.sin(a) * s * 0.45);
+                    ctx.lineTo(x + Math.cos(a) * s * 0.72, y + Math.sin(a) * s * 0.72);
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'eye': {
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.75, y);
+                ctx.quadraticCurveTo(x, y - s * 0.7, x + s * 0.75, y);
+                ctx.quadraticCurveTo(x, y + s * 0.7, x - s * 0.75, y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            }
+            case 'pause': {
+                ctx.fillRect(x - s * 0.42, y - s * 0.6, s * 0.28, s * 1.2);
+                ctx.fillRect(x + s * 0.14, y - s * 0.6, s * 0.28, s * 1.2);
+                break;
+            }
+            case 'magnet': {
+                ctx.beginPath();
+                ctx.arc(x, y - s * 0.05, s * 0.55, Math.PI, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.55, y - s * 0.05);
+                ctx.lineTo(x - s * 0.55, y + s * 0.55);
+                ctx.moveTo(x + s * 0.55, y - s * 0.05);
+                ctx.lineTo(x + s * 0.55, y + s * 0.55);
+                ctx.stroke();
+                break;
+            }
+            case 'check': {
+                ctx.beginPath();
+                ctx.moveTo(x - s * 0.55, y + s * 0.05);
+                ctx.lineTo(x - s * 0.12, y + s * 0.5);
+                ctx.lineTo(x + s * 0.6, y - s * 0.5);
+                ctx.stroke();
+                break;
+            }
+            case 'circle': {
+                ctx.beginPath();
+                ctx.arc(x, y, s * 0.5, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            default: {
+                // Diamond rune fallback
+                ctx.beginPath();
+                ctx.moveTo(x, y - s * 0.6);
+                ctx.lineTo(x + s * 0.6, y);
+                ctx.lineTo(x, y + s * 0.6);
+                ctx.lineTo(x - s * 0.6, y);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
+    }
+
+    _iconHeartPath(ctx, x, y, s) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + s * 0.65);
+        ctx.bezierCurveTo(x - s * 1.0, y - s * 0.05, x - s * 0.55, y - s * 0.8, x, y - s * 0.25);
+        ctx.bezierCurveTo(x + s * 0.55, y - s * 0.8, x + s * 1.0, y - s * 0.05, x, y + s * 0.65);
+        ctx.closePath();
+    }
+
     // ---- Render: Upgrade Shop ----
 
     renderUpgrades(ctx) {
@@ -542,7 +1406,7 @@ export class TitleScreenSystem {
         const h = this.game.canvas.height;
 
         // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.80)';
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.82)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel
@@ -551,29 +1415,23 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = this.theme.panelFill;
-        ctx.strokeStyle = this.theme.panelStroke;
-        ctx.lineWidth = 2;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText('UPGRADE SHOP', w / 2, panelY + 36);
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'UPGRADE SHOP');
 
         // Gold balance
         const gold = this.game.systems.persistence ? this.game.systems.persistence.getGold() : 0;
-        ctx.font = 'bold 18px Arial, sans-serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText(`Gold: ${gold}`, w / 2, panelY + 66);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        this._icon(ctx, 'coin', w / 2 - 34, panelY + 82, 7, this.theme.brass);
+        ctx.font = 'bold 15px Georgia, serif';
+        ctx.fillStyle = this.theme.brass;
+        ctx.fillText(`${gold} gold`, w / 2 + 10, panelY + 83);
+        ctx.restore();
 
         // Upgrade list
         this._upgradeRects = [];
-        const listY = panelY + 95;
+        const listY = panelY + 100;
         const itemH = 50;
         const listX = panelX + 20;
         const listW = panelW - 40;
@@ -597,28 +1455,36 @@ export class TitleScreenSystem {
                 ctx.stroke();
             }
 
-            // Icon
-            ctx.font = 'bold 18px Arial, sans-serif';
-            ctx.textAlign = 'left';
+            // Icon tile — engraved letter on a stone chip
+            ctx.fillStyle = 'rgba(198, 160, 92, 0.14)';
+            this.roundRect(ctx, listX + 8, iy + (itemH - 4) / 2 - 11, 22, 22, 4);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(198, 160, 92, 0.35)';
+            ctx.lineWidth = 1;
+            this.roundRect(ctx, listX + 8, iy + (itemH - 4) / 2 - 11, 22, 22, 4);
+            ctx.stroke();
+            ctx.font = 'bold 12px Georgia, serif';
+            ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = this.theme.accentMuted;
-            ctx.fillText(u.icon, listX + 10, iy + (itemH - 4) / 2);
+            ctx.fillText(u.icon, listX + 19, iy + (itemH - 4) / 2 + 1);
 
             // Name
-            ctx.font = 'bold 15px Arial, sans-serif';
-            ctx.fillStyle = isSelected || isHovered ? '#FFD700' : '#E0E0F0';
-            ctx.fillText(u.name, listX + 36, iy + 16);
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 15px Georgia, serif';
+            ctx.fillStyle = isSelected || isHovered ? '#F0E2BC' : this.theme.textPrimary;
+            ctx.fillText(u.name, listX + 40, iy + 16);
 
             // Description
-            ctx.font = '12px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.7)';
-            ctx.fillText(u.desc, listX + 36, iy + 34);
+            ctx.font = '12px Georgia, serif';
+            ctx.fillStyle = this.theme.textMuted;
+            ctx.fillText(u.desc, listX + 40, iy + 34);
 
             // Level pips
             const pipsX = listX + listW - 160;
             for (let l = 0; l < u.maxLevel; l++) {
                 const px = pipsX + l * 12;
-                ctx.fillStyle = l < u.level ? '#FFD700' : 'rgba(100, 100, 120, 0.5)';
+                ctx.fillStyle = l < u.level ? this.theme.brass : 'rgba(120, 110, 95, 0.35)';
                 ctx.beginPath();
                 ctx.arc(px, iy + (itemH - 4) / 2, 4, 0, Math.PI * 2);
                 ctx.fill();
@@ -626,34 +1492,23 @@ export class TitleScreenSystem {
 
             // Cost
             ctx.textAlign = 'right';
-            ctx.font = 'bold 14px Arial, sans-serif';
+            ctx.font = 'bold 14px Georgia, serif';
             if (u.cost === null) {
-                ctx.fillStyle = '#4ade80';
+                ctx.fillStyle = this.theme.successGreen;
                 ctx.fillText('MAX', listX + listW - 10, iy + (itemH - 4) / 2);
             } else {
-                ctx.fillStyle = u.canAfford ? '#FFD700' : '#FF6B6B';
+                ctx.fillStyle = u.canAfford ? this.theme.brass : this.theme.dangerRed;
                 ctx.fillText(`${u.cost}g`, listX + listW - 10, iy + (itemH - 4) / 2);
             }
         }
 
         // Back button
-        const backW = 120;
+        const backW = 140;
         const backH = 36;
         const backX = (w - backW) / 2;
         const backY = panelY + panelH - 50;
         this._backButtonRect = { x: backX, y: backY, w: backW, h: backH };
-
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        this._backButton(ctx, w, this._backButtonRect);
     }
 
     // ---- Render: Character Select ----
@@ -664,8 +1519,8 @@ export class TitleScreenSystem {
         const persistence = this.game.systems.persistence;
         const currentCharId = persistence ? persistence.getSelectedCharacter() : 'antonio';
 
-        // Dark overlay with blur-like color
-        ctx.fillStyle = 'rgba(10, 8, 15, 0.90)';
+        // Dark overlay
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.90)';
         ctx.fillRect(0, 0, w, h);
 
         // Responsive Panel Size
@@ -674,50 +1529,14 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        // Draw Panel Background
-        const bgGradient = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-        bgGradient.addColorStop(0, '#1c1528');
-        bgGradient.addColorStop(1, '#0e0b14');
-        ctx.fillStyle = bgGradient;
-        ctx.strokeStyle = '#3a2845';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 30;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 34px "Cinzel", "Times New Roman", serif';
-        
-        // Header Text Gradient
-        const textGradient = ctx.createLinearGradient(0, panelY + 20, 0, panelY + 60);
-        textGradient.addColorStop(0, '#FFF5C3');
-        textGradient.addColorStop(1, '#FFD700');
-        ctx.fillStyle = textGradient;
-        
-        ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
-        ctx.shadowBlur = 15;
-        ctx.fillText('CHOOSE YOUR CHAMPION', w / 2, panelY + 45);
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = 'transparent';
-
-        // Divider
-        ctx.beginPath();
-        ctx.moveTo(panelX + 40, panelY + 80);
-        ctx.lineTo(panelX + panelW - 40, panelY + 80);
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'CHOOSE YOUR CHAMPION');
 
         // Two-pane Layout
         const leftPaneW = panelW * 0.36;
         const rightPaneW = panelW * 0.64;
-        const paneY = panelY + 100;
-        const paneH = panelH - 190;
+        const paneY = panelY + 92;
+        const paneH = panelH - 182;
 
         // List properties
         this._characterRects = [];
@@ -744,30 +1563,30 @@ export class TitleScreenSystem {
             // Row background
             if (isActive) {
                 const rowGrad = ctx.createLinearGradient(listX, iy, listX + listW, iy);
-                rowGrad.addColorStop(0, 'rgba(255, 215, 0, 0.25)');
-                rowGrad.addColorStop(1, 'rgba(255, 215, 0, 0.05)');
+                rowGrad.addColorStop(0, 'rgba(216, 180, 106, 0.22)');
+                rowGrad.addColorStop(1, 'rgba(216, 180, 106, 0.04)');
                 ctx.fillStyle = rowGrad;
-                ctx.strokeStyle = '#FFD700';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = this.theme.brass;
+                ctx.lineWidth = 1.5;
             } else if (isHovered) {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillStyle = 'rgba(230, 210, 170, 0.08)';
+                ctx.strokeStyle = 'rgba(230, 210, 170, 0.25)';
                 ctx.lineWidth = 1;
             } else {
-                ctx.fillStyle = isUnlocked ? 'rgba(20, 15, 30, 0.6)' : 'rgba(10, 8, 15, 0.4)';
-                ctx.strokeStyle = isUnlocked ? 'rgba(60, 45, 80, 0.5)' : 'rgba(30, 25, 40, 0.5)';
+                ctx.fillStyle = isUnlocked ? 'rgba(24, 22, 28, 0.6)' : 'rgba(12, 11, 15, 0.4)';
+                ctx.strokeStyle = isUnlocked ? 'rgba(90, 80, 70, 0.4)' : 'rgba(50, 45, 55, 0.4)';
                 ctx.lineWidth = 1;
             }
-            this.roundRect(ctx, listX, iy, listW, itemH, 8);
+            this.roundRect(ctx, listX, iy, listW, itemH, 6);
             ctx.fill();
             ctx.stroke();
 
-            // Equipped indicator (left border accent)
+            // Equipped indicator (left edge accent)
             if (isCurrentChar) {
-                ctx.fillStyle = '#FFD700';
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.6)';
-                ctx.shadowBlur = 10;
-                this.roundRect(ctx, listX, iy, 6, itemH, {tl: 8, bl: 8, tr: 0, br: 0});
+                ctx.fillStyle = this.theme.brass;
+                ctx.shadowColor = 'rgba(216, 180, 106, 0.6)';
+                ctx.shadowBlur = 8;
+                this.roundRect(ctx, listX, iy, 5, itemH, { tl: 6, bl: 6, tr: 0, br: 0 });
                 ctx.fill();
                 ctx.shadowBlur = 0;
             }
@@ -777,19 +1596,16 @@ export class TitleScreenSystem {
             const midY = iy + itemH / 2;
 
             if (!isUnlocked) {
-                // Locked icon
-                ctx.font = 'bold 16px Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(120, 120, 140, 0.6)';
-                ctx.fillText('\u{1F512}', iconX, midY + 1);
+                // Locked icon — drawn padlock
+                this._icon(ctx, 'lock', iconX, midY, 9, 'rgba(140, 130, 115, 0.55)');
 
                 // Locked Name
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 16px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(100, 100, 120, 0.6)';
+                ctx.font = 'bold 16px Georgia, serif';
+                ctx.fillStyle = 'rgba(120, 112, 100, 0.55)';
                 ctx.fillText('???', textX, midY + 1);
             } else {
-                // Character color circle with glow if active
+                // Character color medallion with glow if active
                 if (isActive) {
                     ctx.shadowColor = char.color;
                     ctx.shadowBlur = 8;
@@ -799,8 +1615,8 @@ export class TitleScreenSystem {
                 ctx.fillStyle = char.color;
                 ctx.fill();
                 ctx.shadowBlur = 0;
-                
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+
+                ctx.strokeStyle = 'rgba(240, 230, 205, 0.75)';
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
 
@@ -813,8 +1629,8 @@ export class TitleScreenSystem {
 
                 // Name
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 16px "Cinzel", "Times New Roman", serif';
-                ctx.fillStyle = isActive ? '#FFD700' : '#EAEAEA';
+                ctx.font = 'bold 16px "Cinzel", "Georgia", serif';
+                ctx.fillStyle = isActive ? '#F0E2BC' : '#E4DCC8';
                 ctx.fillText(char.name, textX, midY + 1);
             }
         }
@@ -829,12 +1645,12 @@ export class TitleScreenSystem {
 
         // Inner pane styling
         const rightPaneGrad = ctx.createLinearGradient(rightX, paneY, rightX, paneY + paneH);
-        rightPaneGrad.addColorStop(0, 'rgba(25, 18, 35, 0.6)');
-        rightPaneGrad.addColorStop(1, 'rgba(15, 10, 20, 0.8)');
+        rightPaneGrad.addColorStop(0, 'rgba(28, 26, 32, 0.6)');
+        rightPaneGrad.addColorStop(1, 'rgba(14, 13, 17, 0.8)');
         ctx.fillStyle = rightPaneGrad;
-        ctx.strokeStyle = 'rgba(80, 60, 110, 0.4)';
+        ctx.strokeStyle = 'rgba(120, 105, 85, 0.35)';
         ctx.lineWidth = 1;
-        this.roundRect(ctx, rightX, paneY, rightPaneW - 25, paneH, 12);
+        this.roundRect(ctx, rightX, paneY, rightPaneW - 25, paneH, 10);
         ctx.fill();
         ctx.stroke();
 
@@ -842,26 +1658,24 @@ export class TitleScreenSystem {
 
         if (!isUnlocked) {
             // Locked View
+            this._icon(ctx, 'lock', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.32, 30, 'rgba(140, 130, 115, 0.35)');
+
             ctx.textAlign = 'center';
-            ctx.font = 'bold 72px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(100, 100, 120, 0.3)';
-            ctx.fillText('\u{1F512}', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.35);
+            ctx.font = 'bold 24px "Cinzel", "Georgia", serif';
+            ctx.fillStyle = 'rgba(160, 150, 130, 0.7)';
+            ctx.fillText('CHAMPION LOCKED', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
 
-            ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
-            ctx.fillStyle = 'rgba(140, 140, 160, 0.7)';
-            ctx.fillText('CHARACTER LOCKED', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.55);
-
-            ctx.font = '15px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(215, 164, 92, 0.9)';
+            ctx.font = '15px Georgia, serif';
+            ctx.fillStyle = 'rgba(201, 168, 106, 0.9)';
             this.wrapText(ctx, activeChar.unlockDesc || 'Defeat more enemies to unlock.', rightX + (rightPaneW - 25) / 2, paneY + paneH * 0.65, detailsW - 40, 22);
 
         } else {
             // Unlocked View
-            
+
             // Large Portrait background aura
             const portraitX = detailsX + 50;
             const portraitY = paneY + 65;
-            
+
             const auraGrad = ctx.createRadialGradient(portraitX, portraitY, 10, portraitX, portraitY, 60);
             auraGrad.addColorStop(0, activeChar.color);
             auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -872,32 +1686,32 @@ export class TitleScreenSystem {
             ctx.fill();
             ctx.globalAlpha = 1.0;
 
-            // Character Icon
+            // Character medallion
             ctx.beginPath();
             ctx.arc(portraitX, portraitY, 45, 0, Math.PI * 2);
             ctx.fillStyle = activeChar.color;
             ctx.fill();
-            
-            ctx.strokeStyle = '#FFFFFF';
+
+            ctx.strokeStyle = 'rgba(240, 230, 205, 0.85)';
             ctx.lineWidth = 3;
             ctx.stroke();
 
             // Inner styling for portrait
             ctx.beginPath();
             ctx.arc(portraitX - 12, portraitY - 12, 18, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
             ctx.fill();
 
             // Title and Name
             ctx.textAlign = 'left';
-            ctx.font = 'bold 36px "Cinzel", "Times New Roman", serif';
-            ctx.fillStyle = '#FFD700';
-            ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+            ctx.font = 'bold 34px "Cinzel", "Georgia", serif';
+            ctx.fillStyle = '#F0E2BC';
+            ctx.shadowColor = 'rgba(216, 180, 106, 0.35)';
             ctx.shadowBlur = 8;
             ctx.fillText(activeChar.name, portraitX + 75, portraitY - 5);
             ctx.shadowBlur = 0;
 
-            ctx.font = 'italic 18px Arial, sans-serif';
+            ctx.font = 'italic 17px Georgia, serif';
             ctx.fillStyle = activeChar.color;
             ctx.fillText(activeChar.title, portraitX + 78, portraitY + 22);
 
@@ -905,15 +1719,15 @@ export class TitleScreenSystem {
             ctx.beginPath();
             ctx.moveTo(detailsX, portraitY + 65);
             ctx.lineTo(detailsX + detailsW, portraitY + 65);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.strokeStyle = 'rgba(230, 210, 170, 0.12)';
             ctx.lineWidth = 1;
             ctx.stroke();
 
             // Description
-            ctx.font = '15px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(220, 220, 235, 0.95)';
+            ctx.font = '15px Georgia, serif';
+            ctx.fillStyle = 'rgba(226, 218, 198, 0.92)';
             const descY = portraitY + 95;
-            
+
             const words = activeChar.description.split(' ');
             let line = '';
             let lineY = descY;
@@ -931,30 +1745,30 @@ export class TitleScreenSystem {
 
             // Flex layout for Stats and Weapon
             const flexY = lineY + 45;
-            
+
             // Left column: Weapon
-            ctx.font = 'bold 14px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
+            ctx.font = 'bold 12px Georgia, serif';
+            ctx.fillStyle = 'rgba(170, 158, 132, 0.85)';
             ctx.fillText('STARTING WEAPON', detailsX, flexY);
 
-            ctx.font = 'bold 18px Arial, sans-serif';
-            ctx.fillStyle = '#87CEEB'; // Sky blue
+            ctx.font = 'bold 18px Georgia, serif';
+            ctx.fillStyle = '#9CC4D8'; // Cold steel blue
             const weaponName = activeChar.startingWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
             ctx.fillText(weaponName, detailsX, flexY + 25);
 
             // Right column: Stats
             const statsX = detailsX + detailsW * 0.45;
-            ctx.font = 'bold 14px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(160, 150, 180, 0.9)';
+            ctx.font = 'bold 12px Georgia, serif';
+            ctx.fillStyle = 'rgba(170, 158, 132, 0.85)';
             ctx.fillText('PASSIVE BONUSES', statsX, flexY);
 
             const modY = flexY + 25;
-            ctx.font = '15px Arial, sans-serif';
+            ctx.font = '15px Georgia, serif';
             let modLine = 0;
             const entries = Object.entries(activeChar.statModifiers);
-            
+
             if (entries.length === 0) {
-                ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
+                ctx.fillStyle = 'rgba(170, 158, 132, 0.6)';
                 ctx.fillText('None', statsX, modY);
             } else {
                 for (const [stat, val] of entries) {
@@ -962,8 +1776,8 @@ export class TitleScreenSystem {
                     const display = stat === 'projectiles'
                         ? `+${val} Projectile${val > 1 ? 's' : ''}`
                         : `${val > 1 ? '+' : ''}${Math.round((val - 1) * 100)}% ${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
-                    
-                    ctx.fillStyle = isPositive ? '#4ade80' : '#FF6B6B';
+
+                    ctx.fillStyle = isPositive ? this.theme.successGreen : this.theme.dangerRed;
                     // Two-column grid inside the stats section
                     const col = modLine % 2;
                     const row = Math.floor(modLine / 2);
@@ -975,34 +1789,33 @@ export class TitleScreenSystem {
             // Status Badge
             const badgeY = paneY + paneH - 35;
             if (isCurrentChar) {
-                ctx.font = 'bold 18px Arial, sans-serif';
-                ctx.fillStyle = '#FFD700';
+                ctx.font = 'bold 16px Georgia, serif';
+                ctx.fillStyle = this.theme.brass;
                 ctx.textAlign = 'right';
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+                ctx.shadowColor = 'rgba(216, 180, 106, 0.5)';
                 ctx.shadowBlur = 10;
-                ctx.fillText('✓ EQUIPPED', rightX + rightPaneW - 45, badgeY);
+                this._icon(ctx, 'check', rightX + rightPaneW - 45 - ctx.measureText('EQUIPPED').width - 16, badgeY - 6, 8, this.theme.brass);
+                ctx.fillText('EQUIPPED', rightX + rightPaneW - 45, badgeY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
-                ctx.font = '15px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(180, 180, 200, 0.8)';
-                ctx.textAlign = 'right';
-                
-                // Add a subtle button look
-                const btnW = 200;
-                const btnH = 40;
+                // Equip hint button
+                const btnW = 210;
+                const btnH = 38;
                 const btnX = rightX + rightPaneW - 45 - btnW;
-                const btnY = badgeY - 25;
-                
-                ctx.fillStyle = 'rgba(255, 215, 0, 0.1)';
-                ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+                const btnY = badgeY - 26;
+
+                ctx.fillStyle = 'rgba(216, 180, 106, 0.10)';
+                ctx.strokeStyle = 'rgba(216, 180, 106, 0.35)';
                 ctx.lineWidth = 1;
                 this.roundRect(ctx, btnX, btnY, btnW, btnH, 6);
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText('Press ENTER to Equip', rightX + rightPaneW - 45 - 20, badgeY - 5);
+                ctx.font = '14px Georgia, serif';
+                ctx.fillStyle = this.theme.brass;
+                ctx.textAlign = 'center';
+                ctx.fillText('Press ENTER to Equip', btnX + btnW / 2, badgeY - 6);
             }
         }
 
@@ -1010,28 +1823,17 @@ export class TitleScreenSystem {
         ctx.beginPath();
         ctx.moveTo(panelX + 40, panelY + panelH - 80);
         ctx.lineTo(panelX + panelW - 40, panelY + panelH - 80);
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.15)';
+        ctx.strokeStyle = 'rgba(198, 160, 92, 0.18)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // Back button
-        const backW = 160;
-        const backH = 44;
+        const backW = 220;
+        const backH = 42;
         const backX = (w - backW) / 2;
         const backY = panelY + panelH - 62;
         this._characterBackRect = { x: backX, y: backY, w: backW, h: backH };
-
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 16px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        this._backButton(ctx, w, this._characterBackRect, 'ESC  ·  RETURN TO MENU');
     }
 
     /**
@@ -1098,6 +1900,20 @@ export class TitleScreenSystem {
         } else if (k === 'arrowdown') {
             this.selectedIndex = (this.selectedIndex + 1) % this.menuItems.length;
             this.playHoverSound();
+        } else if (k === 'arrowleft' || k === 'arrowright') {
+            // Hop between chip columns (column-major grid; single column when narrow)
+            const cols = this._menuCols || 2;
+            const rows = this._menuRows || 3;
+            if (this.selectedIndex >= 2 && cols > 1) {
+                const idx = this.selectedIndex - 2;
+                const col = Math.floor(idx / rows);
+                const row = idx % rows;
+                const targetCol = k === 'arrowleft' ? 0 : 1;
+                if (targetCol !== col) {
+                    this.selectedIndex = 2 + targetCol * rows + row;
+                    this.playHoverSound();
+                }
+            }
         } else if (k === 'enter' || k === ' ') {
             this.selectMenuItem(this.selectedIndex);
         }
@@ -1383,7 +2199,7 @@ export class TitleScreenSystem {
         const h = this.game.canvas.height;
 
         // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.80)';
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.82)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel
@@ -1392,23 +2208,13 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = this.theme.panelFill;
-        ctx.strokeStyle = this.theme.panelStroke;
-        ctx.lineWidth = 2;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText('STATISTICS', w / 2, panelY + 36);
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'STATISTICS');
 
         const persistence = this.game.systems.persistence;
         if (!persistence) {
-            ctx.font = '16px Arial, sans-serif';
+            ctx.font = '16px Georgia, serif';
+            ctx.textAlign = 'center';
             ctx.fillStyle = this.theme.accentMuted;
             ctx.fillText('No data available', w / 2, h / 2);
             return;
@@ -1417,17 +2223,19 @@ export class TitleScreenSystem {
         const records = persistence.data.records;
         const colLeft = panelX + 40;
         const colRight = panelX + panelW / 2 + 20;
-        const startY = panelY + 80;
+        const startY = panelY + 86;
         const lineH = 32;
+
+        ctx.textBaseline = 'middle';
 
         // Left column header
         ctx.textAlign = 'left';
-        ctx.font = 'bold 15px Arial, sans-serif';
+        ctx.font = 'bold 13px Georgia, serif';
         ctx.fillStyle = this.theme.sectionLabel;
         ctx.fillText('RUN TOTALS', colLeft, startY);
 
         // Left column stats
-        ctx.font = '14px Arial, sans-serif';
+        ctx.font = '14px Georgia, serif';
         const leftStats = [
             ['Total Runs', records.totalRuns],
             ['Total Playtime', this.formatPlaytime(records.totalPlayTime || 0)],
@@ -1438,21 +2246,21 @@ export class TitleScreenSystem {
 
         for (let i = 0; i < leftStats.length; i++) {
             const y = startY + (i + 1) * lineH;
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.7)';
+            ctx.fillStyle = this.theme.textMuted;
             ctx.fillText(leftStats[i][0], colLeft, y);
-            ctx.fillStyle = '#E0E0F0';
+            ctx.fillStyle = this.theme.textPrimary;
             ctx.textAlign = 'right';
             ctx.fillText(String(leftStats[i][1]), colLeft + panelW / 2 - 60, y);
             ctx.textAlign = 'left';
         }
 
         // Right column header
-        ctx.font = 'bold 15px Arial, sans-serif';
+        ctx.font = 'bold 13px Georgia, serif';
         ctx.fillStyle = this.theme.sectionLabel;
         ctx.fillText('PERSONAL BESTS', colRight, startY);
 
         // Right column stats
-        ctx.font = '14px Arial, sans-serif';
+        ctx.font = '14px Georgia, serif';
         const rightStats = [
             ['Best Survival', this.formatTime(records.longestSurvival || 0)],
             ['Most Kills', this.formatNumber(records.highestKillCount || 0)],
@@ -1463,9 +2271,9 @@ export class TitleScreenSystem {
 
         for (let i = 0; i < rightStats.length; i++) {
             const y = startY + (i + 1) * lineH;
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.7)';
+            ctx.fillStyle = this.theme.textMuted;
             ctx.fillText(rightStats[i][0], colRight, y);
-            ctx.fillStyle = '#E0E0F0';
+            ctx.fillStyle = this.theme.textPrimary;
             ctx.textAlign = 'right';
             ctx.fillText(String(rightStats[i][1]), colRight + panelW / 2 - 60, y);
             ctx.textAlign = 'left';
@@ -1473,7 +2281,7 @@ export class TitleScreenSystem {
 
         // Favorite weapon section
         const weaponY = startY + 7 * lineH;
-        ctx.font = 'bold 15px Arial, sans-serif';
+        ctx.font = 'bold 13px Georgia, serif';
         ctx.fillStyle = this.theme.sectionLabel;
         ctx.textAlign = 'center';
         ctx.fillText('FAVORITE WEAPON', w / 2, weaponY);
@@ -1488,38 +2296,27 @@ export class TitleScreenSystem {
             }
         }
 
-        ctx.font = '14px Arial, sans-serif';
+        ctx.font = '14px Georgia, serif';
         if (favWeapon) {
             const weaponName = favWeapon.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-            ctx.fillStyle = '#FFD700';
+            ctx.fillStyle = this.theme.brass;
             ctx.fillText(
                 `${weaponName}  (picked ${favCount} time${favCount !== 1 ? 's' : ''})`,
                 w / 2,
                 weaponY + lineH
             );
         } else {
-            ctx.fillStyle = 'rgba(160, 160, 180, 0.6)';
+            ctx.fillStyle = this.theme.textMuted;
             ctx.fillText('No weapons used yet', w / 2, weaponY + lineH);
         }
 
         // Back button
-        const backW = 120;
+        const backW = 140;
         const backH = 36;
         const backX = (w - backW) / 2;
         const backY = panelY + panelH - 50;
         this._statsBackRect = { x: backX, y: backY, w: backW, h: backH };
-
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+        this._backButton(ctx, w, this._statsBackRect);
     }
 
     // ---- Render: Challenge Modifiers ----
@@ -1531,7 +2328,7 @@ export class TitleScreenSystem {
         if (!challenge) return;
 
         // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.85)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel
@@ -1540,39 +2337,33 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        ctx.fillStyle = this.theme.panelFill;
-        ctx.strokeStyle = this.theme.panelStroke;
-        ctx.lineWidth = 2;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 26px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText('CHALLENGE MODIFIERS', w / 2, panelY + 36);
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'CHALLENGE HEXES');
 
         // Unlock check
         const unlocked = challenge.isUnlocked();
         if (!unlocked) {
-            ctx.font = '16px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(200, 160, 120, 0.8)';
-            ctx.fillText('\u{1F512}  Survive 15 minutes to unlock challenges', w / 2, h / 2 - 10);
-            ctx.font = '13px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(160, 140, 120, 0.6)';
-            ctx.fillText('Challenges add difficulty modifiers in exchange for bonus gold', w / 2, h / 2 + 20);
+            this._icon(ctx, 'lock', w / 2, h / 2 - 40, 18, 'rgba(201, 168, 106, 0.5)');
+            ctx.font = '16px Georgia, serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(201, 168, 106, 0.85)';
+            ctx.fillText('Survive 15 minutes to unlock challenges', w / 2, h / 2);
+            ctx.font = '13px Georgia, serif';
+            ctx.fillStyle = this.theme.textMuted;
+            ctx.fillText('Hexes add difficulty modifiers in exchange for bonus gold', w / 2, h / 2 + 28);
         } else {
             // Subheader
-            ctx.font = '13px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
-            ctx.fillText('Select up to 3 modifiers for bonus gold  |  Click / Enter to toggle', w / 2, panelY + 62);
+            ctx.font = '13px Georgia, serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = this.theme.textMuted;
+            ctx.fillText('Bind up to 3 hexes for bonus gold   ·   Click / Enter to toggle', w / 2, panelY + 78);
 
             // Modifier list
             this._challengeRects = [];
-            const listY = panelY + 85;
-            const itemH = 60;
+            const listY = panelY + 96;
+            const itemH = 58;
             const listX = panelX + 24;
             const listW = panelW - 48;
 
@@ -1587,56 +2378,53 @@ export class TitleScreenSystem {
 
                 // Row background
                 if (isActive) {
-                    ctx.fillStyle = `rgba(${this.hexToRgb(mod.color)}, 0.15)`;
+                    ctx.fillStyle = `rgba(${this.hexToRgb(mod.color)}, 0.14)`;
                     ctx.strokeStyle = mod.color;
-                    ctx.lineWidth = 2;
+                    ctx.lineWidth = 1.5;
                 } else if (isSelected || isHovered) {
                     ctx.fillStyle = this.theme.accentFill;
                     ctx.strokeStyle = this.theme.accentStroke;
                     ctx.lineWidth = 1;
                 } else {
-                    ctx.fillStyle = 'rgba(30, 22, 40, 0.6)';
-                    ctx.strokeStyle = 'rgba(80, 60, 50, 0.4)';
+                    ctx.fillStyle = 'rgba(24, 22, 28, 0.6)';
+                    ctx.strokeStyle = 'rgba(90, 80, 70, 0.35)';
                     ctx.lineWidth = 1;
                 }
-                this.roundRect(ctx, listX, iy, listW, itemH - 4, 8);
+                this.roundRect(ctx, listX, iy, listW, itemH - 4, 6);
                 ctx.fill();
                 ctx.stroke();
 
-                // Active checkmark
-                ctx.font = 'bold 20px Arial, sans-serif';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isActive ? '#4ade80' : 'rgba(80, 80, 100, 0.5)';
-                ctx.fillText(isActive ? '✓' : '○', listX + 12, iy + (itemH - 4) / 2);
+                const midY = iy + (itemH - 4) / 2;
 
-                // Icon
-                ctx.font = '22px Arial, sans-serif';
-                ctx.fillText(mod.icon, listX + 40, iy + (itemH - 4) / 2);
+                // Active check / empty circle
+                this._icon(ctx, isActive ? 'check' : 'circle', listX + 20, midY, 8,
+                    isActive ? this.theme.successGreen : 'rgba(120, 112, 100, 0.5)');
+
+                // Modifier icon — authored glyph per hex id
+                this._icon(ctx, this._challengeIconName(mod.id), listX + 48, midY, 10, mod.color);
 
                 // Name
-                ctx.font = 'bold 15px Arial, sans-serif';
-                ctx.fillStyle = isActive ? mod.color : (isSelected || isHovered ? '#FFD700' : '#E0E0F0');
+                ctx.font = 'bold 15px Georgia, serif';
+                ctx.textAlign = 'left';
+                ctx.fillStyle = isActive ? mod.color : (isSelected || isHovered ? '#F0E2BC' : this.theme.textPrimary);
                 ctx.fillText(mod.name, listX + 70, iy + 18);
 
                 // Description
-                ctx.font = '12px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(180, 180, 200, 0.7)';
+                ctx.font = '12px Georgia, serif';
+                ctx.fillStyle = this.theme.textMuted;
                 ctx.fillText(mod.description, listX + 70, iy + 38);
 
                 // Gold bonus
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 14px Arial, sans-serif';
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% Gold`, listX + listW - 12, iy + (itemH - 4) / 2);
+                ctx.font = 'bold 14px Georgia, serif';
+                ctx.fillStyle = this.theme.brass;
+                ctx.fillText(`+${Math.round(mod.goldBonus * 100)}% Gold`, listX + listW - 12, midY);
                 ctx.textAlign = 'left';
             }
 
             // Total gold multiplier
-            const totalY = listY + challenge.modifiers.length * itemH + 10;
-            const mult = challenge.getGoldMultiplier();
+            const totalY = listY + challenge.modifiers.length * itemH + 12;
             const pending = challenge.pendingModifiers;
-            // Recalculate based on pending (not active)
             let pendingBonus = 0;
             for (const id of pending) {
                 const mod = challenge.modifiers.find(m => m.id === id);
@@ -1645,43 +2433,44 @@ export class TitleScreenSystem {
             const pendingMult = 1 + pendingBonus;
 
             ctx.textAlign = 'center';
-            ctx.font = 'bold 18px "Cinzel", "Times New Roman", serif';
+            ctx.font = 'bold 17px "Cinzel", "Georgia", serif';
             if (pending.size > 0) {
-                ctx.fillStyle = '#FFD700';
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+                ctx.fillStyle = this.theme.brass;
+                ctx.shadowColor = 'rgba(216, 180, 106, 0.4)';
                 ctx.shadowBlur = 10;
                 ctx.fillText(`GOLD MULTIPLIER: ${pendingMult.toFixed(1)}×`, w / 2, totalY);
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
-                ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
-                ctx.fillText('No modifiers selected', w / 2, totalY);
+                ctx.fillStyle = this.theme.textMuted;
+                ctx.fillText('No hexes bound', w / 2, totalY);
             }
 
             // Active count
-            ctx.font = '12px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
+            ctx.font = '12px Georgia, serif';
+            ctx.fillStyle = this.theme.textMuted;
             ctx.fillText(`${pending.size} / ${challenge.maxActive} selected`, w / 2, totalY + 22);
         }
 
         // Back button
-        const backW = 120;
+        const backW = 140;
         const backH = 36;
         const backX = (w - backW) / 2;
         const backY = panelY + panelH - 50;
         this._challengeBackRect = { x: backX, y: backY, w: backW, h: backH };
+        this._backButton(ctx, w, this._challengeBackRect);
+    }
 
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 14px Arial, sans-serif';
-        ctx.fillStyle = this.theme.accentMuted;
-        ctx.fillText('ESC  Back', w / 2, backY + backH / 2);
+    _challengeIconName(id) {
+        const map = {
+            glass_cannon: 'skull',
+            swarm: 'paw',
+            no_heals: 'noheal',
+            speed_demon: 'bolt',
+            famine: 'bowl',
+            iron_will: 'shield'
+        };
+        return map[id] || 'spark';
     }
 
     // ---- Render: Codex / Bestiary ----
@@ -1692,7 +2481,7 @@ export class TitleScreenSystem {
         const codex = this.game.systems.codex;
 
         // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.88)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel
@@ -1701,39 +2490,18 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-        bgGrad.addColorStop(0, '#1c1528');
-        bgGrad.addColorStop(1, '#0e0b14');
-        ctx.fillStyle = bgGrad;
-        ctx.strokeStyle = '#3a2845';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 30;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 30px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
-        ctx.shadowBlur = 15;
-        ctx.fillText('CODEX', w / 2, panelY + 40);
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = 'transparent';
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'CODEX');
 
         // Category tabs
         const tabs = [
-            { key: 'enemies', label: 'Enemies', icon: '\u{1F480}' },
-            { key: 'weapons', label: 'Weapons', icon: '\u{2694}' },
-            { key: 'evolutions', label: 'Evolutions', icon: '\u{2B50}' },
-            { key: 'synergies', label: 'Synergies', icon: '\u{1F517}' }
+            { key: 'enemies', label: 'Enemies', icon: 'skull' },
+            { key: 'weapons', label: 'Weapons', icon: 'swords' },
+            { key: 'evolutions', label: 'Evolutions', icon: 'star' },
+            { key: 'synergies', label: 'Synergies', icon: 'link' }
         ];
         const tabW = (panelW - 60) / tabs.length;
-        const tabY = panelY + 70;
+        const tabY = panelY + 76;
         const tabH = 36;
         this._codexTabRects = [];
 
@@ -1743,22 +2511,29 @@ export class TitleScreenSystem {
             this._codexTabRects.push({ x: tx, y: tabY, w: tabW - 4, h: tabH });
 
             if (isActive) {
-                ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
-                ctx.strokeStyle = '#FFD700';
-                ctx.lineWidth = 2;
+                ctx.fillStyle = 'rgba(216, 180, 106, 0.14)';
+                ctx.strokeStyle = this.theme.brass;
+                ctx.lineWidth = 1.5;
             } else {
-                ctx.fillStyle = 'rgba(30, 22, 40, 0.6)';
-                ctx.strokeStyle = 'rgba(80, 60, 100, 0.4)';
+                ctx.fillStyle = 'rgba(24, 22, 28, 0.6)';
+                ctx.strokeStyle = 'rgba(90, 80, 70, 0.35)';
                 ctx.lineWidth = 1;
             }
             this.roundRect(ctx, tx, tabY, tabW - 4, tabH, 6);
             ctx.fill();
             ctx.stroke();
 
-            ctx.textAlign = 'center';
-            ctx.font = 'bold 14px Arial, sans-serif';
-            ctx.fillStyle = isActive ? '#FFD700' : this.theme.accentMuted;
-            ctx.fillText(`${tabs[i].icon} ${tabs[i].label}`, tx + (tabW - 4) / 2, tabY + tabH / 2);
+            const tabCx = tx + (tabW - 4) / 2;
+            const tabCy = tabY + tabH / 2;
+            ctx.font = 'bold 13px Georgia, serif';
+            const labelW = ctx.measureText(tabs[i].label).width;
+            const groupW = 14 + 6 + labelW;
+            this._icon(ctx, tabs[i].icon, tabCx - groupW / 2 + 7, tabCy, 7,
+                isActive ? this.theme.brass : this.theme.accentMuted);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = isActive ? '#F0E2BC' : this.theme.accentMuted;
+            ctx.fillText(tabs[i].label, tabCx - groupW / 2 + 20, tabCy + 1);
         }
 
         // Completion bar for active tab
@@ -1771,23 +2546,23 @@ export class TitleScreenSystem {
         const barX = panelX + 30;
         const barH = 14;
 
-        ctx.fillStyle = 'rgba(40, 30, 55, 0.8)';
+        ctx.fillStyle = 'rgba(30, 27, 34, 0.85)';
         this.roundRect(ctx, barX, barY, barW, barH, 4);
         ctx.fill();
 
         const fillW = Math.max(0, (catStats.discovered / catStats.total) * barW);
         if (fillW > 0) {
             const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
-            barGrad.addColorStop(0, '#FFD700');
-            barGrad.addColorStop(1, '#D4A017');
+            barGrad.addColorStop(0, '#D8B45A');
+            barGrad.addColorStop(1, '#9A7A30');
             ctx.fillStyle = barGrad;
             this.roundRect(ctx, barX, barY, fillW, barH, 4);
             ctx.fill();
         }
 
         ctx.textAlign = 'center';
-        ctx.font = 'bold 11px Arial, sans-serif';
-        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 11px Georgia, serif';
+        ctx.fillStyle = '#F0E8D4';
         ctx.fillText(`${catStats.discovered} / ${catStats.total}  (${catStats.percent}%)`, barX + barW / 2, barY + barH / 2 + 1);
 
         // Discovery grid
@@ -1822,12 +2597,12 @@ export class TitleScreenSystem {
             const item = displayList[i];
 
             if (item.discovered) {
-                ctx.fillStyle = 'rgba(40, 30, 55, 0.7)';
-                ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+                ctx.fillStyle = 'rgba(32, 29, 38, 0.75)';
+                ctx.strokeStyle = 'rgba(216, 180, 106, 0.3)';
                 ctx.lineWidth = 1;
             } else {
-                ctx.fillStyle = 'rgba(20, 15, 30, 0.5)';
-                ctx.strokeStyle = 'rgba(60, 45, 80, 0.3)';
+                ctx.fillStyle = 'rgba(16, 14, 19, 0.5)';
+                ctx.strokeStyle = 'rgba(70, 62, 55, 0.3)';
                 ctx.lineWidth = 1;
             }
             this.roundRect(ctx, cx, cy, cardW, cardH, 6);
@@ -1837,16 +2612,16 @@ export class TitleScreenSystem {
             ctx.textAlign = 'left';
             if (item.discovered) {
                 const displayName = item.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                ctx.font = 'bold 12px Arial, sans-serif';
-                ctx.fillStyle = '#E0E0F0';
+                ctx.font = 'bold 12px Georgia, serif';
+                ctx.fillStyle = this.theme.textPrimary;
                 ctx.fillText(displayName, cx + 8, cy + 22);
 
-                ctx.font = '11px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(180, 180, 200, 0.6)';
+                ctx.font = '11px Georgia, serif';
+                ctx.fillStyle = this.theme.textMuted;
                 ctx.fillText(`Seen ${item.count}x`, cx + 8, cy + 42);
             } else {
-                ctx.font = 'bold 20px Arial, sans-serif';
-                ctx.fillStyle = 'rgba(80, 70, 100, 0.5)';
+                ctx.font = 'bold 20px Georgia, serif';
+                ctx.fillStyle = 'rgba(110, 100, 85, 0.45)';
                 ctx.textAlign = 'center';
                 ctx.fillText('?', cx + cardW / 2, cy + cardH / 2 + 6);
             }
@@ -1862,29 +2637,18 @@ export class TitleScreenSystem {
             }
             const overallPct = totalAll > 0 ? Math.round((totalDisc / totalAll) * 100) : 0;
             ctx.textAlign = 'center';
-            ctx.font = '12px Arial, sans-serif';
-            ctx.fillStyle = 'rgba(180, 180, 200, 0.5)';
+            ctx.font = '12px Georgia, serif';
+            ctx.fillStyle = this.theme.textMuted;
             ctx.fillText(`Overall Completion: ${totalDisc}/${totalAll} (${overallPct}%)`, w / 2, panelY + panelH - 72);
         }
 
         // Back button
-        const backW = 140;
+        const backW = 220;
         const backH = 38;
         const backX = (w - backW) / 2;
         const backY = panelY + panelH - 52;
         this._codexBackRect = { x: backX, y: backY, w: backW, h: backH };
-
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 14px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - RETURN TO MENU', w / 2, backY + backH / 2 + 1);
+        this._backButton(ctx, w, this._codexBackRect, 'ESC  ·  RETURN TO MENU');
     }
 
     handleCodexInput(k) {
@@ -1930,7 +2694,7 @@ export class TitleScreenSystem {
         const settings = sm ? sm.settings : {};
 
         // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.fillStyle = 'rgba(4, 3, 7, 0.88)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel
@@ -1939,47 +2703,26 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-        bgGrad.addColorStop(0, '#1c1528');
-        bgGrad.addColorStop(1, '#0e0b14');
-        ctx.fillStyle = bgGrad;
-        ctx.strokeStyle = '#3a2845';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 30;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.stroke();
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'SETTINGS');
 
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 28px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
-        ctx.shadowBlur = 15;
-        ctx.fillText('SETTINGS', w / 2, panelY + 38);
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = 'transparent';
-
-        // Settings items definition
+        // Settings items definition — authored icon glyphs, no emoji
         const items = [
-            { key: 'masterVolume', label: 'Master Volume', type: 'slider', icon: '\u{1F50A}' },
-            { key: 'musicVolume', label: 'Music Volume', type: 'slider', icon: '\u{1F3B5}' },
-            { key: 'sfxVolume', label: 'SFX Volume', type: 'slider', icon: '\u{1F3B6}' },
-            { key: 'particleEffects', label: 'Particle Effects', type: 'toggle', icon: '\u{2728}' },
-            { key: 'screenShake', label: 'Screen Shake', type: 'toggle', icon: '\u{1F4F3}' },
-            { key: 'damageNumbers', label: 'Damage Numbers', type: 'toggle', icon: '\u{1F4A5}' },
-            { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: '\u{26A1}' },
-            { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: '\u{2699}' },
-            { key: 'showFPS', label: 'Show FPS', type: 'toggle', icon: '\u{1F4CA}' },
-            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: '\u{23F8}' }
+            { key: 'masterVolume', label: 'Master Volume', type: 'slider', icon: 'speaker' },
+            { key: 'musicVolume', label: 'Music Volume', type: 'slider', icon: 'note' },
+            { key: 'sfxVolume', label: 'SFX Volume', type: 'slider', icon: 'note' },
+            { key: 'particleEffects', label: 'Particle Effects', type: 'toggle', icon: 'spark' },
+            { key: 'screenShake', label: 'Screen Shake', type: 'toggle', icon: 'shake' },
+            { key: 'damageNumbers', label: 'Damage Numbers', type: 'toggle', icon: 'burst' },
+            { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: 'gauge' },
+            { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: 'gear' },
+            { key: 'showFPS', label: 'Show FPS', type: 'toggle', icon: 'eye' },
+            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: 'pause' }
         ];
 
         const itemH = 36;
         const itemGap = 4;
-        const startY = panelY + 70;
+        const startY = panelY + 78;
         const contentX = panelX + 30;
         const contentW = panelW - 60;
         this._settingsItemRects = [];
@@ -1993,12 +2736,12 @@ export class TitleScreenSystem {
 
             // Row background
             if (isSelected) {
-                ctx.fillStyle = 'rgba(255, 215, 0, 0.08)';
-                ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+                ctx.fillStyle = 'rgba(216, 180, 106, 0.10)';
+                ctx.strokeStyle = 'rgba(216, 180, 106, 0.35)';
                 ctx.lineWidth = 1;
             } else {
-                ctx.fillStyle = 'rgba(30, 22, 40, 0.4)';
-                ctx.strokeStyle = 'rgba(60, 45, 80, 0.2)';
+                ctx.fillStyle = 'rgba(24, 22, 28, 0.45)';
+                ctx.strokeStyle = 'rgba(80, 72, 62, 0.25)';
                 ctx.lineWidth = 1;
             }
             this.roundRect(ctx, contentX, iy, contentW, itemH, 6);
@@ -2006,11 +2749,13 @@ export class TitleScreenSystem {
             ctx.stroke();
 
             // Icon + label
+            this._icon(ctx, item.icon, contentX + 18, iy + itemH / 2, 8,
+                isSelected ? this.theme.brass : 'rgba(190, 175, 145, 0.7)');
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.font = '14px Arial, sans-serif';
-            ctx.fillStyle = isSelected ? '#FFD700' : '#C0C0D0';
-            ctx.fillText(`${item.icon}  ${item.label}`, contentX + 12, iy + itemH / 2);
+            ctx.font = '14px Georgia, serif';
+            ctx.fillStyle = isSelected ? '#F0E2BC' : '#CFC6B2';
+            ctx.fillText(item.label, contentX + 36, iy + itemH / 2);
 
             const val = settings[item.key];
 
@@ -2021,7 +2766,7 @@ export class TitleScreenSystem {
                 const sliderY = iy + itemH / 2;
                 const sliderH = 6;
 
-                ctx.fillStyle = 'rgba(40, 30, 55, 0.8)';
+                ctx.fillStyle = 'rgba(30, 27, 34, 0.85)';
                 this.roundRect(ctx, sliderX, sliderY - sliderH / 2, sliderW, sliderH, 3);
                 ctx.fill();
 
@@ -2029,8 +2774,8 @@ export class TitleScreenSystem {
                 const fillW = Math.max(0, (val || 0) * sliderW);
                 if (fillW > 0) {
                     const sGrad = ctx.createLinearGradient(sliderX, 0, sliderX + fillW, 0);
-                    sGrad.addColorStop(0, '#FFD700');
-                    sGrad.addColorStop(1, '#D4A017');
+                    sGrad.addColorStop(0, '#D8B45A');
+                    sGrad.addColorStop(1, '#9A7A30');
                     ctx.fillStyle = sGrad;
                     this.roundRect(ctx, sliderX, sliderY - sliderH / 2, fillW, sliderH, 3);
                     ctx.fill();
@@ -2039,7 +2784,7 @@ export class TitleScreenSystem {
                 // Value text
                 ctx.textAlign = 'right';
                 ctx.font = 'bold 12px "Courier New", monospace';
-                ctx.fillStyle = isSelected ? '#FFD700' : '#A0A0B0';
+                ctx.fillStyle = isSelected ? '#F0E2BC' : '#A39A85';
                 ctx.fillText(`${Math.round((val || 0) * 100)}%`, contentX + contentW - 12, iy + itemH / 2);
 
             } else if (item.type === 'toggle') {
@@ -2050,8 +2795,8 @@ export class TitleScreenSystem {
                 const pillY = iy + (itemH - pillH) / 2;
                 const isOn = !!val;
 
-                ctx.fillStyle = isOn ? 'rgba(68, 204, 136, 0.3)' : 'rgba(80, 60, 100, 0.3)';
-                ctx.strokeStyle = isOn ? '#44CC88' : 'rgba(100, 80, 130, 0.5)';
+                ctx.fillStyle = isOn ? 'rgba(76, 175, 125, 0.25)' : 'rgba(60, 55, 50, 0.4)';
+                ctx.strokeStyle = isOn ? '#4CAF7D' : 'rgba(120, 110, 95, 0.5)';
                 ctx.lineWidth = 1;
                 this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
                 ctx.fill();
@@ -2060,7 +2805,7 @@ export class TitleScreenSystem {
                 // Toggle knob
                 const knobR = 6;
                 const knobX = isOn ? pillX + pillW - knobR - 3 : pillX + knobR + 3;
-                ctx.fillStyle = isOn ? '#44CC88' : '#666';
+                ctx.fillStyle = isOn ? '#4CAF7D' : '#7A7264';
                 ctx.beginPath();
                 ctx.arc(knobX, pillY + pillH / 2, knobR, 0, Math.PI * 2);
                 ctx.fill();
@@ -2074,16 +2819,16 @@ export class TitleScreenSystem {
         const resetY = panelY + panelH - 90;
         this._settingsResetRect = { x: resetX, y: resetY, w: resetW, h: resetH };
 
-        ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
-        ctx.strokeStyle = 'rgba(139, 69, 19, 0.6)';
+        ctx.fillStyle = 'rgba(139, 60, 30, 0.25)';
+        ctx.strokeStyle = 'rgba(180, 90, 50, 0.5)';
         ctx.lineWidth = 1;
-        this.roundRect(ctx, resetX, resetY, resetW, resetH, 8);
+        this.roundRect(ctx, resetX, resetY, resetW, resetH, 6);
         ctx.fill();
         ctx.stroke();
 
         ctx.textAlign = 'center';
-        ctx.font = 'bold 12px Arial, sans-serif';
-        ctx.fillStyle = '#DAA520';
+        ctx.font = 'bold 12px Georgia, serif';
+        ctx.fillStyle = '#D8A05A';
         ctx.fillText('Reset to Defaults', resetX + resetW / 2, resetY + resetH / 2 + 1);
 
         // Back button
@@ -2092,18 +2837,7 @@ export class TitleScreenSystem {
         const backX = w / 2 + 10;
         const backY = panelY + panelH - 90;
         this._settingsBackRect = { x: backX, y: backY, w: backW, h: backH };
-
-        ctx.fillStyle = this.theme.backFill;
-        ctx.strokeStyle = this.theme.backStroke;
-        ctx.lineWidth = 1;
-        this.roundRect(ctx, backX, backY, backW, backH, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 12px Arial, sans-serif';
-        ctx.fillStyle = '#E0E0E0';
-        ctx.fillText('ESC - Back', backX + backW / 2, backY + backH / 2 + 1);
+        this._backButton(ctx, w, this._settingsBackRect, 'ESC  ·  BACK');
     }
 
     handleSettingsInput(k) {
@@ -2205,7 +2939,7 @@ export class TitleScreenSystem {
         const h = this.game.canvas.height;
 
         // Dim overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillStyle = 'rgba(3, 3, 6, 0.68)';
         ctx.fillRect(0, 0, w, h);
 
         // Panel — compact centered card
@@ -2214,53 +2948,25 @@ export class TitleScreenSystem {
         const panelX = (w - panelW) / 2;
         const panelY = (h - panelH) / 2;
 
-        const bgGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-        bgGrad.addColorStop(0, 'rgba(22, 14, 36, 0.97)');
-        bgGrad.addColorStop(1, 'rgba(12, 8, 20, 0.97)');
-        ctx.fillStyle = bgGrad;
-        ctx.strokeStyle = 'rgba(214, 138, 68, 0.6)';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 30;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-        ctx.stroke();
-
-        // Header
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = 'bold 34px "Cinzel", "Times New Roman", serif';
-        ctx.fillStyle = '#FFD700';
-        ctx.shadowColor = 'rgba(255, 215, 0, 0.35)';
-        ctx.shadowBlur = 18;
-        ctx.fillText('PAUSED', w / 2, panelY + 50);
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = 'transparent';
-
-        // Divider
-        ctx.beginPath();
-        ctx.moveTo(panelX + 40, panelY + 80);
-        ctx.lineTo(panelX + panelW - 40, panelY + 80);
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.15)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        this._stonePanel(ctx, panelX, panelY, panelW, panelH, 12);
+        this._panelHeader(ctx, w, panelX, panelW, panelY, 'PAUSED');
 
         // Run info (compact)
         const runTimer = this.game.systems.runTimer;
         const elapsed = runTimer ? runTimer.elapsed : this.game.gameTime || 0;
         const wave = this.game.systems.enemy?.getCurrentWave?.() || 1;
         const level = this.game.player?.level || 1;
-        ctx.font = '13px Arial, sans-serif';
-        ctx.fillStyle = 'rgba(180, 180, 200, 0.55)';
-        ctx.fillText(`Lv ${level}  ·  Wave ${wave}  ·  ${this.formatTime(elapsed)}`, w / 2, panelY + 100);
+        ctx.font = '13px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.theme.textMuted;
+        ctx.fillText(`Lv ${level}   ·   Wave ${wave}   ·   ${this.formatTime(elapsed)}`, w / 2, panelY + 96);
 
         // Menu items
         const pauseItems = ['RESUME', 'SETTINGS', 'RETURN TO MENU'];
-        const itemH = 48;
+        const itemH = 46;
         const itemGap = 8;
-        const itemsStartY = panelY + 128;
+        const itemsStartY = panelY + 122;
         const itemW = panelW - 60;
         this._pauseMenuRects = [];
 
@@ -2271,50 +2977,32 @@ export class TitleScreenSystem {
             const isHovered = i === this.pauseHoveredIndex;
             const active = isSelected || isHovered;
 
-            this._pauseMenuRects.push({ x: ix, y: iy, w: itemW, h: itemH });
+            const rect = { x: ix, y: iy, w: itemW, h: itemH };
+            this._pauseMenuRects.push(rect);
+            this._stoneButton(ctx, rect, pauseItems[i], { active, fontSize: active ? 19 : 17 });
+        }
 
-            // Button bg
-            if (active) {
-                ctx.fillStyle = this.theme.accentFill;
-                ctx.strokeStyle = this.theme.accentStroke;
-                ctx.lineWidth = 2;
-            } else {
-                ctx.fillStyle = 'rgba(30, 22, 40, 0.5)';
-                ctx.strokeStyle = 'rgba(80, 60, 100, 0.3)';
-                ctx.lineWidth = 1;
-            }
-            this.roundRect(ctx, ix, iy, itemW, itemH, 10);
+        // Selection marker
+        const selRect = this._pauseMenuRects[this.pauseSelectedIndex];
+        if (selRect) {
+            const bounce = Math.sin(this.time * 4) * 3;
+            const dx = selRect.x - 14 + bounce;
+            const dy = selRect.y + selRect.h / 2;
+            ctx.fillStyle = this.theme.brass;
+            ctx.beginPath();
+            ctx.moveTo(dx, dy - 4);
+            ctx.lineTo(dx + 4, dy);
+            ctx.lineTo(dx, dy + 4);
+            ctx.lineTo(dx - 4, dy);
+            ctx.closePath();
             ctx.fill();
-            this.roundRect(ctx, ix, iy, itemW, itemH, 10);
-            ctx.stroke();
-
-            // Arrow indicator
-            if (active) {
-                const arrowBounce = Math.sin(this.time * 4) * 3;
-                ctx.font = 'bold 18px serif';
-                ctx.fillStyle = '#FFD700';
-                ctx.textAlign = 'right';
-                ctx.fillText('>', ix + 20 + arrowBounce, iy + itemH / 2);
-            }
-
-            // Label
-            if (active) {
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
-                ctx.shadowBlur = 12;
-            }
-            ctx.font = `bold ${active ? 22 : 20}px "Cinzel", "Times New Roman", serif`;
-            ctx.fillStyle = active ? '#FFD700' : this.theme.accentMuted;
-            ctx.textAlign = 'center';
-            ctx.fillText(pauseItems[i], w / 2, iy + itemH / 2);
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = 'transparent';
         }
 
         // Controls hint
-        ctx.font = '12px Arial, sans-serif';
-        ctx.fillStyle = 'rgba(180, 180, 200, 0.35)';
+        ctx.font = '12px Georgia, serif';
+        ctx.fillStyle = this.theme.textMuted;
         ctx.textAlign = 'center';
-        ctx.fillText('ESC to resume', w / 2, panelY + panelH - 18);
+        ctx.fillText('ESC to resume', w / 2, panelY + panelH - 16);
     }
 
     handlePauseInput(k) {
@@ -2463,17 +3151,27 @@ export class TitleScreenSystem {
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
+    /**
+     * Rounded-rect path. `r` is a number for uniform corners or
+     * {tl, tr, br, bl} for per-corner radii.
+     */
     roundRect(ctx, x, y, w, h, r) {
+        let tl, tr, br, bl;
+        if (typeof r === 'object' && r !== null) {
+            tl = r.tl || 0; tr = r.tr || 0; br = r.br || 0; bl = r.bl || 0;
+        } else {
+            tl = tr = br = bl = r;
+        }
         ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.moveTo(x + tl, y);
+        ctx.lineTo(x + w - tr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+        ctx.lineTo(x + w, y + h - br);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+        ctx.lineTo(x + bl, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+        ctx.lineTo(x, y + tl);
+        ctx.quadraticCurveTo(x, y, x + tl, y);
         ctx.closePath();
     }
 

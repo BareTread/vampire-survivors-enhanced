@@ -1,9 +1,11 @@
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
 import { VampireSurvivorsGame } from '../src/core/VampireSurvivorsGame.js';
+import { InputManager } from '../src/core/InputManager.js';
 import { Player } from '../src/entities/Player.js';
 import { GoldSystem } from '../src/systems/GoldSystem.js';
 import { PersistenceSystem } from '../src/systems/PersistenceSystem.js';
 import { RewardsSystem } from '../src/systems/RewardsSystem.js';
+import { InventoryOverlaySystem } from '../src/systems/InventoryOverlaySystem.js';
 import { ProgressionTelemetry } from '../src/debug/ProgressionTelemetry.js';
 
 const createInputManager = () => {
@@ -137,6 +139,98 @@ describe('Runtime regression coverage', () => {
         expect(game.inputManager.listeners.get('keyUp')).toHaveLength(0);
         expect(game.inputManager.listeners.get('click')).toHaveLength(0);
         expect(game.inputManager.listeners.get('rightClick')).toHaveLength(0);
+    });
+    test('evade travels a short normalized burst and only protects during the burst', () => {
+        const game = createPlayerGame();
+        game.gameState = 'playing';
+        game.timeScale = 1;
+        game.inputManager.getMovementVector = () => ({ x: Math.SQRT1_2, y: Math.SQRT1_2 });
+        game.systems.terrain = { isPositionValid: () => true };
+        const player = new Player(game, 0, 0);
+
+        expect(player.startDash()).toBe(true);
+        expect(player.takeDamage(10)).toBe(false);
+        player.update(0.1);
+        expect(Math.hypot(player.x, player.y)).toBeGreaterThan(40);
+        expect(Math.abs(player.x - player.y)).toBeLessThan(0.001);
+
+        const remaining = player.dash.cooldown;
+        game.gameState = 'paused';
+        expect(player.startDash()).toBe(false);
+        expect(player.dash.cooldown).toBe(remaining);
+        game.gameState = 'playing';
+        player.update(0.1);
+        expect(player.dash.active).toBe(false);
+        expect(player.takeDamage(10)).toBe(true);
+        expect(player.health).toBeLessThan(player.maxHealth);
+        expect(player.startDash()).toBe(false);
+
+        player.update(2.3);
+        expect(player.startDash()).toBe(true);
+        player.destroy();
+    });
+
+    test('evade stops at the first blocked step instead of crossing terrain', () => {
+        const game = createPlayerGame();
+        game.gameState = 'playing';
+        game.timeScale = 1;
+        game.inputManager.getMovementVector = () => ({ x: 1, y: 0 });
+        game.systems.terrain = { isPositionValid: (x) => x < 35 };
+        const player = new Player(game, 0, 0);
+
+        expect(player.startDash()).toBe(true);
+        player.update(0.18);
+        expect(player.x).toBeGreaterThan(0);
+        expect(player.x).toBeLessThan(35);
+        expect(player.y).toBe(0);
+        expect(player.dash.active).toBe(false);
+        player.destroy();
+    });
+
+    test('build inventory blocks evasion and Escape resumes without opening pause menu', () => {
+        const game = createPlayerGame();
+        game.gameState = 'playing';
+        game.timeScale = 1;
+        game.inputManager.getMovementVector = () => ({ x: 1, y: 0 });
+        game.systems.titleScreen = {};
+        game.systems.inventory = new InventoryOverlaySystem(game);
+        game.pauseGame = VampireSurvivorsGame.prototype.pauseGame.bind(game);
+        const player = new Player(game, 0, 0);
+
+        game.systems.inventory.show();
+        game.timeScale = 1; // Camera hit-stop may restore this while inspecting the build.
+        expect(player.startDash()).toBe(false);
+        VampireSurvivorsGame.prototype.handleKeyDown.call(game, 'Escape');
+        expect(game.systems.inventory.visible).toBe(false);
+        expect(game.gameState).toBe('playing');
+        expect(game.timeScale).toBe(1);
+        expect(player.startDash()).toBe(true);
+        player.destroy();
+    });
+
+    test('focus loss releases movement and held Space before accepting another press', () => {
+        const canvas = document.createElement('canvas');
+        document.body.appendChild(canvas);
+        const input = new InputManager(canvas);
+        const presses = [];
+        input.on('keyDown', (key) => presses.push(key));
+
+        try {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+            expect(input.getMovementVector().y).toBe(-1);
+            expect(presses.filter((key) => key === ' ')).toHaveLength(1);
+
+            window.dispatchEvent(new Event('blur'));
+            expect(input.getMovementVector().y).toBe(0);
+            expect(input.isKeyDown(' ')).toBe(false);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+            expect(presses.filter((key) => key === ' ')).toHaveLength(2);
+        } finally {
+            input.destroy();
+            canvas.remove();
+        }
     });
 
     test('permanent upgrades affect max health, xp gain, armor, and revival in live player state', () => {

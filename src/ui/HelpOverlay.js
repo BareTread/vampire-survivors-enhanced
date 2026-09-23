@@ -46,6 +46,8 @@ export class HelpOverlay {
                     <span>Move character</span>
                     <span style="color: #AAA;">Mouse</span>
                     <span>Aim direction</span>
+                    <span style="color: #AAA;">Space</span>
+                    <span>Evade in your movement direction; recharge between uses</span>
                 </div>
             </div>
             
@@ -58,6 +60,8 @@ export class HelpOverlay {
                     <span>Settings Menu</span>
                     <span style="color: #AAA;">1-5</span>
                     <span>Select upgrade option</span>
+                    <span style="color: #AAA;">Tab</span>
+                    <span>Inspect weapons, passives, and evolutions</span>
                 </div>
             </div>
             

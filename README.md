@@ -3,7 +3,7 @@
 A high-performance browser-based survival action game built with vanilla JavaScript and HTML5 Canvas. Fight endless waves of enemies, collect experience gems, level up, and survive as long as you can!
 
 ![Game Screenshot](https://img.shields.io/badge/Status-Playable-brightgreen)
-![Performance](https://img.shields.io/badge/Performance-144%20FPS-blue)
+![Performance target](https://img.shields.io/badge/Target-60%2B%20FPS-blue)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6%20Modules-yellow)
 ![Canvas](https://img.shields.io/badge/HTML5-Canvas%202D-orange)
 
@@ -11,9 +11,10 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 
 ### Core Gameplay
 
-- **Multiple Weapon Types**: Magic Missile, Whip, Throwing Knife with unique behaviors
+- **Ten Weapons**: Distinct ranged, melee, orbiting, area, freezing, and bleeding builds
 - **Auto-targeting Combat**: Weapons automatically target nearest enemies
 - **Experience System**: Collect gems, level up, choose upgrades
+- **Directional Evade**: Space triggers a short, terrain-aware burst with brief immunity and a 2.4-second cooldown
 - **Wave-based Progression**: Increasingly challenging enemy waves
 - **Enemy Variants**: 15% chance for enhanced enemies with special indicators
 - **Kill Streak System**: Consecutive kills unlock bonus rewards
@@ -22,17 +23,19 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 
 - **Lucky Gems**: 5% chance for gems worth 5x experience with special effects
 - **Enhanced Visual Effects**: Professional sprite system with procedural generation
-- **Layered Rendering**: 15-30% FPS boost through canvas layer separation
+- **Cached World Art**: Procedural terrain, obstacles, hunters, and enemy silhouettes are baked for reuse
 - **Performance Dashboard**: Real-time monitoring with F2 key
 - **Adaptive Quality**: Automatic performance scaling based on hardware
 
 ### Visual Enhancements
 
-- **Sprite-based Rendering**: Procedural sprite generation for all entities
+- **Readable Characters**: Hooded hunters and distinct enemy silhouettes replace plain circular bodies
 - **Enhanced Particle Effects**: High-impact, low-particle visual system
 - **Color-coded Damage Numbers**: 9 tiers of damage indication
 - **Screen Shake Effects**: Different shake patterns for various events
 - **Health Bar Improvements**: Color-coded with glow effects
+- **Gothic Interface**: Cathedral title scene, stone-panel menus, evade HUD, and animated run summary
+- **Informed Upgrades**: Next-level base-stat previews and evolution partners; build-fit labels never multiply stats
 
 ### Audio — Anti-Fatigue Gothic Synth Engine
 
@@ -55,7 +58,7 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 - **ECS Architecture**: Entity-Component-System for optimal performance
 - **Object Pooling**: Reusable objects for particles, projectiles, enemies
 - **Spatial Partitioning**: Efficient collision detection
-- **Layered Canvas Rendering**: Selective redrawing for 15-30% FPS improvement
+- **Cached Canvas Art**: Reused terrain patterns and entity sprites reduce repeated drawing work
 - **Frame Rate Management**: Target 60+ FPS with 350+ entities
 
 ### Memory Management
@@ -71,6 +74,8 @@ A high-performance browser-based survival action game built with vanilla JavaScr
 | ------------------------- | ------------------------------------ |
 | **WASD** / **Arrow Keys** | Move player                          |
 | **Mouse**                 | Look/aim direction                   |
+| **Space**                 | Directional evade; 2.4s recharge      |
+| **Tab**                   | Inspect build; Tab or ESC closes     |
 | **ESC**                   | Pause/Resume                         |
 | **1-5**                   | Select level-up options              |
 | **F1**                    | Settings Menu                        |
@@ -129,14 +134,13 @@ src/entities/
 - **Quality over Quantity**: Max 15 particles vs 150+ traditional
 - **Effect Templates**: Critical hits, level ups, enemy deaths
 - **Adaptive Quality**: Performance-based effect scaling
-- **Layer Separation**: Effects rendered on dedicated canvas layer
+- **Adaptive Detail**: Enemy overlays reduce detail during crowded scenes
 
 ## 📊 Performance Metrics
 
 - **Target Performance**: 60+ FPS with 350+ entities
-- **Actual Performance**: 144 FPS achieved (as shown in screenshot)
-- **Memory Usage**: ~834.5MB with optimizations
-- **Layer Efficiency**: 88.6% efficiency with layered rendering
+- **Verification**: A controlled browser fixture renders 240 enemies across 10 archetypes without runtime errors
+- **Scope**: Render-only fixture, not a sustained frame-rate or full-run balance benchmark
 - **Entity Handling**: 1 player + multiple enemies + projectiles + effects
 
 ## 🚦 Getting Started
@@ -152,6 +156,19 @@ src/entities/
 2. Start a local web server in the project directory
 3. Open `index.html` (or the server root) in your browser
 4. Use WASD to move, survive the waves!
+
+After updating an existing checkout, hard-refresh the browser (Ctrl+Shift+R) to discard cached ES modules.
+
+### September 2026 update
+
+- Preserves existing characters, weapons, evolutions, challenges, and saved progress.
+- Adds Space evasion, safe spawn placement, smoother pressure scaling, and focus-loss auto-pause.
+- Reworks title, loading, menus, HUD, world art, and run summary.
+- Upgrade drawing and pointer hit-testing share one responsive layout.
+- Fixes origin teleportation, build-overlay Escape behavior, stale upgrade state across runs, and frozen summary reveals.
+- Separates UI animation time from simulation time so death summaries animate while the world stays frozen.
+- Regression suite: `npm test -- --runInBand`. Browser checks cover menus, controls, upgrade selection after resizing, death, and replay.
+- Keyboard-first gameplay. Responsive menus do not imply touchscreen movement controls.
 
 ### Local Development
 

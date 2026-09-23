@@ -2,7 +2,7 @@ import { Enemy } from '../entities/Enemy.js';
 import { Wraith } from '../entities/enemies/Wraith.js';
 import { Demon } from '../entities/enemies/Demon.js';
 import { MathUtils } from '../utils/MathUtils.js';
-import { managedSetTimeout } from '../core/TimerManager.js';
+import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 
 export class EnemySystem {
     constructor(game) {
@@ -16,7 +16,7 @@ export class EnemySystem {
         // Spawning configuration - tuned for earlier engagement
         this.spawnRate = 1.8; // Starting enemies per second — default mode should feel active immediately
         this.spawnTimer = 0;
-        this.spawnDistance = 350; // Balanced spawn distance for visibility
+        this.spawnDistance = 270; // First threats begin on-screen, still outside immediate attack range
         this.despawnDistance = 600; // Distance at which to despawn enemies
 
         // Wave system - tuned to reach real pressure sooner
@@ -273,7 +273,6 @@ export class EnemySystem {
         // Track player performance for dynamic difficulty
         if (!this.game.player) return;
 
-        const safeDt = Math.max(0, dt || 0);
 
         const player = this.game.player;
         const healthPercent = player.health / player.maxHealth;
@@ -282,22 +281,16 @@ export class EnemySystem {
         this.performanceTracking.playerHealthAverage =
             this.performanceTracking.playerHealthAverage * 0.95 + healthPercent * 0.05;
 
-        // Track time since last damage
-        if (player.health < player.maxHealth) {
-            this.performanceTracking.timeSinceLastDamage = 0;
-        } else {
-            this.performanceTracking.timeSinceLastDamage += safeDt;
-        }
+        this.performanceTracking.timeSinceLastDamage =
+            Math.max(0, this.game.gameTime - player.streaks.lastDamageTime);
 
-        // Calculate complacency multiplier - punish players who are too comfortable
-        if (this.performanceTracking.playerHealthAverage > 0.7 && this.performanceTracking.timeSinceLastDamage > 60) {
-            // Player has been above 70% health for over 60 seconds - increase difficulty!
-            this.performanceTracking.complacencyMultiplier = 1.5;
+        // Ease into extra pressure rather than applying an invisible 50% jump at 25s.
+        if (this.performanceTracking.playerHealthAverage > 0.7) {
+            this.performanceTracking.complacencyMultiplier =
+                1 + Math.min(0.15, Math.max(0, this.performanceTracking.timeSinceLastDamage - 25) * 0.005);
         } else if (this.performanceTracking.playerHealthAverage < 0.25) {
-            // Player struggling - slight mercy
             this.performanceTracking.complacencyMultiplier = 0.8;
         } else {
-            // Normal difficulty
             this.performanceTracking.complacencyMultiplier = 1.0;
         }
     }
@@ -412,30 +405,22 @@ export class EnemySystem {
         const pattern = this.chooseSpawnPattern();
 
         // Get spawn position
-        const spawnPos = this.spawnPatterns[pattern](enemyType);
+        let spawnPos = this.spawnPatterns[pattern](enemyType);
         if (!spawnPos) return;
 
-        // Nudge spawn position if it overlaps an obstacle
-        if (this.game.systems.terrain && !this.game.systems.terrain.isPositionValid(spawnPos.x, spawnPos.y, 20)) {
-            // Try a few offset positions
-            const offsets = [
-                { x: 50, y: 0 },
-                { x: -50, y: 0 },
-                { x: 0, y: 50 },
-                { x: 0, y: -50 }
-            ];
-            let nudged = false;
-            for (const off of offsets) {
-                const nx = spawnPos.x + off.x;
-                const ny = spawnPos.y + off.y;
-                if (this.game.systems.terrain.isPositionValid(nx, ny, 20)) {
-                    spawnPos.x = nx;
-                    spawnPos.y = ny;
-                    nudged = true;
+        if (!this.isSpawnSafe(spawnPos.x, spawnPos.y)) {
+            spawnPos = null;
+            for (let attempt = 0; attempt < 8; attempt++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = this.spawnDistance + (Math.random() - 0.5) * 100;
+                const x = this.game.player.x + Math.cos(angle) * distance;
+                const y = this.game.player.y + Math.sin(angle) * distance;
+                if (this.isSpawnSafe(x, y)) {
+                    spawnPos = { x, y };
                     break;
                 }
             }
-            if (!nudged) return; // Skip this spawn if no valid position found
+            if (!spawnPos) return;
         }
 
         // Get enemy from pool
@@ -458,6 +443,24 @@ export class EnemySystem {
         }
 
         this.activeEnemies.push(enemy);
+    }
+
+    isSpawnSafe(x, y) {
+        const player = this.game.player;
+        if (!player || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+        const dx = x - player.x;
+        const dy = y - player.y;
+        if (dx * dx + dy * dy < 130 * 130) return false;
+        const terrain = this.game.systems.terrain;
+        if (terrain && !terrain.isPositionValid(x, y, 22)) return false;
+        for (const enemy of this.activeEnemies) {
+            if (!enemy.active) continue;
+            const ex = x - enemy.x;
+            const ey = y - enemy.y;
+            const spacing = enemy.size + 22;
+            if (ex * ex + ey * ey < spacing * spacing) return false;
+        }
+        return true;
     }
 
     chooseEnemyType() {
@@ -788,12 +791,11 @@ export class EnemySystem {
         const angle = Math.random() * Math.PI * 2;
         const distance = this.spawnDistance * 1.5; // Spawn bosses further away
 
-        const enemy = this.getEnemyFromPool('elite');
-        if (!enemy) return;
-
         const x = player.x + Math.cos(angle) * distance;
         const y = player.y + Math.sin(angle) * distance;
-
+        if (!this.isSpawnSafe(x, y)) return;
+        const enemy = this.getEnemyFromPool('elite');
+        if (!enemy) return;
         enemy.reset(x, y, 'elite');
 
         // Boss buffs
@@ -971,6 +973,7 @@ export class EnemySystem {
             const y = player.y + Math.sin(finalAngle) * distance;
 
             const enemyType = this.chooseEnemyType();
+            if (!this.isSpawnSafe(x, y)) continue;
             const enemy = this.getEnemyFromPool(enemyType);
             if (!enemy) continue;
 
@@ -993,6 +996,7 @@ export class EnemySystem {
             const x = player.x + Math.cos(angle) * radius;
             const y = player.y + Math.sin(angle) * radius;
 
+            if (!this.isSpawnSafe(x, y)) continue;
             const enemyType = this.chooseEnemyType();
             const enemy = this.getEnemyFromPool(enemyType);
             if (!enemy) continue;
@@ -1017,6 +1021,7 @@ export class EnemySystem {
             const angle = baseAngle + spread;
             const x = player.x + Math.cos(angle) * distance;
             const y = player.y + Math.sin(angle) * distance;
+            if (!this.isSpawnSafe(x, y)) continue;
 
             const enemy = this.getEnemyFromPool('fast');
             if (!enemy) continue;
@@ -1039,6 +1044,7 @@ export class EnemySystem {
             const angle = angleStep * i;
             const x = player.x + Math.cos(angle) * radius;
             const y = player.y + Math.sin(angle) * radius;
+            if (!this.isSpawnSafe(x, y)) continue;
 
             const enemy = this.getEnemyFromPool('ranged');
             if (!enemy) continue;
@@ -1123,6 +1129,7 @@ export class EnemySystem {
 
     // Reset for new game
     reset() {
+        globalTimerManager.clearContext(this);
         // Return all active enemies to pools
         for (const enemy of this.activeEnemies) {
             enemy.active = false;
@@ -1143,6 +1150,15 @@ export class EnemySystem {
         this.waveType = 'normal';
         this.enemySpeedMultiplier = 1.0;
         this.waveDuration = 40;
+        this.surgeSpawnMultiplier = 1.0;
+        this.surgeEliteBonus = 0;
+        this.pressureSurgeActive = false;
+        this.pressureSurgeTimer = 0;
+        this.nextSurgeTime = 150;
+        this.currentPattern = 'random';
+        this.performanceTracking.playerHealthAverage = 1.0;
+        this.performanceTracking.timeSinceLastDamage = 0;
+        this.performanceTracking.complacencyMultiplier = 1.0;
     }
 
     /**
@@ -1207,6 +1223,7 @@ export class EnemySystem {
                                 const a  = Math.random() * Math.PI * 2;
                                 const cx = elite.x + Math.cos(a) * 60;
                                 const cy = elite.y + Math.sin(a) * 60;
+                                if (!this.isSpawnSafe(cx, cy)) continue;
                                 const clone = this.getEnemyFromPool('fast');
                                 if (clone) {
                                     clone.reset(cx, cy, 'fast');

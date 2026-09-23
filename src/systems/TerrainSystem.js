@@ -93,9 +93,9 @@ export class TerrainSystem {
 
             // Check spacing with existing obstacles
             let tooClose = false;
-            for (const obs of this.obstacles) {
-                const dx = x - obs.x;
-                const dy = y - obs.y;
+            for (const other of this.obstacles) {
+                const dx = x - other.x;
+                const dy = y - other.y;
                 if (dx * dx + dy * dy < minSpacing * minSpacing) {
                     tooClose = true;
                     break;
@@ -103,14 +103,16 @@ export class TerrainSystem {
             }
             if (tooClose) continue;
 
-            this.obstacles.push({
+            const obs = {
                 x, y,
                 type: chosen.type,
                 radius: chosen.radius,
                 seed: seededRandom(), // Per-instance visual variation
                 zone: zone.name,
                 colors
-            });
+            };
+            obs.sprite = this._bakeObstacle(obs);
+            this.obstacles.push(obs);
         }
     }
 
@@ -136,10 +138,9 @@ export class TerrainSystem {
         // Render obstacles on top of terrain, within camera view
         this.renderObstacles(renderer.ctx);
     }
-
     renderObstacles(ctx) {
         const cam = this.game.camera;
-        if (!cam) return;
+        if (!cam || !ctx) return;
 
         // Frustum cull: only render obstacles visible in camera + margin
         const margin = 100;
@@ -151,137 +152,220 @@ export class TerrainSystem {
         for (const obs of this.obstacles) {
             if (obs.x < vl || obs.x > vr || obs.y < vt || obs.y > vb) continue;
 
-            switch (obs.type) {
-                case 'rock':
-                    this.renderRock(ctx, obs);
-                    break;
-                case 'tombstone':
-                    this.renderTombstone(ctx, obs);
-                    break;
-                case 'deadTree':
-                    this.renderDeadTree(ctx, obs);
-                    break;
-                case 'ruinedWall':
-                    this.renderRuinedWall(ctx, obs);
-                    break;
+            if (obs.sprite) {
+                // Baked sprite: one drawImage per visible obstacle
+                ctx.drawImage(
+                    obs.sprite,
+                    obs.x - obs.sprite.width / 2,
+                    obs.y - obs.sprite.height / 2
+                );
+            } else {
+                // Headless/fallback path: paint directly
+                this._paintObstacle(ctx, obs, obs.x, obs.y);
             }
         }
     }
 
-    renderRock(ctx, obs) {
+    /**
+     * Bake an obstacle to an offscreen canvas once at generation time so the
+     * per-frame cost is a single drawImage. Returns null where no 2d context
+     * exists (tests/headless); renderObstacles falls back to _paintObstacle.
+     */
+    _bakeObstacle(obs) {
+        if (typeof document === 'undefined') return null;
+        const pad = Math.ceil(obs.radius * 1.3) + 8;
+        const size = Math.ceil(obs.radius * 2 + pad * 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        this._paintObstacle(ctx, obs, size / 2, size / 2);
+        return canvas;
+    }
+
+    // Single paint implementation shared by the baked sprite and the live
+    // fallback path. Draws centered on (cx, cy); visual footprint stays
+    // within ~radius so sprites never lie about the collision circle.
+    _paintObstacle(ctx, obs, cx, cy) {
+        switch (obs.type) {
+            case 'rock':
+                this._paintRock(ctx, obs, cx, cy);
+                break;
+            case 'tombstone':
+                this._paintTombstone(ctx, obs, cx, cy);
+                break;
+            case 'deadTree':
+                this._paintDeadTree(ctx, obs, cx, cy);
+                break;
+            case 'ruinedWall':
+                this._paintRuinedWall(ctx, obs, cx, cy);
+                break;
+        }
+    }
+
+    _paintRock(ctx, obs, cx, cy) {
         const r = obs.radius;
         const c = obs.colors || { body: '#555555', highlight: '#777777', shadow: 0.2 };
         ctx.save();
 
-        // Shadow
-        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
+        // Ground shadow
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow + 0.08})`;
         ctx.beginPath();
-        ctx.ellipse(obs.x + 3, obs.y + 4, r * 1.1, r * 0.7, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 3, cy + r * 0.45, r * 1.05, r * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Main rock body — irregular shape
+        // Irregular boulder silhouette
         ctx.fillStyle = c.body;
         ctx.beginPath();
         const points = 7;
         for (let i = 0; i < points; i++) {
             const angle = (i / points) * Math.PI * 2;
             const variation = 0.8 + obs.seed * 0.4 * Math.sin(angle * 3 + obs.seed * 10);
-            const px = obs.x + Math.cos(angle) * r * variation;
-            const py = obs.y + Math.sin(angle) * r * variation * 0.85;
+            const px = cx + Math.cos(angle) * r * variation;
+            const py = cy + Math.sin(angle) * r * variation * 0.85;
             if (i === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
         }
         ctx.closePath();
         ctx.fill();
 
-        // Lighter highlight on top-left
+        // Lit facet on the upper-left face
         ctx.fillStyle = c.highlight;
+        ctx.globalAlpha = 0.7;
         ctx.beginPath();
-        ctx.arc(obs.x - r * 0.2, obs.y - r * 0.2, r * 0.5, 0, Math.PI * 2);
+        ctx.moveTo(cx - r * 0.55, cy - r * 0.1);
+        ctx.lineTo(cx - r * 0.15, cy - r * 0.62);
+        ctx.lineTo(cx + r * 0.3, cy - r * 0.35);
+        ctx.lineTo(cx + r * 0.05, cy + r * 0.05);
+        ctx.closePath();
         ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Crack
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + r * 0.1, cy - r * 0.3);
+        ctx.lineTo(cx + r * 0.35, cy + r * 0.1);
+        ctx.lineTo(cx + r * 0.2, cy + r * 0.45);
+        ctx.stroke();
 
         ctx.restore();
     }
 
-    renderTombstone(ctx, obs) {
+    _paintTombstone(ctx, obs, cx, cy) {
         const r = obs.radius;
         const c = obs.colors || { body: '#6B6B6B', highlight: '#888888', shadow: 0.2 };
         ctx.save();
 
-        // Shadow
-        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
-        ctx.fillRect(obs.x - r * 0.5 + 2, obs.y - r * 0.3 + 3, r, r * 1.4);
-
-        // Tombstone body
-        ctx.fillStyle = c.body;
-        ctx.fillRect(obs.x - r * 0.5, obs.y - r * 0.3, r, r * 1.3);
-
-        // Rounded top
+        // Ground shadow
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow + 0.08})`;
         ctx.beginPath();
-        ctx.arc(obs.x, obs.y - r * 0.3, r * 0.5, Math.PI, 0);
+        ctx.ellipse(cx + 2, cy + r * 0.55, r * 0.75, r * 0.3, 0, 0, Math.PI * 2);
         ctx.fill();
+
+        // Slight seeded tilt — weathered, not pristine
+        ctx.translate(cx, cy + r * 0.5);
+        ctx.rotate((obs.seed - 0.5) * 0.22);
+        ctx.translate(-cx, -(cy + r * 0.5));
+
+        // Slab body with rounded top
+        ctx.fillStyle = c.body;
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.5, cy + r * 0.55);
+        ctx.lineTo(cx - r * 0.5, cy - r * 0.25);
+        ctx.arc(cx, cy - r * 0.25, r * 0.5, Math.PI, 0);
+        ctx.lineTo(cx + r * 0.5, cy + r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+
+        // Edge highlight on the lit side
+        ctx.strokeStyle = c.highlight;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.42, cy + r * 0.5);
+        ctx.lineTo(cx - r * 0.42, cy - r * 0.22);
+        ctx.stroke();
 
         // Cross engraving
         ctx.strokeStyle = c.highlight;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(obs.x, obs.y - r * 0.6);
-        ctx.lineTo(obs.x, obs.y + r * 0.3);
-        ctx.moveTo(obs.x - r * 0.25, obs.y - r * 0.2);
-        ctx.lineTo(obs.x + r * 0.25, obs.y - r * 0.2);
+        ctx.moveTo(cx, cy - r * 0.5);
+        ctx.lineTo(cx, cy + r * 0.25);
+        ctx.moveTo(cx - r * 0.22, cy - r * 0.15);
+        ctx.lineTo(cx + r * 0.22, cy - r * 0.15);
         ctx.stroke();
+
+        // Moss / grime at the base
+        ctx.fillStyle = 'rgba(40, 60, 35, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.5, r * 0.45, r * 0.14, 0, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     }
 
-    renderDeadTree(ctx, obs) {
+    _paintDeadTree(ctx, obs, cx, cy) {
         const r = obs.radius;
         const c = obs.colors || { body: '#5D4037', highlight: '#4E342E', shadow: 0.15 };
         ctx.save();
 
-        // Shadow
-        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
+        // Ground shadow
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow + 0.1})`;
         ctx.beginPath();
-        ctx.ellipse(obs.x + 3, obs.y + r * 0.8, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 3, cy + r * 0.7, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Trunk
+        // Gnarled tapered trunk
         ctx.fillStyle = c.body;
-        ctx.fillRect(obs.x - 3, obs.y - r * 0.5, 6, r * 1.3);
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy + r * 0.7);
+        ctx.lineTo(cx - 2.5, cy - r * 0.4);
+        ctx.lineTo(cx + 1, cy - r * 0.55);
+        ctx.lineTo(cx + 3.5, cy + r * 0.7);
+        ctx.closePath();
+        ctx.fill();
 
-        // Branches (bare, no leaves — dead tree)
+        // Bare branches
         ctx.strokeStyle = c.highlight;
-        ctx.lineWidth = 2;
-        // Left branch
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(obs.x, obs.y - r * 0.3);
-        ctx.lineTo(obs.x - r * 0.7, obs.y - r * 0.9);
+        ctx.moveTo(cx - 1, cy - r * 0.2);
+        ctx.lineTo(cx - r * 0.75, cy - r * 0.85);
         ctx.stroke();
-        // Right branch
         ctx.beginPath();
-        ctx.moveTo(obs.x, obs.y - r * 0.5);
-        ctx.lineTo(obs.x + r * 0.6, obs.y - r * 1.0);
+        ctx.moveTo(cx + 1, cy - r * 0.4);
+        ctx.lineTo(cx + r * 0.65, cy - r * 1.0);
         ctx.stroke();
-        // Small twig
-        ctx.lineWidth = 1;
+        // Twigs
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(obs.x - r * 0.7, obs.y - r * 0.9);
-        ctx.lineTo(obs.x - r * 0.5, obs.y - r * 1.1);
+        ctx.moveTo(cx - r * 0.75, cy - r * 0.85);
+        ctx.lineTo(cx - r * 0.55, cy - r * 1.1);
+        ctx.moveTo(cx - r * 0.75, cy - r * 0.85);
+        ctx.lineTo(cx - r * 0.95, cy - r * 1.0);
+        ctx.moveTo(cx + r * 0.65, cy - r * 1.0);
+        ctx.lineTo(cx + r * 0.45, cy - r * 1.2);
         ctx.stroke();
 
         ctx.restore();
     }
 
-    renderRuinedWall(ctx, obs) {
+    _paintRuinedWall(ctx, obs, cx, cy) {
         const r = obs.radius;
         const c = obs.colors || { body: '#7B7B7B', highlight: '#8E8E8E', shadow: 0.2 };
         ctx.save();
 
-        // Shadow
-        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow})`;
-        ctx.fillRect(obs.x - r * 0.8 + 3, obs.y - r * 0.2 + 3, r * 1.6, r * 0.7);
+        // Ground shadow
+        ctx.fillStyle = `rgba(0, 0, 0, ${c.shadow + 0.08})`;
+        ctx.beginPath();
+        ctx.ellipse(cx + 3, cy + r * 0.35, r * 0.95, r * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Stone blocks at varying heights
+        // Staggered stone blocks at varying heights
         const blocks = [
             { ox: -r * 0.7, h: r * 0.9, w: r * 0.5 },
             { ox: -r * 0.15, h: r * 1.2, w: r * 0.4 },
@@ -289,16 +373,15 @@ export class TerrainSystem {
         ];
 
         for (const block of blocks) {
-            const bx = obs.x + block.ox;
-            const by = obs.y + r * 0.3 - block.h;
+            const bx = cx + block.ox;
+            const by = cy + r * 0.3 - block.h;
 
-            // Main block
             ctx.fillStyle = c.body;
             ctx.fillRect(bx, by, block.w, block.h);
 
             // Mortar lines
-            ctx.strokeStyle = c.highlight;
-            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.lineWidth = 0.75;
             const rows = Math.floor(block.h / 8);
             for (let i = 1; i < rows; i++) {
                 ctx.beginPath();
@@ -311,6 +394,13 @@ export class TerrainSystem {
             ctx.fillStyle = c.highlight;
             ctx.fillRect(bx, by, block.w, 2);
         }
+
+        // Rubble at the base
+        ctx.fillStyle = c.body;
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.5, cy + r * 0.32, r * 0.14, 0, Math.PI * 2);
+        ctx.arc(cx + r * 0.55, cy + r * 0.34, r * 0.11, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     }

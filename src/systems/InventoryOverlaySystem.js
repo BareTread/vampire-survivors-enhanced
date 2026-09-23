@@ -63,7 +63,7 @@ export class InventoryOverlaySystem {
 
     hide() {
         this.visible = false;
-        this.game.timeScale = this._wasTimeScale || 1.0;
+        this.game.timeScale = this.game.gameState === 'playing' ? (this._wasTimeScale || 1.0) : 0;
     }
 
     update(dt) {
