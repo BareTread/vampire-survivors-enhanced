@@ -58,7 +58,7 @@ import { FloorItemSystem } from '../systems/FloorItemSystem.js';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
 import { LevelUpOverlay } from '../systems/LevelUpOverlay.js?v=20260924-pickups1';
-import { POWER_UPS, getProfile, listProfiles, LEVEL_UP_GRACE_SECONDS } from '../data/powerUps.js';
+import { POWER_UPS, getProfile, listProfiles } from '../data/powerUps.js';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
@@ -711,31 +711,31 @@ export class VampireSurvivorsGame {
         const p = this.player.powerUps || {};
 
         // Helper to push an entry
-        const pushEntry = (key, label, seconds, color, icon) => {
+        const pushEntry = (key, label, seconds, color) => {
             if (seconds > 0.05) {
-                entries.push({ key, label, seconds, color, icon });
+                entries.push({ key, label, seconds, color });
             }
         };
 
         // Speed
         if (p.speedBoost?.active) {
             const d = POWER_UPS.speedBoost;
-            pushEntry('speedBoost', d?.name || 'Speed', p.speedBoost.timer, d?.hudColor || d?.color || '#4ade80', d?.icon || '⚡');
+            pushEntry('speedBoost', d.name, p.speedBoost.timer, d.hudColor);
         }
         // Damage
         if (p.damageBoost?.active) {
             const d = POWER_UPS.damageBoost;
-            pushEntry('damageBoost', d?.name || 'Damage', p.damageBoost.timer, d?.hudColor || d?.color || '#f59e0b', d?.icon || '🗡️');
+            pushEntry('damageBoost', d.name, p.damageBoost.timer, d.hudColor);
         }
         // Fire rate
         if (p.fireRate?.active) {
             const d = POWER_UPS.fireRate;
-            pushEntry('fireRate', d?.name || 'Fire Rate', p.fireRate.timer, d?.hudColor || d?.color || '#60a5fa', d?.icon || '🔥');
+            pushEntry('fireRate', d.name, p.fireRate.timer, d.hudColor);
         }
         // Invincibility
         if (p.invincible?.active) {
             const d = POWER_UPS.invincible;
-            pushEntry('invincible', d?.name || 'Invincible', p.invincible.timer, d?.hudColor || d?.color || '#fde047', d?.icon || '🛡️');
+            pushEntry('invincible', d.name, p.invincible.timer, d.hudColor);
         }
         // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
         const playerMagnet = p.magnetBoost?.active ? p.magnetBoost.timer || 0 : 0;
@@ -750,7 +750,7 @@ export class VampireSurvivorsGame {
         const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
             const d = POWER_UPS.magnetBoost;
-            pushEntry('magnet', d?.name || 'Magnetic Field', magnetTime, d?.hudColor || d?.color || '#22d3ee', d?.icon || '🧲');
+            pushEntry('magnet', d.name, magnetTime, d.hudColor);
         }
         // Render compact pills with remaining time (no heavy DOM churn)
         if (entries.length === 0) {
@@ -775,7 +775,6 @@ export class VampireSurvivorsGame {
                         box-shadow: 0 0 10px rgba(0,0,0,0.35), inset 0 0 8px rgba(255,255,255,0.06);
                         pointer-events: none;
                     ">
-                    <span style="margin-right:6px;">${e.icon}</span>
                     <strong style="color:${e.color}">${e.label}</strong>
                     <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
                 </span>
@@ -1124,14 +1123,7 @@ export class VampireSurvivorsGame {
         this.gameState = 'playing';
         this.timeScale = 1.0; // Resume game
         if (this.player) {
-            if (typeof this.player.grantLevelUpGrace === 'function') {
-                this.player.grantLevelUpGrace();
-            } else {
-                this.player.levelUpGraceTimer = Math.max(
-                    this.player.levelUpGraceTimer || 0,
-                    LEVEL_UP_GRACE_SECONDS
-                );
-            }
+            this.player.grantLevelUpGrace();
         }
     }
 
@@ -1807,8 +1799,7 @@ export class VampireSurvivorsGame {
         }
 
         for (const key of this._simSteps) {
-            const system = this.systems[key];
-            if (system) system.update(dt);
+            this.systems[key].update(dt);
             if (this.gameState !== 'playing') return; // level-up opened mid-frame
         }
 
@@ -2834,8 +2825,7 @@ export class VampireSurvivorsGame {
             case 'health': {
                 // Never wasted: at full HP or when healing is disallowed the
                 // relic stays on the floor. heal() returns HP actually restored.
-                const fraction = def?.healFraction ?? 0.5;
-                const healed = this.player.heal(this.player.maxHealth * fraction) || 0;
+                const healed = this.player.heal(this.player.maxHealth * def.healFraction);
                 if (healed <= 0) return false;
                 this.player.callout?.(`+${Math.round(healed)} HP`, this.getPowerUpColor('health'), 2);
                 break;

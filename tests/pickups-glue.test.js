@@ -74,17 +74,21 @@ describe('queued level-ups stay paused (glue)', () => {
         expect(game.timeScale).toBe(1);
         expect(player.grantLevelUpGrace).toHaveBeenCalledTimes(1);
     });
-
-    test('grace falls back to a direct timer assignment', () => {
+    test('final pick grants level-up grace via the Player API', () => {
         const game = makeGame();
-        const player = { levelUpQueue: [], completeLevelUpSelection() {} };
+        const player = {
+            levelUpQueue: [],
+            completeLevelUpSelection() {},
+            grantLevelUpGrace: jest.fn()
+        };
         game.player = player;
         game.levelUpActive = true;
         game.gameState = 'levelUp';
         game.timeScale = 0;
 
         game.hideLevelUpUI();
-        expect(player.levelUpGraceTimer).toBeCloseTo(0.4, 5);
+        expect(game.gameState).toBe('playing');
+        expect(player.grantLevelUpGrace).toHaveBeenCalledTimes(1);
     });
 
     test('a hit-stop restore during selection cannot resume simulation', () => {
