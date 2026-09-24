@@ -151,6 +151,7 @@ export class GoldSystem {
                 // Lifetime (claimed coins are exempt — they cannot expire)
                 coin.lifetime -= dt;
                 if (coin.lifetime <= 0) {
+                    this.game.rewardTelemetry?.trackPickupExpired('coin', 'gold');
                     this.coins.splice(i, 1);
                     continue;
                 }
@@ -198,6 +199,8 @@ export class GoldSystem {
         const gainedGold = Math.floor(coin.value * challengeMult);
         this.runGold += gainedGold;
         this.collectedGold += gainedGold;
+        this.game.rewardTelemetry?.trackPickupCollected('coin', 'gold');
+        this.game.rewardTelemetry?.trackCoinBaseAwarded(coin.value);
 
         // Visual feedback
         if (globalDamageNumberPool) {

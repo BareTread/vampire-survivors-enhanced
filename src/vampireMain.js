@@ -378,6 +378,12 @@ window.debugCommands = {
     getDebugInfo: () => {
         return window.gameBootstrap?.game?.getDebugInfo();
     },
+    setRewardTelemetry: (enabled = true) => {
+        window.gameBootstrap?.game?.rewardTelemetry?.setEnabled(enabled !== false);
+    },
+    getRewardStats: () => {
+        return window.gameBootstrap?.game?.rewardTelemetry?.getStats();
+    },
     cleanupArtifacts: () => {
         console.log('🧹 Running artifact cleanup...');
 

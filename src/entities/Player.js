@@ -1092,6 +1092,7 @@ export class Player {
 
     updatePowerUps(dt) {
         if (dt > 0) this.combatTime += dt;
+        this.game.rewardTelemetry?.trackCombatFrame(dt);
         let strengthChanged = false;
         for (const name of Object.keys(this.powerUps)) {
             const powerUp = this.powerUps[name];
@@ -1505,6 +1506,7 @@ export class Player {
 
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
+        this.game.rewardTelemetry?.trackXPGranted(expGain);
 
         // FIXED: Process level-ups ONE AT A TIME with proper queuing
         if (!this.levelUpQueue) this.levelUpQueue = [];
