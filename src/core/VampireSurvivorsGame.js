@@ -31,7 +31,7 @@ import { RunSummarySystem } from '../systems/RunSummarySystem.js';
 import { CanvasHUD } from '../systems/CanvasHUD.js?v=20260924-pickups2';
 import { CHARACTERS } from '../data/characters.js';
 import { globalDamageNumberPool } from './DamageNumberPool.js';
-import { Camera } from './Camera.js';
+import { Camera } from './Camera.js?v=20260924-pickups2';
 import { Renderer } from './Renderer.js';
 import { GraphicsUpgrade } from './GraphicsUpgrade.js';
 import { World } from './ECS.js';
