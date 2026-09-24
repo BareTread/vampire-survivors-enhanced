@@ -148,6 +148,9 @@ describe('reward telemetry enable/disable/reset', () => {
         expect(stats.pickups.collected).toEqual({});
         expect(stats.pickups.expired).toEqual({});
         expect(stats.healing).toEqual({ requested: 0, actual: 0, wasted: 0 });
+        expect(stats.xp.dropped).toBe(0);
+        expect(stats.xp.awardedBase).toBe(0);
+        expect(stats.gold.dropped).toBe(0);
     });
 
     test('disabling freezes the snapshot; re-enabling opens a fresh window', () => {
@@ -164,6 +167,12 @@ describe('reward telemetry enable/disable/reset', () => {
         // Further combat does not move the frozen snapshot.
         for (let i = 0; i < 4; i++) step(game, player, 0.5);
         expect(tel.getStats().combatSeconds).toBeCloseTo(0.5, 6);
+
+        // A consumer must not be able to alter the recorder's frozen result.
+        frozen.buffs.damageBoost.seconds = 999;
+        frozen.xp.dropped = 999;
+        expect(tel.getStats().buffs.damageBoost.seconds).toBeCloseTo(0.5, 6);
+        expect(tel.getStats().xp.dropped).toBe(0);
 
         tel.setEnabled(true);
         expect(tel.getStats().combatSeconds).toBe(0);

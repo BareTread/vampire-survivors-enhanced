@@ -3,14 +3,14 @@
 // healing waste, and XP/gold conservation. Default off: when disabled every
 // entry point early-returns before touching counters, so it costs a couple
 // of property reads per frame and allocates nothing.
-import { HUD_BUFF_ORDER } from '../data/powerUps.js';
+import { HUD_BUFF_ORDER } from '../data/powerUps.js?v=20260924-pickups2';
 
 export class RewardTelemetry {
     constructor(game) {
         this.game = game;
         this.enabled = false;
-        this._frozen = null;
         this._reset();
+        this._frozen = this._snapshot();
     }
 
     /**
@@ -33,7 +33,7 @@ export class RewardTelemetry {
     /** New run: fresh stats. Honors opt-in — stays enabled if it was on. */
     onRunReset() {
         this._reset();
-        this._frozen = null;
+        this._frozen = this.enabled ? null : this._snapshot();
     }
 
     _reset() {
@@ -176,7 +176,7 @@ export class RewardTelemetry {
 
     /** Plain serializable snapshot; never enables collection. */
     getStats() {
-        return this._frozen || this._snapshot();
+        return this._frozen ? JSON.parse(JSON.stringify(this._frozen)) : this._snapshot();
     }
 
     _snapshot() {
