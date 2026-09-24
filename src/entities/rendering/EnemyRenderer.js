@@ -19,9 +19,24 @@
  *   elite → horned dreadlord · berserker → werebeast · summoner → necromancer
  *   juggernaut → stone golem · wraith → shroud · demon → winged imp
  */
-import { ENEMY_LAYOUT, getEnemySprite, enemyVisualTop, clearCharacterArtCache, artKind } from './CharacterArt.js';
+import { ENEMY_LAYOUT, getEnemySprite, enemyVisualTop, clearCharacterArtCache, artKind, LEAN_STEP } from './CharacterArt.js';
 
 const TAU = Math.PI * 2;
+const SHADOW_FILL = 'rgba(6, 3, 10, 0.38)';
+const ANIM_OUT = { facing: 1, frame: 0, hop: 0, float: 0, sx: 1, sy: 1, lean: 0 };
+
+// One clock read per frame instead of one per enemy
+let clockFrame = -1;
+let clockNow = 0;
+function frameNow() {
+    const t = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    // Re-read at most every ~4ms: all enemies in a frame share a timestamp
+    if (t - clockFrame > 4 || t < clockFrame) {
+        clockFrame = t;
+        clockNow = t * 0.001;
+    }
+    return clockNow;
+}
 
 export class EnemyRenderer {
     static render(enemy, renderer, detailLevel = 'high') {
@@ -32,7 +47,7 @@ export class EnemyRenderer {
 
         const kind = artKind(enemy);
         const layout = ENEMY_LAYOUT[kind] || ENEMY_LAYOUT.basic;
-        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+        const now = frameNow();
         const anim = EnemyRenderer._anim(enemy, now);
 
         ctx.save();
@@ -56,20 +71,14 @@ export class EnemyRenderer {
 
         const feetY = enemy.y + enemy.size * layout.feet;
 
-        // Ground shadow (flyers get a smaller, detached shadow)
-        const shadowScale = layout.fly ? 0.6 - anim.float * 0.02 : 1;
-        ctx.fillStyle = 'rgba(6, 3, 10, 0.38)';
-        ctx.beginPath();
-        ctx.ellipse(
-            enemy.x,
-            layout.fly ? enemy.y + enemy.size * 1.1 : feetY,
-            Math.max(2, enemy.size * 0.95 * shadowScale * deathSX),
-            Math.max(1, enemy.size * 0.34 * shadowScale),
-            0,
-            0,
-            TAU
-        );
-        ctx.fill();
+        // Ground shadow — normally drawn for the whole horde in the
+        // renderShadows pre-pass; only fading spawns/deaths draw their own.
+        if (enemy._shadowFrame !== EnemyRenderer._shadowFrame || enemy._shadowSelf) {
+            ctx.fillStyle = SHADOW_FILL;
+            ctx.beginPath();
+            EnemyRenderer._shadowEllipse(ctx, enemy, layout, anim.float, deathSX);
+            ctx.fill();
+        }
 
         // Champion variant sigil sits on the ground, under the body
         if (enemy.variant && detailLevel !== 'low' && typeof enemy.renderVariantIndicator === 'function') {
@@ -101,7 +110,25 @@ export class EnemyRenderer {
         const isGoldenSwarm = enemy.game?.systems?.dynamicEvents?.goldenSwarmActive;
         const frozen = enemy._frozenVisual;
         const variant = isFlashing ? 'flash' : isGoldenSwarm ? 'gold' : frozen ? 'frost' : 'normal';
-        const sprite = getEnemySprite(kind, enemy.color, enemy.size, anim.frame, variant);
+        // Lean is baked into the sprite (quantized) — a rotated drawImage
+        // costs ~2.5x a scaled one. In sprite space (after the facing flip)
+        // the world lean becomes facing * lean.
+        const leanStep = Math.round((anim.facing * anim.lean) / LEAN_STEP);
+        // Memo on the enemy: skips building a cache-key string per enemy per
+        // frame when nothing about its look changed since last frame.
+        let memo = enemy._spriteMemo;
+        if (!memo || memo.kind !== kind || memo.color !== enemy.color || memo.size !== enemy.size ||
+            memo.frame !== anim.frame || memo.variant !== variant || memo.lean !== leanStep) {
+            memo = memo || (enemy._spriteMemo = {});
+            memo.kind = kind;
+            memo.color = enemy.color;
+            memo.size = enemy.size;
+            memo.frame = anim.frame;
+            memo.variant = variant;
+            memo.lean = leanStep;
+            memo.sprite = getEnemySprite(kind, enemy.color, enemy.size, anim.frame, variant, leanStep);
+        }
+        const sprite = memo.sprite;
 
         if (sprite) {
             ctx.save();
@@ -115,7 +142,6 @@ export class EnemyRenderer {
                 ctx.translate(0, (1 - rise) * sprite.h * 0.9);
             }
 
-            ctx.rotate(anim.lean);
             ctx.scale(anim.facing * anim.sx * deathSX, anim.sy * deathSY);
             if (isGoldenSwarm && detailLevel !== 'low') {
                 ctx.shadowColor = '#FFD700';
@@ -149,6 +175,36 @@ export class EnemyRenderer {
         }
 
         ctx.restore();
+    }
+
+    /**
+     * Ground-shadow pre-pass: every shadow goes down before any body, so a
+     * shadow never darkens a neighbour's sprite. Spawning / dying enemies
+     * fade, so they keep drawing their own shadow at their own alpha.
+     */
+    static renderShadows(ctx, enemies) {
+        const frame = ++EnemyRenderer._shadowFrame;
+        ctx.fillStyle = SHADOW_FILL;
+        for (let i = 0; i < enemies.length; i++) {
+            const e = enemies[i];
+            e._shadowFrame = frame;
+            e._shadowSelf = e.dying || e.currentSpawnTime > 0;
+            if (e._shadowSelf) continue;
+            const layout = ENEMY_LAYOUT[artKind(e)] || ENEMY_LAYOUT.basic;
+            ctx.beginPath();
+            EnemyRenderer._shadowEllipse(ctx, e, layout, e._anim ? e._anim.float || 0 : 0, 1);
+            ctx.fill();
+        }
+    }
+
+    static _shadowEllipse(ctx, enemy, layout, float, deathSX) {
+        // Flyers get a smaller, detached shadow
+        const shadowScale = layout.fly ? 0.6 - float * 0.02 : 1;
+        const cy = layout.fly ? enemy.y + enemy.size * 1.1 : enemy.y + enemy.size * layout.feet;
+        const rx = Math.max(2, enemy.size * 0.95 * shadowScale * deathSX);
+        const ry = Math.max(1, enemy.size * 0.34 * shadowScale);
+        ctx.moveTo(enemy.x + rx, cy);
+        ctx.ellipse(enemy.x, cy, rx, ry, 0, 0, TAU);
     }
 
     /**
@@ -217,7 +273,18 @@ export class EnemyRenderer {
             lean -= a.facing * 0.18;
         }
 
-        return { facing: a.facing, frame, hop, float, sx, sy, lean };
+        a.float = float;
+        // Shared scratch result (consumed synchronously by render) — no
+        // per-enemy-per-frame allocation.
+        const out = ANIM_OUT;
+        out.facing = a.facing;
+        out.frame = frame;
+        out.hop = hop;
+        out.float = float;
+        out.sx = sx;
+        out.sy = sy;
+        out.lean = lean;
+        return out;
     }
 
     /**
@@ -247,6 +314,8 @@ export class EnemyRenderer {
             ctx.fillRect(x, y, w * ratio, 1);
         }
     }
+
+    static _shadowFrame = 0;
 
     static clearCache() {
         clearCharacterArtCache();

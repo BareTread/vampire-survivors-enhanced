@@ -16,7 +16,8 @@ export class SettingsMenu {
             lowFXMode: false,
             showFPS: false,
             autoQuality: true,
-            pauseOnFocusLoss: true
+            pauseOnFocusLoss: true,
+            highRefresh: false
         };
         
         // UI elements
@@ -340,7 +341,8 @@ export class SettingsMenu {
             lowFXMode: false,
             showFPS: false,
             autoQuality: true,
-            pauseOnFocusLoss: true
+            pauseOnFocusLoss: true,
+            highRefresh: false
         };
         
         // Update UI
@@ -407,6 +409,8 @@ export class SettingsMenu {
             this.game.qualitySettings.autoQuality = this.settings.autoQuality;
             this.game.qualitySettings.showFPS = this.settings.showFPS;
         }
+        // Off = render at ~60 FPS on 100Hz+ displays (half the CPU/GPU work)
+        this.game.uncappedFrameRate = !!this.settings.highRefresh;
         
         // Apply performance settings
         if (this.settings.lowFXMode) {

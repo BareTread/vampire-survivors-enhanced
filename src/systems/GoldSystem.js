@@ -152,11 +152,54 @@ export class GoldSystem {
         }
     }
 
+    /**
+     * Baked coin (glow + body + highlight). shadowBlur per coin per frame
+     * was one of the most expensive calls in a busy scene; the glow is
+     * identical every frame, so paint it once. Supersampled 2x.
+     */
+    static coinSprite(magnetized) {
+        const cache = GoldSystem._coinSprites || (GoldSystem._coinSprites = {});
+        const k = magnetized ? 'm' : 'n';
+        if (cache[k] !== undefined) return cache[k];
+        if (typeof document === 'undefined') return (cache[k] = null);
+        const SS = 2;
+        const half = 18; // world units from center to edge
+        const c = document.createElement('canvas');
+        c.width = c.height = half * 2 * SS;
+        const g = c.getContext('2d');
+        if (!g) return (cache[k] = null);
+        g.scale(SS, SS);
+        g.translate(half, half);
+        // Blur is in device pixels; world glow ≈ blur / typical zoom (1.33)
+        g.shadowColor = '#FFD700';
+        g.shadowBlur = (magnetized ? 12 : 6) * SS / 1.33;
+        g.fillStyle = '#FFD700';
+        g.beginPath();
+        g.arc(0, 0, 5, 0, Math.PI * 2);
+        g.fill();
+        g.shadowBlur = 0;
+        g.shadowColor = 'transparent';
+        g.fillStyle = '#FFEE88';
+        g.beginPath();
+        g.arc(-1, -1, 2, 0, Math.PI * 2);
+        g.fill();
+        return (cache[k] = { canvas: c, half });
+    }
+
     render(ctx) {
         for (const coin of this.coins) {
             const bob = Math.sin(coin.bobPhase) * 2;
             const fadeAlpha = coin.lifetime < 2 ? coin.lifetime / 2 : 1;
             const drawY = coin.y + bob;
+            const sprite = GoldSystem.coinSprite(!!coin.magnetized);
+
+            if (sprite) {
+                const prev = ctx.globalAlpha;
+                ctx.globalAlpha = prev * fadeAlpha;
+                ctx.drawImage(sprite.canvas, coin.x - sprite.half, drawY - sprite.half, sprite.half * 2, sprite.half * 2);
+                ctx.globalAlpha = prev;
+                continue;
+            }
 
             ctx.save();
             ctx.globalAlpha = fadeAlpha;

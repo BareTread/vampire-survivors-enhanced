@@ -184,6 +184,18 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-09-24 (Performance Pass — same pixels, ~55% less work per frame)
+
+**Profiled with CDP + per-process CPU sampling: main-thread JS was only ~3ms/frame even with 130 enemies; the CPU was going to canvas rasterization (full-screen gradients, a zoomed pattern floor, rotated sprite blits, shadowBlur). Crowd scene went from 34 FPS @ 117% CPU to a locked 60 FPS @ ~85% CPU (software raster, 1280×720). No leak found: 5-min soak keeps heap, DOM nodes, listeners and caches flat. 183/183 tests passing.**
+
+- **Rule of thumb (measured, software canvas 1280×720)**: full-screen radial gradient ≈ 2.9ms, zoomed pattern fill ≈ 8.4ms, 1:1 `drawImage` of a baked canvas ≈ 0.3ms. Rotated sprite `drawImage` ≈ 2.5× a scaled one. Bake anything that doesn't change per frame.
+- **Floor (`TerrainRenderer._blitFloor`)**: the stone pattern is pre-tiled at the current zoom into a screen-sized buffer and blitted 1:1 (scaled briefly during zoom animations, rebuilt once zoom settles). Removed the full-screen radial gradient under it — the tile is opaque, so it was never visible.
+- **Torchlight / vignette**: `renderTorchlight()` blits an oversized baked darkness canvas at the player's offset; `Camera.renderVignette()` bakes per viewport + 1/50 intensity step. Player lantern pool is a cached sprite (`SpriteManager._lightPool`).
+- **Enemies**: `EnemySystem.render()` culls to the viewport, depth-sorts by feet (nearer creatures overlap farther ones) and draws all ground shadows in a pre-pass. Lean is baked into sprites (`getEnemySprite(..., leanStep)`, 0.03 rad steps) so draws are scale-only; per-enemy sprite lookup is memoised; enemy sprite cache is bounded (700 entries).
+- **shadowBlur removed from hot paths**: coins use a baked glow sprite (`GoldSystem.coinSprite`), HUD panels are baked per size (`CanvasHUD._panel`), title-screen stone buttons are baked per label/state (`TitleScreenSystem._stoneButton`, keyed on font load state).
+- **High-refresh pacing**: `VampireSurvivorsGame._shouldSkipFrame()` measures vsync and renders every Nth frame on 100Hz+ displays (144Hz → 72 FPS, 240Hz → 60 FPS), halving work there. Settings → "Uncapped Frame Rate (120Hz+)" opts out (`settings.highRefresh` → `game.uncappedFrameRate`).
+- Kept `desynchronized: true` on the main context — measured ~30% lower CPU than without it.
+
 ### 2026-09-24 (Bestiary & Game-Feel Pass — upright animated art, living menus, juice)
 
 **Replaced every "blob" in the game with a cohesive, outlined, animated art style and fixed the bugs that were painting grey circles everywhere. 182/182 tests passing.**

@@ -501,19 +501,43 @@ export class Camera {
     }
     
     renderVignette(ctx) {
+        // Baked per viewport + intensity step (1/50) and blitted: the
+        // gradient only changes when health crosses a step, not per frame.
+        const level = Math.round(Math.min(1, this.effects.vignette) * 50);
+        if (level <= 0) return;
+        const w = Math.round(this.width);
+        const h = Math.round(this.height);
+        const v = this._vignette || (this._vignette = { canvas: null, key: '' });
+        const key = `${w}|${h}|${level}`;
+        if (v.key !== key && typeof document !== 'undefined') {
+            const c = v.canvas || document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const g = c.getContext('2d');
+            const gradient = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            gradient.addColorStop(1, `rgba(0, 0, 0, ${level / 50})`);
+            g.fillStyle = gradient;
+            g.fillRect(0, 0, w, h);
+            v.canvas = c;
+            v.key = key;
+        }
         ctx.save();
-        const gradient = ctx.createRadialGradient(
-            this.width / 2, this.height / 2, 0,
-            this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.7
-        );
-        gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        gradient.addColorStop(1, `rgba(0, 0, 0, ${this.effects.vignette})`);
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, this.width, this.height);
+        if (v.canvas && v.key === key) {
+            ctx.drawImage(v.canvas, 0, 0);
+        } else {
+            const gradient = ctx.createRadialGradient(
+                this.width / 2, this.height / 2, 0,
+                this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.7
+            );
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            gradient.addColorStop(1, `rgba(0, 0, 0, ${this.effects.vignette})`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, this.width, this.height);
+        }
         ctx.restore();
     }
-    
+
     renderChromaticAberration(ctx) {
         // Simplified chromatic aberration effect using composite operations
         const aberration = this.effects.chromaticAberration;
