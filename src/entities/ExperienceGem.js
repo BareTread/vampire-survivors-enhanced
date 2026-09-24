@@ -1,4 +1,4 @@
-import { managedSetTimeout } from '../core/TimerManager.js';
+import { managedSetTimeout, globalTimerManager } from '../core/TimerManager.js';
 import { bakeSprite, shade, rgba } from './rendering/CharacterArt.js';
 
 export class ExperienceGem {
@@ -59,6 +59,10 @@ export class ExperienceGem {
         // Status
         this.active = true;
         this.collected = false;
+        // Claimed (vacuum): homes to the player until collected; cannot expire,
+        // be culled, or be merged away. May still receive merged incoming value.
+        this.claimed = false;
+        this.claimAge = 0;
         this.id = Math.random().toString(36).substr(2, 9);
     }
 
@@ -91,26 +95,7 @@ export class ExperienceGem {
     update(dt) {
         if (!this.active || this.collected) return;
 
-        // FIXED: Validate gem coordinates and reset if corrupted (screen-space gems)
-        // Gems should be in world space, not screen space
-        if (this.game.camera && this.game.player) {
-            const screenBounds = {
-                left: this.game.camera.x - this.game.camera.width / 2,
-                right: this.game.camera.x + this.game.camera.width / 2,
-                top: this.game.camera.y - this.game.camera.height / 2,
-                bottom: this.game.camera.y + this.game.camera.height / 2
-            };
-
-            // Check if gem is suspiciously close to screen coordinates (0-800 range typically)
-            // While player is far from origin - indicates screen-space coordinates
-            if (Math.abs(this.game.player.x) > 500 || Math.abs(this.game.player.y) > 500) {
-                if (Math.abs(this.x) < 400 && Math.abs(this.y) < 400) {
-                    // This gem has screen-space coordinates, fix it
-                    this.active = false; // Remove corrupted gem
-                    return;
-                }
-            }
-        }
+        if (this.claimed) this.claimAge += dt;
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
@@ -124,7 +109,7 @@ export class ExperienceGem {
                 typeof this.game.systems.experience.isGlobalMagnetActive === 'function' &&
                 this.game.systems.experience.isGlobalMagnetActive()
             );
-            if (this.forceMagnetTimer > 0 || systemMagnetActive) {
+            if (this.claimed || this.forceMagnetTimer > 0 || systemMagnetActive) {
                 this.updateMagnetism(dt);
                 // Allow collection even during spawn when being pulled
                 this.checkCollection();
@@ -132,12 +117,13 @@ export class ExperienceGem {
             return; // Don't update normal physics during spawn
         }
 
-        // Update lifetime
-        this.lifetime -= dt;
-        if (this.lifetime <= 0) {
-            this.destroy();
-            return;
+        // Gems never expire: lifetime only drives the fade-out visual and the
+        // system's periodic consolidation of old, far, unclaimed gems.
+        // Claimed gems are exempt from consolidation and keep homing.
+        if (this.lifetime > 0) {
+            this.lifetime = Math.max(0, this.lifetime - dt);
         }
+
 
         // Update rotation
         this.rotation += this.rotationSpeed * dt;
@@ -165,8 +151,49 @@ export class ExperienceGem {
             _prevY = this.y;
         const _prevBeingMagnetized = this.beingMagnetized;
 
+        // Claimed gems home with ramping speed, independent of magnet timers,
+        // until collected. Never expires, never culled.
+        if (this.claimed) {
+            this.beingMagnetized = true;
+            this.grounded = false;
+            this.magnetSource = 'claimed';
+
+            if (distanceSquared < 0.01) {
+                this.velocity.x = 0;
+                this.velocity.y = 0;
+                return;
+            }
+            const distance = Math.sqrt(distanceSquared);
+            const nx = dx / distance;
+            const ny = dy / distance;
+
+            // Ramping speed: starts at base pull, accelerates over ~1.5s, and
+            // always fast enough to arrive this frame when close.
+            const ramp = Math.min(1, this.claimAge / 1.5);
+            const speed = Math.min(
+                this.baseMagnetStrength * (1 + ramp * 4),
+                distance / Math.max(0.001, dt)
+            );
+            this.velocity.x = nx * speed;
+            this.velocity.y = ny * speed;
+
+            const deltaX = this.velocity.x * dt;
+            const deltaY = this.velocity.y * dt;
+            if (isFinite(deltaX) && isFinite(deltaY) && Math.abs(deltaX) < 500 && Math.abs(deltaY) < 500) {
+                this.x += deltaX;
+                this.y += deltaY;
+            } else {
+                // Far away: close the gap in one step rather than drop the claim
+                this.x = player.x;
+                this.y = player.y;
+                this.velocity = { x: 0, y: 0 };
+            }
+            return;
+        }
+
         // Enhanced magnet range based on player luck stat
         const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1);
+
 
         // If a forced pulse is active OR the system-level global magnet is active, pull regardless of range
         const systemMagnetActive = !!(
@@ -343,6 +370,22 @@ export class ExperienceGem {
         }
     }
 
+    /**
+     * Mark this gem as claimed by a vacuum-style pickup. Idempotent.
+     * Claimed gems home to the player until collected and cannot expire,
+     * be culled, or be merged away (they may still receive merged value).
+     * @returns {boolean} true if this call newly claimed the gem
+     */
+    claim() {
+        if (this.claimed || this.collected || !this.active) return false;
+        this.claimed = true;
+        this.claimAge = 0;
+        this.beingMagnetized = true;
+        this.grounded = false;
+        this.magnetSource = 'claimed';
+        return true;
+    }
+
     collect() {
         if (this.collected) return;
 
@@ -350,6 +393,12 @@ export class ExperienceGem {
 
         // Give experience to player
         this.game.player.gainExperience(this.value);
+
+        // Conservation ledger: base gem XP awarded
+        const exp = this.game.systems && this.game.systems.experience;
+        if (exp && typeof exp.trackCollectedGem === 'function') {
+            exp.trackCollectedGem(this.value);
+        }
 
         // Audio: gem collection chime (throttled by AudioManager)
         if (this.game.audioManager && this.game.audioManager.playExperienceGain) {
@@ -399,17 +448,22 @@ export class ExperienceGem {
             intensity: 2.0
         });
 
-        // Single secondary explosion only
+        // Single secondary explosion only. Snapshot position/color now and own
+        // the timer on the experience system: this gem may be pooled and reused
+        // before the callback fires, so the closure must not read gem state.
+        const burstX = this.x;
+        const burstY = this.y;
+        const particle = this.game.systems.particle;
         managedSetTimeout(
             () => {
-                this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
+                particle.createBurst(burstX, burstY, 'collect', {
                     color: '#FFD700',
                     count: 6, // Reduced from 20
                     spread: 60 // Reduced spread
                 });
             },
             100,
-            this
+            this.game.systems.experience || this
         );
 
     }
@@ -423,17 +477,22 @@ export class ExperienceGem {
             intensity: 1.5
         });
 
-        // Single secondary explosion
+        // Single secondary explosion — snapshot mutable state; timer owned by
+        // the experience system so pooled gem reuse can't corrupt the callback.
+        const burstX = this.x;
+        const burstY = this.y;
+        const burstColor = this.glowColor;
+        const particle = this.game.systems.particle;
         managedSetTimeout(
             () => {
-                this.game.systems.particle.createBurst(this.x, this.y, 'collect', {
-                    color: this.glowColor,
+                particle.createBurst(burstX, burstY, 'collect', {
+                    color: burstColor,
                     count: 4, // Reduced from 15
                     spread: 50
                 });
             },
             100,
-            this
+            this.game.systems.experience || this
         );
     }
 
@@ -613,9 +672,10 @@ export class ExperienceGem {
             ? 0.3 + 0.7 * (1 - this.currentSpawnTime / this.spawnTime)
             : 1;
 
-        // Fade out near end of lifetime
+        // Fade out near end of lifetime (floor stays at a dim minimum —
+        // expired gems are consolidated by the system, never destroyed)
         if (this.lifetime < this.fadeTime) {
-            ctx.globalAlpha *= this.lifetime / this.fadeTime;
+            ctx.globalAlpha *= Math.max(0.35, this.lifetime / this.fadeTime);
         }
 
         // Floating animation
@@ -1013,6 +1073,9 @@ export class ExperienceGem {
 
     // Reset method for object pooling
     reset(x, y, value = 5) {
+        // Cancel any callbacks still owned by this gem before reuse
+        globalTimerManager.clearContext(this);
+
         this.x = x;
         this.y = y;
         this.startX = x;
@@ -1035,6 +1098,10 @@ export class ExperienceGem {
         this.magnetSource = '';
         this.debugNoMoveFrames = 0;
 
+        // Reset claim state
+        this.claimed = false;
+        this.claimAge = 0;
+
         // Reset state
         this.lifetime = this.maxLifetime;
         this.currentSpawnTime = this.spawnTime;
@@ -1050,5 +1117,6 @@ export class ExperienceGem {
 
         this.active = true;
         this.collected = false;
+        this._inPool = false;
     }
 }

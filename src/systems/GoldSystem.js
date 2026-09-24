@@ -23,6 +23,10 @@ export class GoldSystem {
         // Run tracking
         this.runGold = 0;
 
+        // Conservation ledger (raw fields; public telemetry lands in phase 5)
+        this.droppedGold = 0;
+        this.collectedGold = 0;
+
         // Collection settings
         this.collectRange = 40;
         this.magnetRange = 100;
@@ -66,16 +70,42 @@ export class GoldSystem {
     }
 
     spawnCoin(x, y, value) {
+        this.droppedGold += value;
         this.coins.push({
             x: x + (Math.random() - 0.5) * 20,
             y: y + (Math.random() - 0.5) * 20,
             value,
             lifetime: 15, // seconds before despawn
             magnetized: false,
+            claimed: false, // vacuum claim: homes until collected, never expires
+            claimAge: 0,
             vx: (Math.random() - 0.5) * 60, // Initial scatter velocity
             vy: -30 - Math.random() * 40, // Pop upward
             bobPhase: Math.random() * Math.PI * 2
         });
+    }
+
+    /**
+     * Vacuum-style claim: mark every unclaimed coin claimed. Claimed coins
+     * home to the player with ramping speed until collected and cannot
+     * expire. Idempotent — already claimed coins are not counted twice.
+     * @returns {{count: number, gold: number}} newly claimed count and the
+     *   gold the haul will pay out (collection multiplier applied, matching
+     *   collectCoin)
+     */
+    claimAllCoins() {
+        const challengeMult = this.game.systems?.challenge?.getGoldMultiplier() || 1;
+        let count = 0;
+        let gold = 0;
+        for (const coin of this.coins) {
+            if (coin.claimed) continue;
+            coin.claimed = true;
+            coin.claimAge = 0;
+            coin.magnetized = true;
+            count++;
+            gold += Math.floor(coin.value * challengeMult);
+        }
+        return { count, gold };
     }
 
     update(dt) {
@@ -91,41 +121,68 @@ export class GoldSystem {
         const effectiveCollect = this.collectRange * pickupBonus;
         const effectiveMagnet = this.magnetRange * pickupBonus;
 
+        // Magnetic Field / global magnet attract gold too (XP + gold only).
+        // Attraction is not a claim — unclaimed coins can still expire.
+        const exp = this.game.systems && this.game.systems.experience;
+        const globalPull = !!(exp && exp.globalMagnetTimer > 0);
+        const fieldRadius =
+            exp && exp.areaMagnetTimer > 0 ? exp.areaMagnetRadius || 0 : 0;
+
         for (let i = this.coins.length - 1; i >= 0; i--) {
             const coin = this.coins[i];
-
-            // Lifetime
-            coin.lifetime -= dt;
-            if (coin.lifetime <= 0) {
-                this.coins.splice(i, 1);
-                continue;
-            }
-
-            // Apply scatter velocity with damping
-            coin.x += coin.vx * dt;
-            coin.y += coin.vy * dt;
-            coin.vx *= 0.95;
-            coin.vy *= 0.95;
-            coin.vy += 60 * dt; // Gravity
-
-            // Bob animation
-            coin.bobPhase += dt * 3;
 
             // Distance to player
             const dx = player.x - coin.x;
             const dy = player.y - coin.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // Magnet pull
-            if (dist < effectiveMagnet) {
-                const pull = (1 - dist / effectiveMagnet) * 300;
+            if (coin.claimed) {
+                // Claimed coins home with ramping speed, independent of
+                // expiry and magnet timers, until collected.
+                coin.claimAge += dt;
+                coin.magnetized = true;
                 if (dist > 1) {
+                    const ramp = Math.min(1, coin.claimAge / 1.5);
+                    const speed = Math.min(300 * (1 + ramp * 4), dist / Math.max(0.001, dt));
+                    coin.x += (dx / dist) * speed * dt;
+                    coin.y += (dy / dist) * speed * dt;
+                }
+            } else {
+                // Lifetime (claimed coins are exempt — they cannot expire)
+                coin.lifetime -= dt;
+                if (coin.lifetime <= 0) {
+                    this.coins.splice(i, 1);
+                    continue;
+                }
+
+                // Apply scatter velocity with damping
+                coin.x += coin.vx * dt;
+                coin.y += coin.vy * dt;
+                coin.vx *= 0.95;
+                coin.vy *= 0.95;
+                coin.vy += 60 * dt; // Gravity
+
+                // Bob animation
+                coin.bobPhase += dt * 3;
+
+                // Magnet pull: base range, Magnetic Field radius, or global
+                // magnet (all coins, fast enough to arrive before it ends)
+                let pull = 0;
+                if (globalPull) {
+                    pull = Math.max(300, dist / Math.max(0.3, (exp.globalMagnetTimer || 0) * 0.85));
+                } else {
+                    const range = Math.max(effectiveMagnet, fieldRadius);
+                    if (dist < range) {
+                        pull = Math.max((1 - dist / range) * 300, 150);
+                    }
+                }
+                if (pull > 0 && dist > 1) {
                     coin.x += (dx / dist) * pull * dt;
                     coin.y += (dy / dist) * pull * dt;
+                    coin.magnetized = true;
+                } else {
+                    coin.magnetized = false;
                 }
-                coin.magnetized = true;
-            } else {
-                coin.magnetized = false;
             }
 
             // Collection
@@ -140,6 +197,7 @@ export class GoldSystem {
         const challengeMult = this.game.systems?.challenge?.getGoldMultiplier() || 1;
         const gainedGold = Math.floor(coin.value * challengeMult);
         this.runGold += gainedGold;
+        this.collectedGold += gainedGold;
 
         // Visual feedback
         if (globalDamageNumberPool) {
@@ -259,5 +317,7 @@ export class GoldSystem {
     reset() {
         this.coins = [];
         this.runGold = 0;
+        this.droppedGold = 0;
+        this.collectedGold = 0;
     }
 }

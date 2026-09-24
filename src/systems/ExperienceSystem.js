@@ -1,4 +1,5 @@
 import { ExperienceGem } from '../entities/ExperienceGem.js';
+import { managedSetTimeout, globalTimerManager } from '../core/TimerManager.js';
 
 export class ExperienceSystem {
     constructor(game) {
@@ -34,7 +35,17 @@ export class ExperienceSystem {
         this.areaMagnetRadius = 0;
         this.areaMagnetTimer = 0;
         this.areaMagnetPulse = 0.25; // seconds per-frame forced pull
+        // Magnetic Field: radius derived from effective pickup range, recomputed
+        // each frame while active. Explicit activations keep their own radius.
+        this.magneticFieldAuto = false;
+        this.areaMagnetExplicitRadius = 0;
 
+        // Consolidation: expired, far, unclaimed gems merge into a neighbour
+        this.consolidationDistance = 600;
+
+        // Conservation ledger (raw fields; public telemetry lands in phase 5)
+        this.droppedXP = 0;
+        this.collectedXP = 0;
         this.initializePool();
     }
 
@@ -45,6 +56,7 @@ export class ExperienceSystem {
         for (let i = 0; i < poolSize; i++) {
             const gem = new ExperienceGem(this.game, 0, 0, 5);
             gem.active = false;
+            gem._inPool = true;
             this.gemPool.push(gem);
         }
     }
@@ -56,6 +68,17 @@ export class ExperienceSystem {
         }
         if (this.areaMagnetTimer > 0) {
             this.areaMagnetTimer = Math.max(0, this.areaMagnetTimer - dt);
+            if (this.areaMagnetTimer <= 0) {
+                this.magneticFieldAuto = false;
+                this.areaMagnetExplicitRadius = 0;
+                this.areaMagnetRadius = 0;
+            } else if (this.magneticFieldAuto) {
+                // Magnetic Field radius follows effective pickup range while active
+                this.areaMagnetRadius = Math.max(
+                    this.areaMagnetExplicitRadius,
+                    this.magneticFieldRadius()
+                );
+            }
         }
 
         // 2) Build spatial grid for efficient pulse queries
@@ -81,20 +104,24 @@ export class ExperienceSystem {
     }
 
     updateGems(dt) {
-        // Use write-index pattern to avoid expensive splice operations
+        // Use write-index pattern to avoid expensive splice operations.
+        // Pool returns are deferred until after the pass: a gem re-popped by a
+        // synchronous createGem mid-pass would otherwise be listed twice.
+        this._gemUpdateInPass = true;
+        this._pendingPool = [];
         let writeIndex = 0;
         for (let i = 0; i < this.activeGems.length; i++) {
             const gem = this.activeGems[i];
 
             if (!gem.active) {
-                this.returnGemToPool(gem);
+                this._pendingPool.push(gem);
                 continue;
             }
 
             gem.update(dt);
 
             if (!gem.active) {
-                this.returnGemToPool(gem);
+                this._pendingPool.push(gem);
                 continue;
             }
 
@@ -102,6 +129,13 @@ export class ExperienceSystem {
         }
         // Trim array to new size
         this.activeGems.length = writeIndex;
+        this._gemUpdateInPass = false;
+
+        const pending = this._pendingPool;
+        this._pendingPool = null;
+        for (const gem of pending) {
+            this.returnGemToPool(gem);
+        }
     }
 
     addExperienceToPlayer(amount) {
@@ -130,20 +164,26 @@ export class ExperienceSystem {
         }
     }
 
-    autoCollectGems() {
-        if (!this.game.player || !this.game.player.isAlive()) return;
-
+    /**
+     * Effective pickup range: base magnet range scaled by player luck and the
+     * Attractorb passive (additive bonus, +0.25 per level). Single source for
+     * auto-collect and the Magnetic Field radius.
+     */
+    getEffectivePickupRange() {
         const player = this.game.player;
-        // Read pickupRange from PassiveItemSystem (Attractorb).
-        // mods.pickupRange is an ADDITIVE bonus: 0 at no item, +0.25 per level (max +1.25 at L5).
-        // Effective multiplier = 1 + bonus → range *increases* with each Attractorb level.
-        // Bug was: `pickupBonus = mods.pickupRange` → 0.25 at L1 would shrink range to 20 px.
         let pickupBonus = 1;
         if (this.game.systems && this.game.systems.passiveItems) {
             const mods = this.game.systems.passiveItems.getStatModifiers();
             pickupBonus = 1 + (mods.pickupRange || 0);
         }
-        const effectiveMagnetRange = this.magnetRange * (player.stats.luck || 1) * pickupBonus;
+        return this.magnetRange * ((player && player.stats.luck) || 1) * pickupBonus;
+    }
+
+    autoCollectGems() {
+        if (!this.game.player || !this.game.player.isAlive()) return;
+
+        const player = this.game.player;
+        const effectiveMagnetRange = this.getEffectivePickupRange();
 
         // Check gems near player for collection
         const nearbyGems = this.getGemsInRange(player.x, player.y, effectiveMagnetRange);
@@ -155,10 +195,11 @@ export class ExperienceSystem {
             const autoCollectRangeSquared = this.autoCollectRange * this.autoCollectRange;
             if (distanceSquared <= autoCollectRangeSquared) {
                 gem.collect();
-            } else if (pickupBonus > 1) {
-                // Attractorb extended range: gems beyond their own magnetRange but inside
-                // effectiveMagnetRange get a brief forced pull so they drift toward the player
-                // even before the gem's own physics would normally kick in.
+            } else if (effectiveMagnetRange > this.magnetRange) {
+                // Extended pickup range (Attractorb/luck): gems beyond their own
+                // magnetRange but inside effectiveMagnetRange get a brief forced
+                // pull so they drift toward the player even before the gem's own
+                // physics would normally kick in.
                 const normalRangeSq =
                     (gem.magnetRange || this.magnetRange) * (gem.magnetRange || this.magnetRange);
                 if (distanceSquared > normalRangeSq) {
@@ -169,15 +210,6 @@ export class ExperienceSystem {
     }
 
     createGem(x, y, value = null, type = null) {
-        if (this.activeGems.length >= this.maxActiveGems) {
-            // Remove oldest gem if at limit
-            const oldest = this.activeGems.shift();
-            if (oldest) {
-                oldest.active = false;
-                this.returnGemToPool(oldest);
-            }
-        }
-
         // Check for lucky gem (5% chance when no value is specified)
         let isLucky = false;
         if (value === null && Math.random() < 0.05) {
@@ -185,6 +217,27 @@ export class ExperienceSystem {
             value = this.determineGemValue() * 5; // 5x experience
         } else if (value === null) {
             value = this.determineGemValue();
+        }
+
+        // Conservation ledger: every dropped point is tracked before placement
+        this.droppedXP += value;
+
+        if (this.activeGems.length >= this.maxActiveGems) {
+            // The cap limits rendered objects, never value. First reclaim slots
+            // held by gems collected since the last update pass...
+            this.compactInactiveGems();
+        }
+
+        if (this.activeGems.length >= this.maxActiveGems) {
+            // ...then merge the new gem into the nearest existing gem (claimed
+            // gems may receive value but are never merge victims).
+            const target = this.findNearestGem(x, y);
+            if (target) {
+                target.value += value;
+                target.initializeVisuals(); // recompute tier/colour
+                return target;
+            }
+            return null;
         }
 
         // Get gem from pool
@@ -210,6 +263,26 @@ export class ExperienceSystem {
 
         this.activeGems.push(gem);
         return gem;
+    }
+
+    // Remove collected/inactive gems still listed from a mid-frame collect.
+    // During an update pass, pooling is deferred (see updateGems) so a gem can
+    // never be re-popped while its stale slot is still being iterated.
+    compactInactiveGems() {
+        let writeIndex = 0;
+        for (let i = 0; i < this.activeGems.length; i++) {
+            const gem = this.activeGems[i];
+            if (!gem.active) {
+                if (this._gemUpdateInPass) {
+                    this._pendingPool.push(gem);
+                } else {
+                    this.returnGemToPool(gem);
+                }
+            } else {
+                this.activeGems[writeIndex++] = gem;
+            }
+        }
+        this.activeGems.length = writeIndex;
     }
 
     determineGemValue() {
@@ -260,9 +333,16 @@ export class ExperienceSystem {
     }
 
     createGemExplosion(x, y, totalValue, minGems = 3, maxGems = 8) {
-        // Create an explosion of gems
-        const gemCount = minGems + Math.floor(Math.random() * (maxGems - minGems + 1));
+        // Create an explosion of gems. The advertised total is conserved exactly:
+        // base share per gem plus the remainder spread one point at a time.
+        // Fewer gems than points would force value inflation, so the count is
+        // capped at the total (every gem is worth at least 1).
+        const gemCount = Math.min(
+            minGems + Math.floor(Math.random() * (maxGems - minGems + 1)),
+            Math.max(1, totalValue)
+        );
         const baseValue = Math.floor(totalValue / gemCount);
+        const remainder = totalValue - baseValue * gemCount;
 
         for (let i = 0; i < gemCount; i++) {
             // Random explosion pattern
@@ -271,13 +351,11 @@ export class ExperienceSystem {
             const gemX = x + Math.cos(angle) * distance;
             const gemY = y + Math.sin(angle) * distance;
 
-            // Randomize value slightly
-            const variance = Math.floor(baseValue * 0.3);
-            const gemValue = baseValue + Math.floor(Math.random() * variance * 2) - variance;
+            const gemValue = baseValue + (i < remainder ? 1 : 0);
+            const gem = this.createGem(gemX, gemY, gemValue);
 
-            const gem = this.createGem(gemX, gemY, Math.max(1, gemValue));
 
-            if (gem) {
+            if (gem && gem.velocity) {
                 // Add explosion velocity
                 gem.velocity.x = Math.cos(angle) * (100 + Math.random() * 100);
                 gem.velocity.y = Math.sin(angle) * (100 + Math.random() * 100) - 150;
@@ -285,12 +363,14 @@ export class ExperienceSystem {
         }
 
         // Visual explosion effect
-        this.game.systems.particle.createGemExplosionEffect(x, y);
+        this.game.systems.particle?.createGemExplosionEffect?.(x, y);
     }
 
     getGemFromPool() {
         if (this.gemPool.length > 0) {
-            return this.gemPool.pop();
+            const gem = this.gemPool.pop();
+            gem._inPool = false;
+            return gem;
         }
 
         // Create new gem if pool is empty
@@ -298,14 +378,18 @@ export class ExperienceSystem {
     }
 
     returnGemToPool(gem) {
-        if (!gem) return;
+        if (!gem || gem._inPool) return;
 
-        // Reset gem state
+        // Cancel any callbacks still owned by this gem, then reset state
+        globalTimerManager.clearContext(gem);
         gem.active = false;
         gem.collected = false;
+        gem.claimed = false;
+        gem.claimAge = 0;
 
         // Return to pool if not full
         if (this.gemPool.length < 150) {
+            gem._inPool = true;
             this.gemPool.push(gem);
         }
     }
@@ -323,6 +407,130 @@ export class ExperienceSystem {
             }
         }
         this.activeGems.length = writeIndex;
+
+        // Gems never expire into nothing: periodically consolidate old, far,
+        // unclaimed gems into their nearest neighbour via the spatial grid.
+        this.consolidateExpiredGems();
+    }
+
+    /**
+     * Merge expired (lifetime <= 0), far, unclaimed gems into their nearest
+     * active neighbour. Value is conserved; claimed gems are never victims.
+     * Uses the spatial grid — no all-pairs scans.
+     */
+    consolidateExpiredGems() {
+        const player = this.game.player;
+        if (!player) return;
+        const farSq = this.consolidationDistance * this.consolidationDistance;
+
+        for (let i = this.activeGems.length - 1; i >= 0; i--) {
+            const gem = this.activeGems[i];
+            if (!gem.active || gem.collected || gem.claimed || gem.lifetime > 0) continue;
+
+            const dx = gem.x - player.x;
+            const dy = gem.y - player.y;
+            if (dx * dx + dy * dy <= farSq) continue; // still near the player
+
+            const target = this.findNearestGemViaGrid(gem.x, gem.y, gem);
+            if (!target) continue; // alone on the floor: keep it, value conserved
+
+            target.value += gem.value;
+            target.initializeVisuals(); // recompute tier/colour
+            gem.active = false;
+            this.activeGems.splice(i, 1);
+            this.returnGemToPool(gem);
+        }
+    }
+
+    /**
+     * Enforce a rendered-gem cap without losing value: merge farthest
+     * unclaimed gems into their nearest neighbour until count <= maxCount.
+     * Claimed gems are never victims and may occupy the cap until collected.
+     * @returns {number} how many gems were merged away
+     */
+    consolidateGems(maxCount = this.maxActiveGems) {
+        let merged = 0;
+        while (this.activeGems.length > maxCount) {
+            // Farthest unclaimed gem is the merge victim
+            let victim = null;
+            let victimDistSq = -1;
+            for (const gem of this.activeGems) {
+                if (!gem.active || gem.collected || gem.claimed) continue;
+                const d = this.getDistanceSquaredToPlayer(gem);
+                if (d > victimDistSq) {
+                    victimDistSq = d;
+                    victim = gem;
+                }
+            }
+            if (!victim) break; // only claimed gems remain — cap may be exceeded
+
+            const target = this.findNearestGem(victim.x, victim.y, victim);
+            if (!target) break;
+
+            target.value += victim.value;
+            target.initializeVisuals();
+            victim.active = false;
+            this.activeGems.splice(this.activeGems.indexOf(victim), 1);
+            this.returnGemToPool(victim);
+            merged++;
+        }
+        return merged;
+    }
+
+    /**
+     * Nearest active, uncollected gem to (x, y). Linear scan over the capped
+     * active list — used for single merges, not periodic sweeps.
+     */
+    findNearestGem(x, y, exclude = null) {
+        let best = null;
+        let bestSq = Infinity;
+        for (const gem of this.activeGems) {
+            if (gem === exclude || !gem.active || gem.collected) continue;
+            const dx = gem.x - x;
+            const dy = gem.y - y;
+            const dSq = dx * dx + dy * dy;
+            if (dSq < bestSq) {
+                bestSq = dSq;
+                best = gem;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Nearest active, uncollected gem to (x, y) via the spatial grid.
+     * Expands ring by ring; stops once the ring's minimum possible distance
+     * exceeds the best hit so far.
+     */
+    findNearestGemViaGrid(x, y, exclude = null) {
+        const cellX = Math.floor(x / this.gridSize);
+        const cellY = Math.floor(y / this.gridSize);
+        let best = null;
+        let bestSq = Infinity;
+
+        for (let ring = 0; ring <= 64; ring++) {
+            // Cells in this ring start at least (ring - 1) * gridSize away
+            if (ring > 0 && (ring - 1) * this.gridSize >= Math.sqrt(bestSq)) break;
+
+            for (let gx = cellX - ring; gx <= cellX + ring; gx++) {
+                for (let gy = cellY - ring; gy <= cellY + ring; gy++) {
+                    if (Math.max(Math.abs(gx - cellX), Math.abs(gy - cellY)) !== ring) continue;
+                    const cell = this.spatialGrid.get(`${gx},${gy}`);
+                    if (!cell) continue;
+                    for (const gem of cell) {
+                        if (gem === exclude || !gem.active || gem.collected) continue;
+                        const dx = gem.x - x;
+                        const dy = gem.y - y;
+                        const dSq = dx * dx + dy * dy;
+                        if (dSq < bestSq) {
+                            bestSq = dSq;
+                            best = gem;
+                        }
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     // Collection abilities
@@ -335,14 +543,41 @@ export class ExperienceSystem {
         }
     }
 
+    /**
+     * Vacuum-style claim: mark every active, uncollected gem claimed.
+     * Claimed gems home to the player until collected; they cannot expire,
+     * be culled, or be merged away. Idempotent — already claimed gems are
+     * not counted twice.
+     * @returns {{count: number, xp: number}} newly claimed count and summed
+     *   base gem XP of the newly claimed haul
+     */
+    claimAllGems() {
+        let count = 0;
+        let xp = 0;
+        for (const gem of this.activeGems) {
+            if (gem.active && !gem.collected && typeof gem.claim === 'function' && gem.claim()) {
+                count++;
+                xp += gem.value;
+            }
+        }
+        return { count, xp };
+    }
+
+    // Conservation ledger hook: base gem XP actually awarded to the player
+    trackCollectedGem(value) {
+        this.collectedXP += value;
+    }
+
     magnetizeAllGems() {
-        // Force all gems to move toward player (special ability for level up)
+        // Force all gems to move toward player (special ability for level up).
+        // Gems are claimed so the pull cannot be undone by expiry or culling.
         if (!this.game.player) return;
 
         let magnetizedCount = 0;
 
         for (const gem of this.activeGems) {
             if (gem.active && !gem.collected) {
+                if (typeof gem.claim === 'function') gem.claim();
                 // Start a timed global magnet pulse that ignores range in ExperienceGem.updateMagnetism
                 if (typeof gem.forceMagnetTimer !== 'number') {
                     gem.forceMagnetTimer = 0;
@@ -382,10 +617,32 @@ export class ExperienceSystem {
         // Start/extend a radius-limited magnet effect centered on the player
         const r = Math.max(0, radius || 0);
         const d = Math.max(0, duration || 0);
+        this.areaMagnetExplicitRadius = Math.max(this.areaMagnetExplicitRadius, r);
         this.areaMagnetRadius = Math.max(this.areaMagnetRadius, r);
         this.areaMagnetTimer = Math.max(this.areaMagnetTimer, d);
         return { radius: this.areaMagnetRadius, duration: this.areaMagnetTimer };
     }
+
+    /**
+     * Magnetic Field (timed Magnet power-up): radius derived from the
+     * effective pickup range — max(3 × effective, 360) — never the viewport.
+     * Recomputed each frame while active so Attractorb/modifier changes
+     * rescale the field. Attracts XP and gold only.
+     */
+    magneticFieldRadius() {
+        return Math.max(3 * this.getEffectivePickupRange(), 360);
+    }
+
+    activateMagneticField(duration = 0) {
+        const d = Math.max(0, duration || 0);
+        this.magneticFieldAuto = true;
+        this.areaMagnetRadius = Math.max(this.areaMagnetExplicitRadius, this.magneticFieldRadius());
+        this.areaMagnetTimer = Math.max(this.areaMagnetTimer, d);
+        // Immediate pulse so the field visibly grabs gems this frame
+        this.magnetizeGemsInRadius(this.areaMagnetRadius, this.areaMagnetPulse);
+        return { radius: this.areaMagnetRadius, duration: this.areaMagnetTimer };
+    }
+
 
     magnetizeGemsInRadius(radius, pulseDuration = 0.25) {
         if (!this.game.player) return 0;
@@ -503,10 +760,10 @@ export class ExperienceSystem {
 
         this.createGemExplosion(x, y, baseValue, gemCount, gemCount + 2);
 
-        // Always create one rare gem
-        setTimeout(() => {
+        // Always create one rare gem (system-owned timer: cancelled on reset)
+        managedSetTimeout(() => {
             this.createBonusGem(x, y, 3);
-        }, 500);
+        }, 500, this);
     }
 
     createLevelUpReward(x, y) {
@@ -523,14 +780,17 @@ export class ExperienceSystem {
         const gemCount = 2 + achievementTier;
 
         for (let i = 0; i < gemCount; i++) {
-            setTimeout(() => {
+            managedSetTimeout(() => {
                 this.createBonusGem(x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40, 1.5);
-            }, i * 200);
+            }, i * 200, this);
         }
     }
 
-    // Clear all gems (for game reset)
+    // Clear all gems (for game reset): ends the run's ledger and cancels
+    // every pending system/gem-owned callback.
     clearAll() {
+        globalTimerManager.clearContext(this);
+
         for (const gem of this.activeGems) {
             gem.active = false;
             this.returnGemToPool(gem);
@@ -538,6 +798,15 @@ export class ExperienceSystem {
 
         this.activeGems = [];
         this.spatialGrid.clear();
+
+        // Reset magnet/field state and the conservation ledger
+        this.globalMagnetTimer = 0;
+        this.areaMagnetTimer = 0;
+        this.areaMagnetRadius = 0;
+        this.areaMagnetExplicitRadius = 0;
+        this.magneticFieldAuto = false;
+        this.droppedXP = 0;
+        this.collectedXP = 0;
     }
 
     render(renderer) {
@@ -581,7 +850,9 @@ export class ExperienceSystem {
             poolSize: this.gemPool.length,
             totalValue: this.getTotalGemValue(),
             gridCells: this.spatialGrid.size,
-            gemTypes: this.getGemTypeDistribution()
+            gemTypes: this.getGemTypeDistribution(),
+            droppedXP: this.droppedXP,
+            collectedXP: this.collectedXP
         };
     }
 
