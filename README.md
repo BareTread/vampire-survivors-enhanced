@@ -1,256 +1,94 @@
-# 🧛 Vampire Survivors - Enhanced Edition
+# 🧛 Vampire Survivors — Enhanced Edition
 
-A high-performance browser-based survival action game built with vanilla JavaScript and HTML5 Canvas. Fight endless waves of enemies, collect experience gems, level up, and survive as long as you can!
+A gothic survival-action game for the browser, written in vanilla JavaScript and HTML5 Canvas. Your weapons fire on their own; your job is to move, pick your upgrades and survive the night.
 
-![Game Screenshot](https://img.shields.io/badge/Status-Playable-brightgreen)
-![Performance target](https://img.shields.io/badge/Target-60%2B%20FPS-blue)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES6%20Modules-yellow)
-![Canvas](https://img.shields.io/badge/HTML5-Canvas%202D-orange)
+### ▶ [Play it now — vampire-survivors-enhanced.vercel.app](https://vampire-survivors-enhanced.vercel.app/)
 
-## 🎮 Features
+No install, no account. Desktop browser with a keyboard recommended.
 
-### Core Gameplay
+![Title screen](docs/images/title-screen.png)
+![Gameplay](docs/images/gameplay.png)
 
-- **Ten Weapons**: Distinct ranged, melee, orbiting, area, freezing, and bleeding builds
-- **Auto-targeting Combat**: Weapons automatically target nearest enemies
-- **Experience System**: Collect gems, level up, choose upgrades
-- **Directional Evade**: Space triggers a short, terrain-aware burst with brief immunity and a 2.4-second cooldown
-- **Wave-based Progression**: Increasingly challenging enemy waves
-- **Enemy Variants**: 15% chance for enhanced enemies with special indicators
-- **Kill Streak System**: Consecutive kills unlock bonus rewards
+## What's in the game
 
-### Advanced Features
+- **9 hunters**: Antonio, Imelda, Gennaro, Mortimer, Sera, Dante, Luna, Viktor and Nyx. Each has a starting weapon and stat bonuses; eight are unlocked by reaching milestones.
+- **10 weapons**: Whip, Magic Missile, Throwing Knife, Lightning Chain, Garlic Aura, Holy Bible, Fire Wand, Bone Boomerang, Ice Shard and Shadow Dagger. Six slots per run, eight levels each.
+- **10 evolutions**: a max-level weapon plus the right passive item evolves it (Bloody Tear, Soul Missile, Thousand Edge, Hellfire, Blizzard, Phantom Assassin and more).
+- **6 passive items and 10 synergies**: weapon + passive pairs grant bonus effects.
+- **10 creature types** that join the hunt over the first ten minutes: ghouls, blood bats, cultists, shield knights, wraiths, dreadlords, demons, werebeasts, necromancers and stone golems. Elites can carry auras.
+- **3 bosses** arrive every five minutes (Vampire Lord, Lich King, Alpha Werewolf). Each has three phases and telegraphed attacks.
+- **Timed events**: treasure chests, Golden Swarm, Blood Moon and the Calm Eye.
+- **Relics** (short power-ups) drop mostly from elites: heal, invincibility, speed, damage, magnet and fire rate.
+- **A 30-minute run**, after which Death comes for you. Endless Mode removes that limit.
+- **Meta progression**: gold carries between runs into a permanent upgrade shop. There are also 12 achievements, 6 challenge modifiers for bonus gold, a codex/bestiary and lifetime statistics.
+- **Procedural everything**: all art is drawn in code and baked into sprites, and all audio is synthesized with the Web Audio API. There are no image or sound files.
 
-- **Lucky Gems**: 5% chance for gems worth 5x experience with special effects
-- **Enhanced Visual Effects**: Professional sprite system with procedural generation
-- **Cached World Art**: Procedural terrain, obstacles, hunters, and enemy silhouettes are baked for reuse
-- **Performance Dashboard**: Real-time monitoring with F2 key
-- **Adaptive Quality**: Automatic performance scaling based on hardware
+## Controls
 
-### Visual Enhancements
+| Key | Action |
+| --- | --- |
+| **WASD** / **Arrow keys** | Move |
+| **Space** | Evade (short dash with brief immunity, 2.4s recharge) |
+| **Shift** | Toggle manual aiming (aim with the mouse) |
+| **Tab** | Inspect your build (weapons, passives, synergies, evolution progress) |
+| **Esc** | Pause / resume |
+| **1–5** or click | Pick a level-up option |
+| **F1** | Settings |
+| **F2** | Performance dashboard |
+| **F4** / **G** | Debug overlay |
 
-- **Readable Characters**: Hooded hunters and distinct enemy silhouettes replace plain circular bodies
-- **Enhanced Particle Effects**: High-impact, low-particle visual system
-- **Color-coded Damage Numbers**: 9 tiers of damage indication
-- **Screen Shake Effects**: Different shake patterns for various events
-- **Health Bar Improvements**: Color-coded with glow effects
-- **Gothic Interface**: Cathedral title scene, stone-panel menus, evade HUD, and animated run summary
-- **Informed Upgrades**: Next-level base-stat previews and evolution partners; build-fit labels never multiply stats
+**Settings** include volume sliders, screen-shake intensity (0–100%), damage numbers, low-FX mode and an **Uncapped Frame Rate** option. By default, 120Hz+ displays render at a steady 60–72 FPS to save CPU; the option lifts that cap.
 
-### Audio — Anti-Fatigue Gothic Synth Engine
+## Running it locally
 
-- **100% Procedural**: All audio is synthesized with the Web Audio API — zero external files
-- **Split Mix Buses**: Dedicated SFX + music buses with automatic music ducking keep combat readable
-- **Voice-Pooled**: 16-voice pool with priority-based stealing prevents clipping during swarms
-- **Expanded Sound Families**: Weapons, bosses, pickups, and UI use softer, distinct synthesis recipes instead of generic fallback beeps
-- **Harshness Governor**: A bus-level low-pass + presence dip automatically tamps down upper-mid fatigue when combat gets dense
-- **Silence-First Adaptive Score**: Background music now defaults to near-silence at low intensity and only blooms when combat pressure justifies it
-- **Variation Over Repetition**: Repeated families like deaths, lightning, pickups, whip cracks, garlic pulses, and orbiters now subtly vary pan, filter, envelope, and harmonic shape
-- **Live Audio Telemetry**: `debugCommands.getDebugInfo()` now includes runtime mix data such as voice density, ducking, compressor reduction, and harshness-governor state for evidence-based tuning
-- **Emergent Gem Melody**: Collecting gems still walks the D minor pentatonic, but with gentler chime voicing
-- **Shorter Cathedral Reverb**: A tighter convolution reverb keeps the gothic atmosphere without washing out the mix
-- **Settings Now Hit the Real Mix**: Master/music/SFX sliders drive `AudioManager` directly instead of a stale legacy path
-
-## 🚀 Performance Optimizations
-
-### Engine Features
-
-- **ECS Architecture**: Entity-Component-System for optimal performance
-- **Object Pooling**: Reusable objects for particles, projectiles, enemies
-- **Spatial Partitioning**: Efficient collision detection
-- **Cached Canvas Art**: Reused terrain patterns and entity sprites reduce repeated drawing work
-- **Frame Rate Management**: Target 60+ FPS with 350+ entities
-
-### Memory Management
-
-- **Particle Limits**: Dramatically reduced (90% less) for visual clarity
-- **Smart Culling**: Off-screen entity management
-- **Cache Optimization**: Sprite caching and batch rendering
-- **Error Recovery**: Bulletproof error handling prevents crashes
-
-## 🎯 Controls
-
-| Key                       | Action                               |
-| ------------------------- | ------------------------------------ |
-| **WASD** / **Arrow Keys** | Move player                          |
-| **Mouse**                 | Look/aim direction                   |
-| **Space**                 | Directional evade; 2.4s recharge      |
-| **Tab**                   | Inspect build; Tab or ESC closes     |
-| **ESC**                   | Pause/Resume                         |
-| **1-5**                   | Select level-up options              |
-| **F1**                    | Settings Menu                        |
-| **F2**                    | Toggle performance monitor/dashboard |
-| **F4/G**                  | Toggle debug overlay                 |
-
-## 🛠️ Technical Architecture
-
-### Core Systems
-
-```
-src/core/
-├── VampireSurvivorsGame.js  # Main game engine
-├── ECS.js                   # Entity-Component-System framework
-├── AudioManager.js          # Split-bus anti-fatigue procedural audio engine (Web Audio API)
-├── LayeredRenderer.js       # High-performance canvas layers
-├── SpriteManager.js         # Procedural sprite generation
-├── GraphicsUpgrade.js       # Advanced visual effects system
-├── PerformanceDashboard.js  # Real-time performance monitoring
-└── Camera.js                # 2D camera with effects
-```
-
-### Game Systems
-
-```
-src/systems/
-├── EnemySystem.js           # AI, spawning, variants
-├── ProjectileSystem.js      # Weapon projectiles
-├── ExperienceSystem.js      # XP collection, lucky gems
-├── ParticleSystemOptimized.js # Visual effects (90% optimized)
-├── VisualEffectsSystem.js   # High-impact effects
-└── FlowStateSystem.js       # Difficulty scaling
-```
-
-### Entities
-
-```
-src/entities/
-├── Player.js                # Player character with kill streaks
-├── Enemy.js                 # Enemy variants and enhanced AI
-├── ExperienceGem.js         # Lucky gems and collection effects
-└── weapons/                 # Weapon implementations
-```
-
-## 🎨 Graphics Features
-
-### Sprite System
-
-- **Procedural Generation**: 13+ sprites generated programmatically
-- **High-Quality Rendering**: Anti-aliasing and smooth scaling
-- **Effect Support**: Rotation, scaling, tinting, glow effects
-- **Performance Tracking**: Cache hits/misses monitoring
-
-### Visual Effects
-
-- **Quality over Quantity**: Max 15 particles vs 150+ traditional
-- **Effect Templates**: Critical hits, level ups, enemy deaths
-- **Adaptive Quality**: Performance-based effect scaling
-- **Adaptive Detail**: Enemy overlays reduce detail during crowded scenes
-
-## 📊 Performance Metrics
-
-- **Target Performance**: 60+ FPS with 350+ entities
-- **Verification**: A controlled browser fixture renders 240 enemies across 10 archetypes without runtime errors
-- **Scope**: Render-only fixture, not a sustained frame-rate or full-run balance benchmark
-- **Entity Handling**: 1 player + multiple enemies + projectiles + effects
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- Modern web browser with HTML5 Canvas support
-- Local web server (for ES6 modules)
-
-### Quick Start
-
-1. Clone the repository
-2. Start a local web server in the project directory
-3. Open `index.html` (or the server root) in your browser
-4. Use WASD to move, survive the waves!
-
-After updating an existing checkout, hard-refresh the browser (Ctrl+Shift+R) to discard cached ES modules.
-
-### September 2026 update
-
-- Preserves existing characters, weapons, evolutions, challenges, and saved progress.
-- Adds Space evasion, safe spawn placement, smoother pressure scaling, and focus-loss auto-pause.
-- Reworks title, loading, menus, HUD, world art, and run summary.
-- Upgrade drawing and pointer hit-testing share one responsive layout.
-- Fixes origin teleportation, build-overlay Escape behavior, stale upgrade state across runs, and frozen summary reveals.
-- Separates UI animation time from simulation time so death summaries animate while the world stays frozen.
-- Regression suite: `npm test -- --runInBand`. Browser checks cover menus, controls, upgrade selection after resizing, death, and replay.
-- Keyboard-first gameplay. Responsive menus do not imply touchscreen movement controls.
-
-### Local Development
+The game uses ES modules, so it needs to be served over HTTP rather than opened as a file.
 
 ```bash
-# Simple Python server
-python -m http.server 8000
-
-# Or Node.js serve
-npx serve .
-
-# Or any other local server
+git clone https://github.com/BareTread/vampire-survivors-enhanced.git
+cd vampire-survivors-enhanced
+python -m http.server 8000     # or: npx serve .
 ```
 
-## 🏗️ Architecture Highlights
+Then open <http://localhost:8000>. There is no build step. After pulling changes, hard-refresh (Ctrl+Shift+R) so the browser drops cached modules.
 
-### Performance Innovations
+### Tests
 
-- **Dynamic Method Forwarding**: JavaScript Proxy for automatic method forwarding
-- **Error Recovery System**: Triple-layered error handling with automatic restart
-- **Adaptive Rendering**: Quality scales based on performance metrics
-- **Memory Pool Management**: Reusable objects with strict limits
+```bash
+npm install
+npm test -- --runInBand
+```
 
-### Code Quality Features
+The Jest suite (195 tests) covers balance, pacing, camera feel, pooling, audio routing and runtime regressions. `npm` is only needed for tests and linting; the game has no runtime dependencies.
 
-- **ES6 Modules**: Clean, modular architecture
-- **Error Boundaries**: Graceful degradation on failures
-- **Performance Monitoring**: Built-in profiling and optimization
-- **Documentation**: Comprehensive inline documentation
+## Project layout
 
-## 🎯 Development Highlights
+```
+index.html                 Entry page (loads src/vampireMain.js)
+src/
+├── vampireMain.js         Bootstrap: canvas, resize, game start
+├── core/                  Game loop, camera, input, audio engine, terrain, sprites, pooling
+├── systems/               Enemies, bosses, projectiles, XP, HUD, menus, events, persistence…
+├── entities/
+│   ├── Player.js, Enemy.js, Projectile.js, ExperienceGem.js
+│   ├── enemies/           Wraith and Demon
+│   ├── weapons/           The ten weapons (all extend BaseWeapon)
+│   └── rendering/         Procedural art: hunters, creatures, bosses, relics
+└── data/                  Character roster and creature names
+tests/                     Jest suites
+```
 
-This enhanced edition includes:
+`CLAUDE.md` is the detailed developer guide: architecture, conventions for adding weapons and enemies, and a dated log of every major change.
 
-- **90% particle reduction** for visual clarity
-- **Professional sprite system** with procedural generation
-- **Advanced performance monitoring** with real-time recommendations
-- **Bulletproof error handling** preventing infinite crash loops
-- **Layered canvas rendering** for significant FPS improvements
-- **Enhanced visual feedback** with color-coded damage and effects
+## Performance notes
 
-## 🚀 Built With
+- Rendering bakes anything static (floor tiles, lighting, vignette, HUD panels, sprites) and blits it, culls enemies to the viewport, and avoids `shadowBlur` and full-screen gradients in the frame loop.
+- In the heaviest scene tested (about 130 enemies at 1280×720, software rendering) the game holds 60 FPS.
+- Particles, projectiles, gems and enemies are pooled. A 5-minute soak test showed flat memory.
 
-- **Vanilla JavaScript** - ES6 modules, modern syntax
-- **HTML5 Canvas** - 2D rendering with layered optimization
-- **Web APIs** - Performance timing, mouse/keyboard input
-- **No Dependencies** - Pure browser technologies
+## Built with
 
-## 📈 Performance Dashboard
-
-Press **F2** in-game to access:
-
-- Real-time FPS and frame time monitoring
-- Entity count tracking
-- Memory usage estimation
-- Performance recommendations
-- Quick optimization controls
-
-## 🎮 Game Features in Detail
-
-### Weapon System
-
-- **Auto-targeting**: Weapons automatically find and engage enemies
-- **Upgradeable**: Level up weapons through experience system
-- **Unique Behaviors**: Each weapon type has distinct mechanics
-- **Visual Effects**: Enhanced muzzle flashes and impact effects
-
-### Enemy System
-
-- **AI Behaviors**: Different enemy types with unique movement patterns
-- **Health Indicators**: Color-coded health bars with glow effects
-- **Variant System**: 15% chance for enhanced enemies
-- **Wave Progression**: Increasing difficulty and enemy types
-
-### Experience System
-
-- **Lucky Gems**: 5% chance for 5x experience gems with special effects
-- **Level Up Effects**: XP magnet and visual feedback
-- **Progression**: Meaningful choices in upgrade selection
-- **Visual Feedback**: Enhanced collection effects and numbers
+Vanilla JavaScript (ES modules), HTML5 Canvas 2D and the Web Audio API. Tests use Jest.
 
 ---
 
-**🧛 Survive the Night! 🌙**
-
-_Built with passion for performance and visual excellence._
+**🧛 Survive the night. 🌙**
