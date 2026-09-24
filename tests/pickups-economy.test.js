@@ -229,6 +229,40 @@ describe('claim semantics', () => {
         expect(system.getTotalGemValue()).toBe(35);
     });
 
+    test('consolidation reaches neighbours beyond any fixed radius', () => {
+        const { system } = makeSystem();
+        // Victim far past the old 4096-cell cutoff; its only neighbour is
+        // even farther out. Grid search is bounded by occupied cells, not a
+        // hard distance limit.
+        const old = system.createGem(20000, 20000, 25);
+        old.currentSpawnTime = 0;
+        old.lifetime = 0;
+        const neighbour = system.createGem(30000, 20000, 10);
+        neighbour.currentSpawnTime = 0;
+
+        system.updateSpatialGrid();
+        system.cleanup();
+
+        expect(system.activeGems).not.toContain(old);
+        expect(neighbour.value).toBe(35);
+        expect(system.getTotalGemValue()).toBe(35);
+    });
+
+    test('consolidateGems merges farthest victims first via the grid', () => {
+        const { system } = makeSystem();
+        // 10 gems: 5 near the player, 5 far. Cap to 5 → the 5 far merge away.
+        const near = [];
+        for (let i = 0; i < 5; i++) near.push(system.createGem(50 + i * 10, 0, 5));
+        for (let i = 0; i < 5; i++) system.createGem(5000 + i * 100, 5000, 7);
+
+        const merged = system.consolidateGems(5);
+        expect(merged).toBe(5);
+        expect(system.activeGems.length).toBe(5);
+        for (const g of near) expect(system.activeGems).toContain(g);
+        // All value conserved: 5*5 + 5*7 = 60
+        expect(system.getTotalGemValue()).toBe(60);
+    });
+
     test('claimed gems may occupy the cap until collected', () => {
         const { game, system } = makeSystem();
         for (let i = 0; i < system.maxActiveGems; i++) {
@@ -266,6 +300,35 @@ describe('pool safety', () => {
         expect(system.activeGems).not.toContain(gem);
     });
 
+    test('double return to pool does not duplicate the gem', () => {
+        const { system } = makeSystem();
+        const gem = system.createGem(0, 0, 5);
+        gem.active = false;
+        system.returnGemToPool(gem);
+        system.returnGemToPool(gem);
+        expect(system.gemPool.filter((g) => g === gem)).toHaveLength(1);
+    });
+    test('non-finite coordinates recover in place; far-world gems are kept', () => {
+        const { system } = makeSystem();
+        const gem = system.createGem(100, 100, 25);
+        gem.currentSpawnTime = 0;
+
+        // Legitimate far-world position must NOT be treated as corruption
+        gem.x = 2e6;
+        gem.y = -2e6;
+        gem.update(1 / 60);
+        expect(gem.active).toBe(true);
+        expect(isFinite(gem.x)).toBe(true);
+        expect(Math.abs(gem.x)).toBeGreaterThan(1e6); // not culled or reset
+
+        // Non-finite coordinates recover to spawn point, value conserved
+        gem.x = NaN;
+        gem.update(1 / 60);
+        expect(gem.active).toBe(true);
+        expect(gem.x).toBe(100);
+        expect(system.getTotalGemValue()).toBe(25);
+    });
+
     test('pool reuse clears claim state and cancels gem-owned callbacks', async () => {
         const { system } = makeSystem();
         const gem = system.createGem(0, 0, 5);
@@ -288,14 +351,6 @@ describe('pool safety', () => {
         expect(stale).not.toHaveBeenCalled();
     });
 
-    test('double return to pool does not duplicate the gem', () => {
-        const { system } = makeSystem();
-        const gem = system.createGem(0, 0, 5);
-        gem.active = false;
-        system.returnGemToPool(gem);
-        system.returnGemToPool(gem);
-        expect(system.gemPool.filter((g) => g === gem)).toHaveLength(1);
-    });
 });
 
 describe('exact reward totals', () => {

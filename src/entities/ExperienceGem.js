@@ -331,9 +331,13 @@ export class ExperienceGem {
             this.velocity = { x: 0, y: 0 };
         }
 
-        // Coordinate overflow protection
-        if (!isFinite(this.x) || !isFinite(this.y) || Math.abs(this.x) > 1e6 || Math.abs(this.y) > 1e6) {
-            this.active = false;
+        // Coordinate overflow protection: recover position instead of
+        // destroying the gem — dropped XP must never be lost. Far-world
+        // coordinates are legitimate and are NOT treated as corruption.
+        if (!isFinite(this.x) || !isFinite(this.y)) {
+            this.x = this.startX;
+            this.y = this.startY;
+            this.velocity = { x: 0, y: 0 };
             return;
         }
 
