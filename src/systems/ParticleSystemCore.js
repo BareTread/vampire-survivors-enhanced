@@ -270,7 +270,7 @@ export class ParticleSystemCore {
         particle.vy = options.vy || (Math.random() - 0.5) * 200;
         particle.ax = options.ax || 0;
         particle.ay = options.ay || 50; // Slight gravity
-        particle.life = options.life || 1.0;
+        particle.life = options.life || options.lifetime || 1.0; // several callers say "lifetime"
         particle.maxLife = particle.life;
         particle.size = options.size || 3;
         particle.color = options.color || '#FFFFFF';
