@@ -1,4 +1,3 @@
-import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 
 /**
  * WeaponEvolutionSystem — Max-Level Weapon + Passive Item = Evolved Super Weapon
@@ -328,13 +327,13 @@ export class WeaponEvolutionSystem {
             // Central starburst
             for (let i = 0; i < 24; i++) {
                 const angle = (i / 24) * Math.PI * 2;
-                const speed = 150 + Math.random() * 200;
+                const speed = 120 + Math.random() * 120;
                 particle.create(px, py, {
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
                     color: color,
-                    size: 4 + Math.random() * 4,
-                    lifetime: 1.2 + Math.random() * 0.6,
+                    size: 3 + Math.random() * 3,
+                    life: 0.6 + Math.random() * 0.3,
                     fadeOut: true,
                     glow: true,
                     shrink: true
@@ -350,7 +349,7 @@ export class WeaponEvolutionSystem {
                     vy: Math.sin(angle) * 50 - 40,
                     color: '#FFFFFF',
                     size: 2 + Math.random() * 3,
-                    lifetime: 0.8 + Math.random() * 0.4,
+                    life: 0.8 + Math.random() * 0.4,
                     fadeOut: true,
                     glow: true
                 });
@@ -363,7 +362,7 @@ export class WeaponEvolutionSystem {
                     vy: -80 - Math.random() * 60,
                     color: '#FFD700',
                     size: 2 + Math.random() * 2,
-                    lifetime: 1.5 + Math.random() * 0.5,
+                    life: 1.2 + Math.random() * 0.5,
                     fadeOut: true,
                     glow: true,
                     shrink: true
@@ -371,21 +370,20 @@ export class WeaponEvolutionSystem {
             }
         }
 
-        // 3. Floating evolution text
-        if (globalDamageNumberPool) {
-            globalDamageNumberPool.spawn(player.x, player.y - 30, recipe.evolvedName, recipe.evolvedColor);
-            globalDamageNumberPool.spawn(player.x, player.y - 50, 'EVOLVED!', '#FFD700');
-        }
+        // 3. Name the moment: HUD reveal banner + a shockwave and light
+        //    column in the evolved colour (see render)
+        this.game.systems.canvasHUD?.showWaveBanner?.(
+            recipe.evolvedName,
+            `${weapon._preEvolveName || 'Your weapon'} has evolved`,
+            recipe.evolvedColor
+        );
+        this._reveal = { start: performance.now(), color: recipe.evolvedColor };
 
         // 4. Audio cue
         if (this.game.audioManager) {
             this.game.audioManager.playVampireSound('weaponEvolution', 0.6);
         }
 
-        // 5. Camera gold flash
-        if (this.game.camera) {
-            this.game.camera.flash('#FFD700', 0.6);
-        }
 
         if (typeof weapon.updateStats === 'function') {
             weapon.updateStats();
@@ -765,28 +763,70 @@ export class WeaponEvolutionSystem {
         const player = this.game.player;
         if (!player) return;
 
+        this._renderReveal(ctx, player);
+
+        const time = this.game.gameTime || 0;
         for (const weapon of player.weapons.values()) {
             if (!weapon.evolved) continue;
 
-            // Draw a subtle pulsing glow ring in the evolved color
-            const time = this.game.gameTime || 0;
+            // Subtle pulsing ring in the evolved colour (soft edge from a
+            // wide faint stroke under a thin bright one — no shadowBlur)
             const pulse = 0.3 + 0.15 * Math.sin(time * 4);
             const radius = 25 + 5 * Math.sin(time * 2);
+            const color = weapon.evolvedGlowColor || weapon.color;
 
             ctx.save();
-            ctx.globalAlpha = pulse;
-            ctx.strokeStyle = weapon.evolvedGlowColor || weapon.color;
-            ctx.lineWidth = 2;
-            ctx.shadowColor = weapon.color;
-            ctx.shadowBlur = 12;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = pulse * 0.35;
+            ctx.lineWidth = 6;
             ctx.beginPath();
             ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = pulse;
+            ctx.lineWidth = 1.5;
             ctx.stroke();
             ctx.restore();
         }
     }
 
+    /** Shockwave ring + rising light column for ~1s after an evolution. */
+    _renderReveal(ctx, player) {
+        const r = this._reveal;
+        if (!r) return;
+        const t = (performance.now() - r.start) / 1000;
+        if (t > 1.1) {
+            this._reveal = null;
+            return;
+        }
+        const ease = 1 - Math.pow(1 - Math.min(1, t / 0.6), 3);
+        const fade = Math.max(0, 1 - t / 1.1);
+        const feetY = player.y + (player.size || 12) * 0.9;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        // Light column
+        const colW = 26 * (1 - t / 1.1);
+        const grad = ctx.createLinearGradient(0, feetY - 260, 0, feetY);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        grad.addColorStop(1, `rgba(255, 240, 200, ${0.55 * fade})`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(player.x - colW / 2, feetY - 260, colW, 260);
+        // Ground shockwave
+        ctx.strokeStyle = r.color;
+        ctx.globalAlpha = fade;
+        ctx.lineWidth = 3 * fade + 1;
+        ctx.beginPath();
+        ctx.ellipse(player.x, feetY, 20 + ease * 220, (20 + ease * 220) * 0.4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = fade * 0.45;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    }
+
     reset() {
         this.evolvedWeapons.clear();
+        this._reveal = null;
     }
 }

@@ -267,6 +267,7 @@ export class CanvasHUD {
             ctx.textAlign = 'center';
             ctx.font = "italic 14px Georgia, serif";
             ctx.lineWidth = 2.5;
+            ctx.strokeStyle = 'rgba(10, 5, 14, 0.85)';
             ctx.strokeText(b.subtitle, cx, y + 22);
             ctx.fillStyle = 'rgba(236, 226, 206, 0.92)';
             ctx.fillText(b.subtitle, cx, y + 22);
