@@ -310,12 +310,11 @@ export class Player {
         this.updateComboSystem(dt);
         this.updatePowerUps(dt);
         this.updateNearDeathEffects(dt);
+        if (this._levelUpSelectionOpen()) return;
         this.updateStreaks(dt);
-
-        // Update weapons
+        if (this._levelUpSelectionOpen()) return;
         this.updateWeapons(dt);
-
-        // Update manual aiming system
+        if (this._levelUpSelectionOpen()) return;
         this.updateManualAiming(dt);
     }
 
@@ -415,7 +414,9 @@ export class Player {
 
     updateWeapons(dt) {
         for (const weapon of this.weapons.values()) {
+            if (this._levelUpSelectionOpen()) break;
             weapon.update(dt);
+            if (this._levelUpSelectionOpen()) break;
         }
     }
 
@@ -1091,13 +1092,23 @@ export class Player {
 
     updatePowerUps(dt) {
         if (dt > 0) this.combatTime += dt;
+        let strengthChanged = false;
         for (const name of Object.keys(this.powerUps)) {
-            const wasActive = this.powerUps[name].active;
+            const powerUp = this.powerUps[name];
+            const wasActive = powerUp.active;
+            const previous = powerUp.currentMultiplier;
             this._syncBuffSnapshot(name);
-            if (wasActive && !this.powerUps[name].active) {
-                this.updateWeaponStats();
+            if (wasActive !== powerUp.active || previous !== powerUp.currentMultiplier) {
+                strengthChanged = true;
             }
         }
+        if (strengthChanged) this.updateWeaponStats();
+    }
+
+    _levelUpSelectionOpen() {
+        const game = this.game;
+        if (!game) return false;
+        return game.levelUpActive === true || game.gameState === 'levelUp';
     }
 
     activatePowerUp(type, duration, intensity = 1.0) {

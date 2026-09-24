@@ -150,9 +150,10 @@ export class GarlicAura extends BaseWeapon {
     }
 
     getEffectiveCooldown() {
-        // Tick rate is the "cooldown" for aura weapons
-        const cdMultiplier = this.player.stats ? this.player.stats.cooldown : 1.0;
-        return Math.max(this.minCooldown || 0.15, this.tickRate / cdMultiplier);
+        // Tick rate is the aura cadence. Use the cached effective cooldown
+        // (base tick / getEffectiveStats().cooldown) so attack speed and
+        // Empty Tome change the actual pulse, not only the HUD snapshot.
+        return Math.max(this.minCooldown || 0.15, this.currentStats.cooldown);
     }
 
     // --- Visual rendering ---
