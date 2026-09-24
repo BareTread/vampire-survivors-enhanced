@@ -76,7 +76,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260924-bestiary1';
+        this.version = '20260924-perf1';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;
@@ -1289,6 +1289,34 @@ export class CanvasHUD {
 
     /** Draw filled + stroked rounded rect with a soft glow on the border. */
     _panel(ctx, x, y, w, h, r, bgColor, borderColor) {
+        // Panels are static chrome; the blurred border glow is expensive, so
+        // each distinct panel is baked once and blitted.
+        if (typeof document !== 'undefined' && w > 0 && h > 0) {
+            const pad = 14;
+            const fx = x - Math.floor(x);
+            const fy = y - Math.floor(y);
+            const key = `${Math.round(w * 2)}|${Math.round(h * 2)}|${r}|${bgColor}|${borderColor}|${fx.toFixed(1)}|${fy.toFixed(1)}`;
+            const cache = this._panelCache || (this._panelCache = new Map());
+            let c = cache.get(key);
+            if (c === undefined) {
+                if (cache.size > 64) cache.clear();
+                c = document.createElement('canvas');
+                c.width = Math.ceil(w) + pad * 2 + 1;
+                c.height = Math.ceil(h) + pad * 2 + 1;
+                const g = c.getContext('2d');
+                if (g) this._paintPanel(g, pad + fx, pad + fy, w, h, r, bgColor, borderColor);
+                else c = null;
+                cache.set(key, c);
+            }
+            if (c) {
+                ctx.drawImage(c, Math.floor(x) - pad, Math.floor(y) - pad);
+                return;
+            }
+        }
+        this._paintPanel(ctx, x, y, w, h, r, bgColor, borderColor);
+    }
+
+    _paintPanel(ctx, x, y, w, h, r, bgColor, borderColor) {
         const C = CanvasHUD.C;
         // Background fill
         this._roundRect(ctx, x, y, w, h, r);

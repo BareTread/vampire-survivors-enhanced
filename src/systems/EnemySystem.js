@@ -1,8 +1,11 @@
+import { EnemyRenderer } from '../entities/rendering/EnemyRenderer.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Wraith } from '../entities/enemies/Wraith.js';
 import { Demon } from '../entities/enemies/Demon.js';
 import { MathUtils } from '../utils/MathUtils.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
+
+const byDepth = (a, b) => a.y + a.size - (b.y + b.size);
 
 export class EnemySystem {
     constructor(game) {
@@ -910,11 +913,35 @@ export class EnemySystem {
             renderDetail = 'medium';
         }
 
+        // Cull to the viewport and paint back-to-front by feet position so
+        // nearer creatures overlap the ones behind them.
+        const list = this._renderList || (this._renderList = []);
+        list.length = 0;
+        const cam = this.game.camera;
+        const view = cam && typeof cam.getWorldBounds === 'function' ? cam.getWorldBounds(0) : null;
         for (const enemy of this.activeEnemies) {
-            if (enemy.active) {
-                enemy.render(renderer, renderDetail);
+            if (!enemy.active) continue;
+            if (view) {
+                // Generous reach: sprites stand above their feet, auras and
+                // boss sigils spread wide around them.
+                const reach = enemy.size * 3 + (enemy.auraRadius || 0) + 40;
+                if (enemy.x < view.left - reach || enemy.x > view.right + reach ||
+                    enemy.y < view.top - reach || enemy.y > view.bottom + reach) continue;
             }
+            list.push(enemy);
         }
+        list.sort(byDepth);
+
+        // All ground shadows in a single fill, under every body
+        const ctx = renderer && renderer.ctx ? renderer.ctx : renderer;
+        if (ctx && typeof ctx.beginPath === 'function' && list.length > 0) {
+            EnemyRenderer.renderShadows(ctx, list);
+        }
+
+        for (let i = 0; i < list.length; i++) {
+            list[i].render(renderer, renderDetail);
+        }
+        list.length = 0;
 
         // Render formation glow rings on top of enemies
         this.renderFormationGlow(renderer);

@@ -1353,6 +1353,30 @@ export class VampireSurvivorsGame {
         }
     }
 
+    /**
+     * Measures the display's vsync interval and returns true for vsyncs that
+     * should be skipped so a 120/144/240Hz monitor renders at ~60-80 FPS.
+     */
+    _shouldSkipFrame(now) {
+        const p = this._pacing || (this._pacing = { last: 0, samples: [], divisor: 1, tick: 0 });
+        if (p.last) {
+            const d = now - p.last;
+            if (d > 0 && d < 50) {
+                p.samples.push(d);
+                if (p.samples.length > 90) p.samples.shift();
+                if (p.samples.length >= 30 && (p.tick & 31) === 0) {
+                    const sorted = p.samples.slice().sort((a, b) => a - b);
+                    const hz = 1000 / sorted[sorted.length >> 1];
+                    p.divisor = Math.max(1, Math.floor(hz / 58));
+                }
+            }
+        }
+        p.last = now;
+        p.tick++;
+        if (this.uncappedFrameRate || p.divisor <= 1) return false;
+        return p.tick % p.divisor !== 0;
+    }
+
     gameLoop = (currentTime) => {
         try {
             if (!this.running) return;
@@ -1367,6 +1391,14 @@ export class VampireSurvivorsGame {
                     lastAdjust: 0,
                     adjustInterval: 2000 // Check every 2 seconds
                 };
+            }
+
+            // Frame pacing: on 100Hz+ displays render every Nth vsync (~60-80
+            // FPS) unless the player opted into an uncapped frame rate. Even
+            // divisors keep pacing perfectly regular; skipped vsyncs cost ~0.
+            if (this._shouldSkipFrame(currentTime)) {
+                requestAnimationFrame(this.gameLoop);
+                return;
             }
 
             // OPTIMIZED: Ultra-fast deltaTime calculation with minimal operations
@@ -1975,31 +2007,51 @@ export class VampireSurvivorsGame {
     }
 
     /**
-     * Screen-space darkness falloff centered on the player. One gradient
-     * fill per frame; the gradient object is cached per viewport/position
-     * bucket so it is rebuilt rarely.
+     * Screen-space darkness falloff centered on the player. The gradient is
+     * baked once per viewport into an oversized canvas and blitted at the
+     * player's screen offset — a 1:1 image copy instead of evaluating a
+     * full-screen radial gradient every frame.
      */
     renderTorchlight(ctx) {
         if (!this.player || !this.camera) return;
         const w = this.canvas.width;
         const h = this.canvas.height;
         const p = this.camera.worldToScreen(this.player.x, this.player.y);
-        const px = Math.round(p.x / 4) * 4;
-        const py = Math.round(p.y / 4) * 4;
-        const key = `${w}|${h}|${px}|${py}`;
-        if (this._torchKey !== key) {
-            const inner = Math.min(w, h) * 0.26;
-            const outer = Math.hypot(w, h) * 0.62;
-            const g = ctx.createRadialGradient(px, py, inner, px, py, outer);
-            g.addColorStop(0, 'rgba(6, 3, 12, 0)');
-            g.addColorStop(0.55, 'rgba(6, 3, 12, 0.28)');
-            g.addColorStop(1, 'rgba(4, 2, 8, 0.62)');
-            this._torchGradient = g;
-            this._torchKey = key;
+        const t = this._torch || (this._torch = { canvas: null, w: 0, h: 0, m: 0 });
+        const inner = Math.min(w, h) * 0.26;
+        const outer = Math.hypot(w, h) * 0.62;
+
+        if (typeof document !== 'undefined' && (t.w !== w || t.h !== h)) {
+            const m = Math.ceil(Math.min(w, h) * 0.3);
+            const c = t.canvas || document.createElement('canvas');
+            c.width = w + m * 2;
+            c.height = h + m * 2;
+            const g = c.getContext('2d');
+            const cx = c.width / 2;
+            const cy = c.height / 2;
+            const grad = g.createRadialGradient(cx, cy, inner, cx, cy, outer);
+            grad.addColorStop(0, 'rgba(6, 3, 12, 0)');
+            grad.addColorStop(0.55, 'rgba(6, 3, 12, 0.28)');
+            grad.addColorStop(1, 'rgba(4, 2, 8, 0.62)');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, c.width, c.height);
+            Object.assign(t, { canvas: c, w, h, m });
         }
+
+        const dx = Math.round(p.x - w / 2);
+        const dy = Math.round(p.y - h / 2);
         ctx.save();
-        ctx.fillStyle = this._torchGradient;
-        ctx.fillRect(0, 0, w, h);
+        if (t.canvas && Math.abs(dx) <= t.m && Math.abs(dy) <= t.m) {
+            ctx.drawImage(t.canvas, dx - t.m, dy - t.m);
+        } else {
+            // Player far off-center (camera snap/teleport): draw directly
+            const grad = ctx.createRadialGradient(p.x, p.y, inner, p.x, p.y, outer);
+            grad.addColorStop(0, 'rgba(6, 3, 12, 0)');
+            grad.addColorStop(0.55, 'rgba(6, 3, 12, 0.28)');
+            grad.addColorStop(1, 'rgba(4, 2, 8, 0.62)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        }
         ctx.restore();
     }
 

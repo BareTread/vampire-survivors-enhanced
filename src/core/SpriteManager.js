@@ -61,6 +61,28 @@ export class SpriteManager {
      * invulnerabilityTime, levelUpEffect(Time), desperationMode, health,
      * maxHealth and dash. Does NOT draw the health bar or aim indicator.
      */
+    /** Baked lantern light pool (ellipse gradient), cached per color/radius. */
+    _lightPool(color, r) {
+        if (typeof document === 'undefined') return null;
+        const key = `${color}|${Math.round(r)}`;
+        if (this._poolKey === key) return this._poolCanvas;
+        const d = Math.max(4, Math.ceil(r * 2));
+        const c = document.createElement('canvas');
+        c.width = d;
+        c.height = d;
+        const g = c.getContext('2d');
+        if (!g) return null;
+        const grad = g.createRadialGradient(d / 2, d / 2, 0, d / 2, d / 2, d / 2);
+        grad.addColorStop(0, rgba(color, 0.3));
+        grad.addColorStop(0.5, rgba(color, 0.1));
+        grad.addColorStop(1, rgba(color, 0));
+        g.fillStyle = grad;
+        g.fillRect(0, 0, d, d);
+        this._poolKey = key;
+        this._poolCanvas = c;
+        return c;
+    }
+
     drawPlayer(player, ctx) {
         if (!ctx || !player) return;
 
@@ -81,14 +103,19 @@ export class SpriteManager {
 
         // Light pool — the hunter carries a faint lantern glow
         const glowR = size * 3.2;
-        const glow = ctx.createRadialGradient(player.x, feetY, 0, player.x, feetY, glowR);
-        glow.addColorStop(0, rgba(color, 0.3));
-        glow.addColorStop(0.5, rgba(color, 0.1));
-        glow.addColorStop(1, rgba(color, 0));
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.ellipse(player.x, feetY, glowR, glowR * 0.55, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const pool = this._lightPool(color, glowR);
+        if (pool) {
+            ctx.drawImage(pool, player.x - glowR, feetY - glowR * 0.55, glowR * 2, glowR * 1.1);
+        } else {
+            const glow = ctx.createRadialGradient(player.x, feetY, 0, player.x, feetY, glowR);
+            glow.addColorStop(0, rgba(color, 0.3));
+            glow.addColorStop(0.5, rgba(color, 0.1));
+            glow.addColorStop(1, rgba(color, 0));
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.ellipse(player.x, feetY, glowR, glowR * 0.55, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         // Hero ring — a thin character-colored sigil so the hunter never
         // gets lost inside a crowd of silhouettes

@@ -125,6 +125,24 @@ describe('Runtime regression coverage', () => {
         expect(mockGame.systems.titleScreen.handleClick).toHaveBeenCalledWith(320, 180);
     });
 
+    test('frame pacing renders every other vsync on 120Hz+ displays unless uncapped', () => {
+        const run = (intervalMs, uncapped = false) => {
+            const game = { uncappedFrameRate: uncapped };
+            let rendered = 0;
+            for (let i = 1; i <= 240; i++) {
+                if (!VampireSurvivorsGame.prototype._shouldSkipFrame.call(game, i * intervalMs)) rendered++;
+            }
+            return rendered;
+        };
+        // 60Hz: nothing skipped
+        expect(run(1000 / 60)).toBe(240);
+        // 144Hz: settles at half rate (72 FPS)
+        expect(run(1000 / 144)).toBeLessThan(150);
+        expect(run(1000 / 144)).toBeGreaterThan(110);
+        // Opt-out renders every vsync
+        expect(run(1000 / 144, true)).toBe(240);
+    });
+
     test('player destroy unregisters input listeners', () => {
         const game = createPlayerGame();
         const player = new Player(game, 100, 100);

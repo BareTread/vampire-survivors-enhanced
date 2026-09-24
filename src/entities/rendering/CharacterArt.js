@@ -121,7 +121,27 @@ function makeCanvas(w, h) {
  * around the feet origin. Returns { canvas, w, h, ax, ay } where
  * (ax, ay) is the feet anchor inside the drawn (logical) sprite.
  */
-export function bakeSprite(box, paint, { outline = 1.2, flash = false, tint = null } = {}) {
+export function bakeSprite(box, paint, { outline = 1.2, flash = false, tint = null, angle = 0 } = {}) {
+    if (angle) {
+        // Pre-rotated bake (around the feet origin): grow the box to hold
+        // the rotated extents so the draw call only needs to scale.
+        const c = Math.cos(angle);
+        const sn = Math.sin(angle);
+        const xs = [];
+        const ys = [];
+        for (const x of [box.l, box.r]) {
+            for (const y of [box.t, box.b]) {
+                xs.push(x * c - y * sn);
+                ys.push(x * sn + y * c);
+            }
+        }
+        const inner = paint;
+        paint = (ctx) => {
+            ctx.rotate(angle);
+            inner(ctx);
+        };
+        box = { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), b: Math.max(...ys) };
+    }
     const pad = Math.ceil(outline) + 2;
     const w = box.r - box.l + pad * 2;
     const h = box.b - box.t + pad * 2;
@@ -1434,10 +1454,13 @@ const enemyCache = new Map();
  * Get (baking on first use) the sprite for an enemy archetype.
  * `size` is the enemy hitbox radius; `variant` is 'normal' | 'flash' | 'gold' | 'frost'.
  */
-export function getEnemySprite(type, color, size, frame, variant = 'normal') {
+export const LEAN_STEP = 0.03;
+const ENEMY_CACHE_MAX = 700;
+
+export function getEnemySprite(type, color, size, frame, variant = 'normal', leanStep = 0) {
     const kind = ENEMY_PAINTERS[type] ? type : 'basic';
     const r = Math.max(3, Math.round(size));
-    const key = `${kind}|${color}|${r}|${frame}|${variant}`;
+    const key = `${kind}|${color}|${r}|${frame}|${variant}|${leanStep}`;
     let s = enemyCache.get(key);
     if (s !== undefined) return s;
 
@@ -1451,10 +1474,24 @@ export function getEnemySprite(type, color, size, frame, variant = 'normal') {
     s = bakeSprite(box, (ctx) => ENEMY_PAINTERS[kind](ctx, u, pal, frame), {
         outline: Math.max(0.9, u * 0.1),
         flash: variant === 'flash',
-        tint
+        tint,
+        angle: leanStep * LEAN_STEP
     });
+    // Bounded: evict the oldest bakes (Map keeps insertion order) so odd
+    // size/color combos over a long run can't grow memory without limit.
+    if (enemyCache.size >= ENEMY_CACHE_MAX) {
+        let n = 100;
+        for (const k of enemyCache.keys()) {
+            enemyCache.delete(k);
+            if (--n <= 0) break;
+        }
+    }
     enemyCache.set(key, s);
     return s;
+}
+
+export function characterArtCacheSize() {
+    return enemyCache.size + hunterCache.size;
 }
 
 /** Visual top of an enemy (world y), used to place health bars / markers. */

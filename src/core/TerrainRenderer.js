@@ -97,17 +97,15 @@ export class TerrainRenderer {
         const zone = this.getZoneAt(camera.x, camera.y);
         const view = this._viewBounds(camera, 64);
 
-        // Zone-tinted radial falloff around the camera
-        const gradient = ctx.createRadialGradient(camera.x, camera.y, 0, camera.x, camera.y, 800);
-        gradient.addColorStop(0, zone.bgInner);
-        gradient.addColorStop(0.6, zone.bgMid);
-        gradient.addColorStop(1, zone.bgOuter);
+        // Flat zone base — only visible if the stone tiles failed to bake
+        // (the flagstone tile is fully opaque, so a gradient here would be a
+        // full-screen fill nobody ever sees).
+        if (!this._patterns.has(zone.name)) {
+            ctx.fillStyle = zone.bgMid;
+            ctx.fillRect(view.left, view.top, view.right - view.left, view.bottom - view.top);
+        }
 
-        ctx.fillStyle = gradient;
-        ctx.fillRect(view.left, view.top, view.right - view.left, view.bottom - view.top);
-
-        // The flagstone pattern is a single fill — always worth drawing.
-        // Only the landmark sprites are dropped under load.
+        // The flagstone floor is always drawn; only landmarks drop under load.
         this.renderFloorDetail(camera, view);
 
         if (this.qualityLevel === 'high') {
@@ -127,7 +125,7 @@ export class TerrainRenderer {
         const zone = this.getZoneAt(camera.x, camera.y);
         const pattern = this._patterns.get(zone.name);
 
-        if (pattern) {
+        if (pattern && !this._blitFloor(ctx, zone)) {
             ctx.fillStyle = pattern;
             ctx.fillRect(view.left, view.top, view.right - view.left, view.bottom - view.top);
         }
@@ -140,6 +138,82 @@ export class TerrainRenderer {
                 lm.y < view.top - lm.h || lm.y > view.bottom + lm.h) continue;
             ctx.drawImage(lm.canvas, lm.x - lm.w / 2, lm.y - lm.h / 2);
         }
+    }
+
+    /**
+     * Fast floor path. A zoomed, repeating pattern fill resamples every
+     * screen pixel through the camera transform (~8ms/frame on software
+     * canvases). Instead the floor is pre-tiled once, at the current zoom,
+     * into a screen-sized buffer and blitted 1:1 — the same pixels for a
+     * fraction of the cost. While the zoom is animating (punches, dynamic
+     * zoom) the buffer is drawn slightly scaled and rebuilt once it settles.
+     * Returns false when it can't help (rotation, no DOM) so the caller
+     * falls back to the pattern fill.
+     */
+    _blitFloor(ctx, zone) {
+        const tile = this._tiles && this._tiles.get(zone.name);
+        if (!tile || typeof ctx.getTransform !== 'function') return false;
+        const m = ctx.getTransform();
+        if (Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0) return false;
+        const zoom = m.a;
+        const cw = ctx.canvas ? ctx.canvas.width : 0;
+        const ch = ctx.canvas ? ctx.canvas.height : 0;
+        if (!cw || !ch) return false;
+
+        const f = this._floor || (this._floor = { canvas: null, zone: null, zoom: 0, tile: 0, w: 0, h: 0, lastZoom: 0, still: 0 });
+        f.still = Math.abs(zoom - f.lastZoom) < 1e-4 ? f.still + 1 : 0;
+        f.lastZoom = zoom;
+
+        const needs = !f.canvas || f.zone !== zone.name || f.w !== cw || f.h !== ch;
+        const drift = f.zoom ? zoom / f.zoom : 0;
+        if (needs || (Math.abs(drift - 1) > 1e-3 && f.still >= 6) || drift < 0.87 || drift > 1.15) {
+            if (!this._buildFloorBuffer(f, tile, zone.name, zoom, cw, ch)) return false;
+        }
+
+        const s = zoom / f.zoom;              // ~1 except mid-zoom-animation
+        const period = f.tile * s;            // on-screen tile period
+        const ox = ((m.e % period) + period) % period - period;
+        const oy = ((m.f % period) + period) % period - period;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        if (Math.abs(s - 1) < 1e-3) {
+            ctx.drawImage(f.canvas, Math.round(ox), Math.round(oy));
+        } else {
+            ctx.drawImage(f.canvas, ox, oy, f.canvas.width * s, f.canvas.height * s);
+        }
+        ctx.restore();
+        return true;
+    }
+
+    _buildFloorBuffer(f, tile, zoneName, zoom, cw, ch) {
+        if (typeof document === 'undefined') return false;
+        const period = tile.width * zoom;
+        // Margin covers one tile of scroll plus ~15% of zoom-out while the
+        // buffer is being drawn scaled during a zoom animation.
+        const bw = Math.ceil(cw * 1.15 + period * 2);
+        const bh = Math.ceil(ch * 1.15 + period * 2);
+        if (!f.canvas) f.canvas = document.createElement('canvas');
+        if (f.canvas.width !== bw || f.canvas.height !== bh) {
+            f.canvas.width = bw;
+            f.canvas.height = bh;
+        }
+        const g = f.canvas.getContext('2d', { alpha: false });
+        if (!g) return false;
+        const pattern = g.createPattern(tile, 'repeat');
+        if (!pattern) return false;
+        // Same pattern fill the camera used to do every frame — done once,
+        // so the texels (including seam wrapping) are identical.
+        g.setTransform(zoom, 0, 0, zoom, 0, 0);
+        g.fillStyle = pattern;
+        g.fillRect(0, 0, bw / zoom, bh / zoom);
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        f.zone = zoneName;
+        f.zoom = zoom;
+        f.tile = period;
+        f.w = cw;
+        f.h = ch;
+        return true;
     }
 
     renderBoundaries(camera) {
@@ -352,6 +426,7 @@ export class TerrainRenderer {
         for (const zone of this.zones) {
             const tile = this._buildStoneTile(zone);
             if (tile) {
+                (this._tiles || (this._tiles = new Map())).set(zone.name, tile);
                 const pattern = this.ctx.createPattern(tile, 'repeat');
                 if (pattern) this._patterns.set(zone.name, pattern);
             }

@@ -914,6 +914,40 @@ export class TitleScreenSystem {
      * bone lettering, subtle inner top highlight.
      */
     _stoneButton(ctx, rect, label, opts = {}) {
+        // Blurred drop shadows + glowing text are costly to rasterize, and a
+        // slab only changes with its label/size/state — bake it once and
+        // blit it (fractional positions keep the exact same layout).
+        const { active = false, primary = false, fontSize = 16 } = opts;
+        if (typeof document !== 'undefined' && rect.w > 0 && rect.h > 0) {
+            const pad = 24;
+            const fonts = document.fonts ? document.fonts.status : 'loaded';
+            const key = `${fonts}|${label}|${Math.round(rect.w)}|${Math.round(rect.h)}|${active}|${primary}|${fontSize}|${(rect.x % 1).toFixed(1)}|${(rect.y % 1).toFixed(1)}`;
+            const cache = this._buttonCache || (this._buttonCache = new Map());
+            let c = cache.get(key);
+            if (!c) {
+                if (cache.size > 96) cache.clear();
+                c = document.createElement('canvas');
+                c.width = Math.ceil(rect.w) + pad * 2;
+                c.height = Math.ceil(rect.h) + pad * 2;
+                const g = c.getContext('2d');
+                if (g) {
+                    const fx = rect.x - Math.floor(rect.x);
+                    const fy = rect.y - Math.floor(rect.y);
+                    this._paintStoneButton(g, { x: pad + fx, y: pad + fy, w: rect.w, h: rect.h }, label, opts);
+                    cache.set(key, c);
+                } else {
+                    c = null;
+                }
+            }
+            if (c) {
+                ctx.drawImage(c, Math.floor(rect.x) - pad, Math.floor(rect.y) - pad);
+                return;
+            }
+        }
+        this._paintStoneButton(ctx, rect, label, opts);
+    }
+
+    _paintStoneButton(ctx, rect, label, opts = {}) {
         const { active = false, primary = false, fontSize = 16 } = opts;
         const r = primary ? 6 : 5;
 
@@ -2899,11 +2933,12 @@ export class TitleScreenSystem {
             { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: 'gauge' },
             { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: 'gear' },
             { key: 'showFPS', label: 'Show FPS', type: 'toggle', icon: 'eye' },
-            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: 'pause' }
+            { key: 'pauseOnFocusLoss', label: 'Pause on Focus Loss', type: 'toggle', icon: 'pause' },
+            { key: 'highRefresh', label: 'Uncapped Frame Rate (120Hz+)', type: 'toggle', icon: 'gauge' }
         ];
 
-        const itemH = 36;
-        const itemGap = 4;
+        const itemH = 32;
+        const itemGap = 3;
         const startY = panelY + 78;
         const contentX = panelX + 30;
         const contentW = panelW - 60;
