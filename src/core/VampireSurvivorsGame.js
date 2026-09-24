@@ -1,5 +1,6 @@
 import { ENEMY_ARRIVALS } from '../data/enemyNames.js';
-import { getPowerUpSprite, getPowerUpGlow, POWER_UP_COLORS } from '../entities/rendering/PickupArt.js';
+import { getPowerUpSprite, getPowerUpGlow } from '../entities/rendering/PickupArt.js';
+import { POWER_UPS } from '../data/powerUps.js';
 import { Player } from '../entities/Player.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
@@ -2921,7 +2922,7 @@ export class VampireSurvivorsGame {
     }
 
     getPowerUpColor(type) {
-        return POWER_UP_COLORS[type] || '#FFFFFF';
+        return POWER_UPS[type]?.color || '#FFFFFF';
     }
 
     stop() {
