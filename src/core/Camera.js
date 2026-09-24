@@ -27,6 +27,7 @@ export class Camera {
         this.trauma = 0;
         this.traumaDecay = 1.5;      // trauma lost per second
         this.maxShakeOffset = 16;    // screen px at full trauma
+        this.shakeScale = 1;         // Settings > Screen Shake slider
         this._shakeTime = Math.random() * 100;
         this._kick = { x: 0, y: 0, vx: 0, vy: 0 };
         this.shakeEffect = { intensity: 0, duration: 0, offsetX: 0, offsetY: 0 };
@@ -255,7 +256,7 @@ export class Camera {
     addTrauma(amount, ceiling = 1) {
         if (!this.effectsEnabled || !this.screenShakeEnabled || !(amount > 0)) return;
         if (this.trauma >= ceiling) return;
-        const scale = this.performanceMode === 'low' ? 0.6 : 1;
+        const scale = (this.performanceMode === 'low' ? 0.6 : 1) * this.shakeScale;
         this.trauma = Math.min(ceiling, this.trauma + amount * scale);
     }
 
@@ -279,7 +280,7 @@ export class Camera {
         if (!this.effectsEnabled || !this.screenShakeEnabled) return;
         const len = Math.hypot(dx, dy);
         if (!len) return;
-        const v = Math.min(strength, 14) * 28;
+        const v = Math.min(strength, 14) * 28 * this.shakeScale;
         this._kick.vx += (dx / len) * v;
         this._kick.vy += (dy / len) * v;
     }

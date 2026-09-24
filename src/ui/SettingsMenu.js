@@ -12,6 +12,7 @@ export class SettingsMenu {
             sfxVolume: 0.8,
             particleEffects: true,
             screenShake: true,
+            shakeIntensity: 1.0,
             damageNumbers: true,
             lowFXMode: false,
             showFPS: false,
@@ -48,6 +49,10 @@ export class SettingsMenu {
                 const parsedSettings = JSON.parse(saved);
                 if (parsedSettings && parsedSettings.soundVolume != null && parsedSettings.sfxVolume == null) {
                     parsedSettings.sfxVolume = parsedSettings.soundVolume;
+                }
+                // Old on/off shake toggle → intensity slider
+                if (parsedSettings && parsedSettings.shakeIntensity == null && parsedSettings.screenShake === false) {
+                    parsedSettings.shakeIntensity = 0;
                 }
                 this.settings = { ...this.settings, ...parsedSettings };
             }
@@ -280,6 +285,10 @@ export class SettingsMenu {
             if (!input) return;
             const handler = (e) => {
                 this.settings[id] = e.target.checked;
+                if (id === 'screenShake') {
+                    // Checkbox maps onto the intensity slider (on = full)
+                    this.settings.shakeIntensity = e.target.checked ? Math.max(this.settings.shakeIntensity || 0, 1) : 0;
+                }
                 this.saveSettings();
                 this.apply();
             };
@@ -337,6 +346,7 @@ export class SettingsMenu {
             sfxVolume: 0.8,
             particleEffects: true,
             screenShake: true,
+            shakeIntensity: 1.0,
             damageNumbers: true,
             lowFXMode: false,
             showFPS: false,
@@ -402,7 +412,12 @@ export class SettingsMenu {
             this.game.qualitySettings.screenShake = this.settings.screenShake;
             // Wire to Camera so shake() actually respects this setting
             if (this.game.camera && typeof this.game.camera.setScreenShakeEnabled === 'function') {
-                this.game.camera.setScreenShakeEnabled(this.settings.screenShake);
+                // The slider is the source of truth; the legacy flag follows it
+                const scale = Math.max(0, Math.min(1, this.settings.shakeIntensity ?? 1));
+                this.settings.screenShake = scale > 0;
+                this.game.qualitySettings.screenShake = scale > 0;
+                this.game.camera.shakeScale = scale;
+                this.game.camera.setScreenShakeEnabled(scale > 0);
             }
             this.game.qualitySettings.damageNumbers = this.settings.damageNumbers;
             this.game.qualitySettings.lowFXMode = this.settings.lowFXMode;
