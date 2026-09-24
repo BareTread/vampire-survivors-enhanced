@@ -1,6 +1,7 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { EnemyRenderer } from './rendering/EnemyRenderer.js';
 import { enemyDisplayName } from '../data/enemyNames.js';
+import { getProfile } from '../data/powerUps.js';
 
 export class Enemy {
     static RECOIL_TIME = 0.28;
@@ -51,6 +52,7 @@ export class Enemy {
         this.dying = false;
         this.deathScaleTimer = 0;
         this.deathScaleDuration = 0.08; // ~5 frames @ 60fps
+        this.deathCause = null; // e.g. 'rosary' — suppresses hostile on-death effects
 
         // Elite-specific properties
         this.isBerserk = false;
@@ -382,9 +384,13 @@ export class Enemy {
     updateDeath(dt) {
         if (!this.dying && this.health > 0) return false;
         if (!this.dying) {
-            // Health hit zero outside die(): treat as dead, not as a ghost
-            this.dying = true;
-            this.deathScaleTimer = this.deathScaleDuration || 0.3;
+            // Health hit zero outside die(): run the real death path so
+            // rewards/credit land and the recorded death cause is honored.
+            this.die();
+            if (!this.dying) {
+                this.dying = true;
+                this.deathScaleTimer = this.deathScaleDuration || 0.3;
+            }
         }
         this.deathScaleTimer -= dt;
         if (this.deathScaleTimer <= 0) {
@@ -672,8 +678,10 @@ export class Enemy {
     takeDamage(amount, source = null, isCritical = false) {
         if (!this.active || this.health <= 0) return false;
 
-        // Elite shield: absorb hits
-        if (this.eliteAbility === 'shield' && this.shieldHits > 0) {
+        const cause = source && typeof source === 'object' ? source.cause : null;
+
+        // Elite shield: absorb hits (a rosary cleanse pierces shields)
+        if (this.eliteAbility === 'shield' && this.shieldHits > 0 && cause !== 'rosary') {
             this.shieldHits--;
             this.flashTime = 0.15;
             if (this.game.systems.particle) {
@@ -766,8 +774,10 @@ export class Enemy {
             }
         }
 
-        // Death check
+        // Death check — record the killing cause so die() can suppress
+        // hostile on-death effects (explosions, splits, summons) for cleanses.
         if (this.health <= 0) {
+            if (cause) this.deathCause = cause;
             this.die();
             return true;
         }
@@ -976,7 +986,9 @@ export class Enemy {
         // Elite explodeOnDeath: damage player if nearby.
         // Base 30 damage scaled by difficulty but capped at 35% of player max HP for first 5 min,
         // scaling to 50% by 10 min — prevents one-shots from this ability in early game.
-        if (this.eliteAbility === 'explodeOnDeath') {
+        // A rosary cleanse (deathCause === 'rosary') suppresses this and any
+        // other hostile on-death effect (splits, summon-on-death).
+        if (this.eliteAbility === 'explodeOnDeath' && this.deathCause !== 'rosary') {
             const player = this.game.player;
             if (player) {
                 const edx = player.x - this.x;
@@ -1037,9 +1049,10 @@ export class Enemy {
             if (wasCritical) {
                 this.game.player.streaks.criticalHits++;
                 if (this.game.player.streaks.criticalHits >= 5) {
-                    // Critical streak bonus
-                    this.game.player.callout?.('CRIT STREAK', '#FF0066', 1);
-                    this.game.player.activatePowerUp('damageBoost', 5.0, 1.5);
+                    // Critical streak bonus — profile lives in the power-up table
+                    const p = getProfile('critical');
+                    this.game.player.callout?.(p.label ?? 'CRIT STREAK', p.color ?? '#FF0066', 1);
+                    this.game.player.activatePowerUp(p.id, p.duration, p.intensity);
                     this.game.player.streaks.criticalHits = 0;
                 }
             }
@@ -1351,6 +1364,7 @@ export class Enemy {
         this._frozenVisual = false;
         this.dying = false;
         this.deathScaleTimer = 0;
+        this.deathCause = null; // pool reuse must not inherit a prior kill's cause
         this.currentSpawnTime = this.spawnTime;
         // Note: Damage numbers now managed by globalDamageNumberPool
         this.active = true;
