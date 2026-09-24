@@ -418,74 +418,110 @@ export class ExperienceSystem {
     }
 
     /**
-     * Merge expired (lifetime <= 0), far, unclaimed gems into their nearest
-     * active neighbour. Value is conserved; claimed gems are never victims.
-     * Uses the spatial grid — no all-pairs scans.
+     * Merge expired (lifetime <= 0), far, unclaimed gems into a retained
+     * neighbour. One pass over the occupied grid buckets: each bucket keeps
+     * one recipient (a live gem if present, else the first victim) and folds
+     * the remaining victims into it. Value is conserved; claimed gems are
+     * never victims. No all-pairs scans, no empty-world enumeration.
      */
     consolidateExpiredGems() {
         const player = this.game.player;
         if (!player) return;
         const farSq = this.consolidationDistance * this.consolidationDistance;
 
-        for (let i = this.activeGems.length - 1; i >= 0; i--) {
-            const gem = this.activeGems[i];
-            if (!gem.active || gem.collected || gem.claimed || gem.lifetime > 0) continue;
+        // Refresh the grid so buckets reflect current positions
+        this.updateSpatialGrid();
 
-            const dx = gem.x - player.x;
-            const dy = gem.y - player.y;
-            if (dx * dx + dy * dy <= farSq) continue; // still near the player
+        const merged = [];
+        for (const cell of this.spatialGrid.values()) {
+            let recipient = null;
+            let recipientIsVictim = false;
+            let dirty = false;
+            for (const gem of cell) {
+                if (!gem.active || gem.collected) continue;
 
-            const target = this.findNearestGemViaGrid(gem.x, gem.y, gem);
-            if (!target) continue; // alone on the floor: keep it, value conserved
+                const dx = gem.x - player.x;
+                const dy = gem.y - player.y;
+                const isVictim =
+                    !gem.claimed && gem.lifetime <= 0 && dx * dx + dy * dy > farSq;
 
-            target.value += gem.value;
-            target.initializeVisuals(); // recompute tier/colour
-            gem.active = false;
-            this.activeGems.splice(i, 1);
+                if (!isVictim) {
+                    if (recipientIsVictim && recipient) {
+                        // A live gem supersedes a victim recipient: fold the
+                        // victim's accumulated value into the live gem
+                        gem.value += recipient.value;
+                        recipient.active = false;
+                        merged.push(recipient);
+                        dirty = true;
+                    }
+                    if (!recipient || recipientIsVictim) {
+                        recipient = gem;
+                        recipientIsVictim = false;
+                    }
+                    continue;
+                }
+
+                if (!recipient) {
+                    recipient = gem; // first victim becomes the bucket recipient
+                    recipientIsVictim = true;
+                    continue;
+                }
+
+                recipient.value += gem.value;
+                gem.active = false;
+                merged.push(gem);
+                dirty = true;
+            }
+            if (dirty && recipient) {
+                recipient.initializeVisuals(); // recompute tier/colour
+            }
+        }
+
+        if (merged.length === 0) return;
+
+        for (const gem of merged) {
+            const idx = this.activeGems.indexOf(gem);
+            if (idx !== -1) this.activeGems.splice(idx, 1);
             this.returnGemToPool(gem);
         }
     }
 
     /**
-     * Enforce a rendered-gem cap without losing value: merge farthest
-     * unclaimed gems into their nearest neighbour until count <= maxCount.
-     * Claimed gems are never victims and may occupy the cap until collected.
-     * Victims are sorted once by distance; each merge target is found via the
-     * spatial grid — no all-pairs scans.
+     * Enforce a rendered-gem cap without losing value: bulk-fold unclaimed
+     * gems into the gem nearest the player until count <= maxCount. Claimed
+     * gems are never victims and may occupy the cap until collected.
      * @returns {number} how many gems were merged away
      */
     consolidateGems(maxCount = this.maxActiveGems) {
         if (this.activeGems.length <= maxCount) return 0;
 
-        // Refresh the grid so merge targets reflect current positions
-        this.updateSpatialGrid();
-
-        // Victim candidates: unclaimed gems, farthest from the player first.
-        // Sorted once — merging a victim never changes victim ordering.
-        const victims = this.activeGems
+        // Unclaimed candidates sorted once, farthest from the player first;
+        // the nearest gem (last element) is the retained recipient.
+        const candidates = this.activeGems
             .filter((gem) => gem.active && !gem.collected && !gem.claimed)
             .sort((a, b) => this.getDistanceSquaredToPlayer(b) - this.getDistanceSquaredToPlayer(a));
 
+        if (candidates.length === 0) return 0; // only claimed gems remain
+
+        const recipient = candidates.pop(); // nearest unclaimed gem survives
         let merged = 0;
-        for (const victim of victims) {
+        for (const victim of candidates) {
             if (this.activeGems.length <= maxCount) break;
 
-            const target = this.findNearestGemViaGrid(victim.x, victim.y, victim);
-            if (!target) continue; // lone gem: nothing to merge into
-
-            target.value += victim.value;
-            target.initializeVisuals(); // recompute tier/colour
+            recipient.value += victim.value;
             victim.active = false;
             this.activeGems.splice(this.activeGems.indexOf(victim), 1);
             this.returnGemToPool(victim);
             merged++;
         }
+        if (merged > 0) recipient.initializeVisuals(); // recompute tier/colour
         return merged;
     }
 
     /**
      * Nearest active, uncollected gem to (x, y). Linear scan over the capped
-     * active list — used for single merges, not periodic sweeps.
+     * active list — used for the single new-gem merge at the cap, not for
+     * periodic sweeps.
      */
     findNearestGem(x, y, exclude = null) {
         let best = null;
@@ -498,65 +534,6 @@ export class ExperienceSystem {
             if (dSq < bestSq) {
                 bestSq = dSq;
                 best = gem;
-            }
-        }
-        return best;
-    }
-
-    /**
-     * Nearest active, uncollected gem to (x, y) via the spatial grid.
-     * Scans only each ring's perimeter cells (O(ring) per ring, not O(ring²)),
-     * bounded by the farthest occupied cell — never scans empty world, no
-     * hard distance cutoff. Stops once a ring's minimum possible distance
-     * exceeds the best hit so far.
-     */
-    findNearestGemViaGrid(x, y, exclude = null) {
-        const cellX = Math.floor(x / this.gridSize);
-        const cellY = Math.floor(y / this.gridSize);
-        let best = null;
-        let bestSq = Infinity;
-
-        const scanCell = (gx, gy) => {
-            const cell = this.spatialGrid.get(`${gx},${gy}`);
-            if (!cell) return;
-            for (const gem of cell) {
-                if (gem === exclude || !gem.active || gem.collected) continue;
-                const dx = gem.x - x;
-                const dy = gem.y - y;
-                const dSq = dx * dx + dy * dy;
-                if (dSq < bestSq) {
-                    bestSq = dSq;
-                    best = gem;
-                }
-            }
-        };
-
-        // Farthest occupied cell bounds the search — no fixed radius cutoff
-        let maxRing = 0;
-        for (const key of this.spatialGrid.keys()) {
-            const comma = key.indexOf(',');
-            const gx = parseInt(key.slice(0, comma), 10);
-            const gy = parseInt(key.slice(comma + 1), 10);
-            const ring = Math.max(Math.abs(gx - cellX), Math.abs(gy - cellY));
-            if (ring > maxRing) maxRing = ring;
-        }
-
-        for (let ring = 0; ring <= maxRing; ring++) {
-            // Cells in ring r start at least (r - 1) * gridSize away
-            if (ring > 0 && (ring - 1) * this.gridSize >= Math.sqrt(bestSq)) break;
-
-            if (ring === 0) {
-                scanCell(cellX, cellY);
-                continue;
-            }
-            // Perimeter only: top/bottom rows, then left/right columns
-            for (let gx = cellX - ring; gx <= cellX + ring; gx++) {
-                scanCell(gx, cellY - ring);
-                scanCell(gx, cellY + ring);
-            }
-            for (let gy = cellY - ring + 1; gy <= cellY + ring - 1; gy++) {
-                scanCell(cellX - ring, gy);
-                scanCell(cellX + ring, gy);
             }
         }
         return best;

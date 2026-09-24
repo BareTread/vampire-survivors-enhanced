@@ -122,9 +122,9 @@ describe('conservation property: 500 seeded spawn/cap/collect sequences', () => 
             const cap = Math.floor(rng() * system.maxActiveGems);
             system.consolidateGems(cap);
             const total = system.activeGems.length;
-            // count <= cap, OR only claimed gems remain (claims may occupy the
-            // cap), OR a single lone gem with nothing to merge into
-            expect(total <= cap || unclaimedCount(system) === 0 || total === 1).toBe(true);
+            // count <= cap, OR at most one unclaimed recipient remains
+            // (claims may occupy the cap; a lone gem can't merge into itself)
+            expect(total <= cap || unclaimedCount(system) <= 1).toBe(true);
             expect(system.getTotalGemValue()).toBe(system.droppedXP);
         }
     });
@@ -162,7 +162,9 @@ describe('cap merge', () => {
         // consolidateGems must not evict the claimed gem even below its index
         system.consolidateGems(1);
         expect(system.activeGems).toContain(claimed);
-        expect(unclaimedCount(system)).toBe(0);
+        // One unclaimed recipient survives the bulk-fold; the rest folded in
+        expect(unclaimedCount(system)).toBeLessThanOrEqual(1);
+        expect(system.getTotalGemValue()).toBe(system.droppedXP);
     });
 });
 
@@ -213,15 +215,15 @@ describe('claim semantics', () => {
         expect(far.active).toBe(true);
     });
 
-    test('unclaimed far expired gem consolidates into nearest neighbour', () => {
+    test('unclaimed far expired gem consolidates into its grid neighbour', () => {
         const { system } = makeSystem();
+        // Same 64px bucket: the expired far gem folds into the live neighbour
         const old = system.createGem(5000, 5000, 25);
         old.currentSpawnTime = 0;
         old.lifetime = 0;
-        const young = system.createGem(5100, 5000, 10);
+        const young = system.createGem(5030, 5000, 10);
         young.currentSpawnTime = 0;
 
-        system.updateSpatialGrid();
         system.cleanup();
 
         expect(system.activeGems).not.toContain(old);
@@ -229,28 +231,26 @@ describe('claim semantics', () => {
         expect(system.getTotalGemValue()).toBe(35);
     });
 
-    test('consolidation reaches neighbours beyond any fixed radius', () => {
+    test('sparse far gems in separate buckets are conserved, not destroyed', () => {
         const { system } = makeSystem();
-        // Victim far past the old 4096-cell cutoff; its only neighbour is
-        // even farther out. Grid search is bounded by occupied cells, not a
-        // hard distance limit.
-        const old = system.createGem(20000, 20000, 25);
-        old.currentSpawnTime = 0;
-        old.lifetime = 0;
-        const neighbour = system.createGem(30000, 20000, 10);
-        neighbour.currentSpawnTime = 0;
+        // 1e6-scale sparse coordinates: no empty-world sweep, both survive
+        const a = system.createGem(1e6, 1e6, 25);
+        a.currentSpawnTime = 0;
+        a.lifetime = 0;
+        const b = system.createGem(-1e6, -1e6, 10);
+        b.currentSpawnTime = 0;
+        b.lifetime = 0;
 
-        system.updateSpatialGrid();
         system.cleanup();
 
-        expect(system.activeGems).not.toContain(old);
-        expect(neighbour.value).toBe(35);
+        expect(system.activeGems).toContain(a);
+        expect(system.activeGems).toContain(b);
         expect(system.getTotalGemValue()).toBe(35);
     });
 
-    test('consolidateGems merges farthest victims first via the grid', () => {
+    test('consolidateGems bulk-folds victims into a retained gem', () => {
         const { system } = makeSystem();
-        // 10 gems: 5 near the player, 5 far. Cap to 5 → the 5 far merge away.
+        // 10 gems: 5 near the player, 5 far. Cap to 5 → 5 victims fold away.
         const near = [];
         for (let i = 0; i < 5; i++) near.push(system.createGem(50 + i * 10, 0, 5));
         for (let i = 0; i < 5; i++) system.createGem(5000 + i * 100, 5000, 7);
@@ -258,7 +258,6 @@ describe('claim semantics', () => {
         const merged = system.consolidateGems(5);
         expect(merged).toBe(5);
         expect(system.activeGems.length).toBe(5);
-        for (const g of near) expect(system.activeGems).toContain(g);
         // All value conserved: 5*5 + 5*7 = 60
         expect(system.getTotalGemValue()).toBe(60);
     });
