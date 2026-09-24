@@ -50,6 +50,7 @@ import { IceShard } from '../entities/weapons/IceShard.js';
 import { ShadowDagger } from '../entities/weapons/ShadowDagger.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
+import { RewardTelemetry } from '../debug/RewardTelemetry.js?v=20260924-pickups2';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
 import { SettingsMenu } from '../ui/SettingsMenu.js';
 import { HelpOverlay } from '../ui/HelpOverlay.js';
@@ -156,6 +157,7 @@ export class VampireSurvivorsGame {
         // Debug systems
         this.projectileDebugger = new ProjectileDebugger(this);
         this.progressionTelemetry = new ProgressionTelemetry(this);
+        this.rewardTelemetry = new RewardTelemetry(this);
 
         // Responsive canvas
         // DISABLED: ResponsiveCanvas was limiting canvas size and causing display issues
@@ -949,6 +951,8 @@ export class VampireSurvivorsGame {
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
         this._lastRelicTime = -Infinity;
+        // Fresh per-run stats; honors opt-in (stays enabled if it was on)
+        this.rewardTelemetry.onRunReset();
 
         // Set up camera to follow player
         this.camera.x = this.camera.targetX = this.player.x;
@@ -2788,6 +2792,7 @@ export class VampireSurvivorsGame {
 
             // Remove expired power-ups
             if (powerUp.timer >= powerUp.lifetime) {
+                this.rewardTelemetry?.trackPickupExpired('relic', powerUp.type);
                 this.powerUpDrops.splice(i, 1);
                 continue;
             }
@@ -2825,8 +2830,10 @@ export class VampireSurvivorsGame {
             case 'health': {
                 // Never wasted: at full HP or when healing is disallowed the
                 // relic stays on the floor. heal() returns HP actually restored.
-                const healed = this.player.heal(this.player.maxHealth * def.healFraction);
+                const requested = this.player.maxHealth * def.healFraction;
+                const healed = this.player.heal(requested);
                 if (healed <= 0) return false;
+                this.rewardTelemetry?.trackHealing(requested, healed);
                 this.player.callout?.(`+${Math.round(healed)} HP`, this.getPowerUpColor('health'), 2);
                 break;
             }
@@ -2852,9 +2859,9 @@ export class VampireSurvivorsGame {
                 break;
             }
         }
-
         // Collection effects
         this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, this.getPowerUpColor(powerUp.type));
+        this.rewardTelemetry?.trackPickupCollected('relic', powerUp.type);
 
         if (this.audioManager) {
             this.audioManager.playPowerUpCollect();

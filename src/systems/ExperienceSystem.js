@@ -572,6 +572,7 @@ export class ExperienceSystem {
     // Conservation ledger hook: base gem XP actually awarded to the player
     trackCollectedGem(value) {
         this.collectedXP += value;
+        this.game.rewardTelemetry?.trackPickupCollected('gem', 'xp');
     }
 
     magnetizeAllGems() {

@@ -167,6 +167,7 @@ export class FloorItemSystem {
                 const heal = Math.round(player.maxHealth * (0.15 + Math.random() * 0.10));
                 const restored = player.heal ? (player.heal(heal) || 0) : 0;
                 if (restored <= 0) return false;
+                this.game.rewardTelemetry?.trackHealing(heal, restored);
                 // Report only HP actually restored; no shake or flash.
                 player.callout?.(`+${restored} HP`, '#44FF88', 1);
                 break;
@@ -357,6 +358,7 @@ export class FloorItemSystem {
             if (dx * dx + dy * dy <= collectRangeSq) {
                 // Unconsumed items (e.g. health orb at full HP) stay on the floor.
                 if (this.applyItem(item.type, player, item) !== false) {
+                    this.game.rewardTelemetry?.trackPickupCollected('floorItem', item.type);
                     this.items.splice(i, 1);
                 }
             }
