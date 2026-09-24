@@ -1026,7 +1026,7 @@ export class Enemy {
                 this.game.player.streaks.criticalHits++;
                 if (this.game.player.streaks.criticalHits >= 5) {
                     // Critical streak bonus
-                    this.game.player.addDamageNumber('CRIT STREAK!', '#FF0066', 'BONUS');
+                    this.game.player.callout?.('CRIT STREAK', '#FF0066', 1);
                     this.game.player.activatePowerUp('damageBoost', 5.0, 1.5);
                     this.game.player.streaks.criticalHits = 0;
                 }

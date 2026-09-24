@@ -381,9 +381,6 @@ export class Wraith extends Enemy {
             intensity: 1.0,
             spread: 20
         });
-
-        // Show "IMMUNE" text
-        this.addDamageNumber('IMMUNE', '#FFFFFF');
     }
 
     playWraithSound(soundName) {
