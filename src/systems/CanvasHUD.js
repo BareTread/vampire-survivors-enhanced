@@ -639,6 +639,17 @@ export class CanvasHUD {
             econW: fittedEcon
         };
     }
+    /** Phone run-timer sits under the char panel; null keeps the desktop top-center pill. */
+    narrowTimerPlace(W) {
+        const layout = this._fitTopPanels(W);
+        if (!layout.narrow) return null;
+        const challenge = this.game.systems?.challenge;
+        const hasChallenge = !!(challenge && challenge.activeModifiers && challenge.activeModifiers.size > 0);
+        const charBottom = 16 + (hasChallenge ? 80 : 72);
+        const w = Math.min(110, layout.charW);
+        return { x: layout.charX, y: charBottom + 6, w };
+    }
+
     _bottomMapSize(W, H) {
         const natural = Math.max(108, Math.min(130, Math.floor(Math.min(W, H) * 0.17)));
         if (W >= 720) return natural;

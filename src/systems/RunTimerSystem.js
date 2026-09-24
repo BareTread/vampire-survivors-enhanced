@@ -202,9 +202,17 @@ export class RunTimerSystem {
 
         ctx.save();
 
-        // Timer display (top center)
+        // Timer display. Desktop stays top-center. On a phone the top panels
+        // meet, so the pill sits under the character panel, clear of the pills.
         const canvas = this.game.canvas;
-        const cx = canvas.width / 2;
+        const W = canvas.width;
+        const pillW = 110;
+        const pillH = 30;
+        const narrowPlace = this.game.systems?.canvasHUD?.narrowTimerPlace?.(W) || null;
+        const drawW = narrowPlace ? narrowPlace.w : pillW;
+        const pillX = narrowPlace ? narrowPlace.x : W / 2 - pillW / 2;
+        const pillY = narrowPlace ? narrowPlace.y : 18;
+        const textX = pillX + drawW / 2;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
@@ -223,30 +231,24 @@ export class RunTimerSystem {
             pillBorder = 'rgba(255, 60, 60, 0.35)';
         }
 
-        // Background pill — positioned below XP bar (12px bar + 1px separator)
-        const pillW = 110, pillH = 30;
-        const pillX = cx - pillW / 2, pillY = 18;
         ctx.fillStyle = pillBg;
         ctx.strokeStyle = pillBorder;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
+        ctx.roundRect(pillX, pillY, drawW, pillH, pillH / 2);
         ctx.fill();
         ctx.stroke();
 
         ctx.font = 'bold 18px "Courier New", monospace';
         ctx.fillStyle = timerColor;
-        ctx.shadowColor = timerColor;
-        ctx.shadowBlur = this.runTime >= this.warningTime ? 8 : 0;
-        ctx.fillText(timeStr, cx, pillY + pillH / 2);
+        ctx.fillText(timeStr, textX, pillY + pillH / 2);
 
-        // Warning text
         if (this.warningActive && !this.deathSpawned) {
             ctx.globalAlpha = this.warningTextAlpha;
             ctx.font = 'bold 14px "Courier New", monospace';
             ctx.fillStyle = '#FF3333';
-            ctx.shadowBlur = 12;
-            ctx.fillText('DEATH APPROACHES...', cx, pillY + pillH + 16);
+            ctx.textAlign = narrowPlace ? 'left' : 'center';
+            ctx.fillText('DEATH APPROACHES...', narrowPlace ? pillX : textX, pillY + pillH + 16);
         }
 
         ctx.restore();
