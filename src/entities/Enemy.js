@@ -1051,7 +1051,7 @@ export class Enemy {
                 if (this.game.player.streaks.criticalHits >= 5) {
                     // Critical streak bonus — profile lives in the power-up table
                     const p = getProfile('critical');
-                    this.game.player.callout?.(p.label ?? 'CRIT STREAK', p.color ?? '#FF0066', 1);
+                    this.game.player.callout?.(p.label, p.color, 1);
                     this.game.player.activatePowerUp(p.id, p.duration, p.intensity);
                     this.game.player.streaks.criticalHits = 0;
                 }
