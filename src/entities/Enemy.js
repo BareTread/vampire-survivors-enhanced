@@ -919,7 +919,7 @@ export class Enemy {
 
         // Also call existing enhanced death effect for VFX stacking
         if (ps && ps.createEnhancedDeathEffect) {
-            ps.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
+            ps.createEnhancedDeathEffect(this.x, this.y, this.color, 1 + comboLevel * 0.15);
         }
 
         // Hit-stop on elite kills for dramatic weight

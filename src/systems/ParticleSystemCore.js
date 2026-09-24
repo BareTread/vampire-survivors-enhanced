@@ -669,19 +669,6 @@ export class ParticleSystemCore {
                 fadeOut: true
             });
         }
-
-        // Small central burst particle for impact
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: color,
-            life: 0.3,
-            size: 8 * size,
-            glow: true,
-            fadeOut: true,
-            expand: true,
-            priority: 'combat'
-        });
     }
 
     // Additional missing methods for compatibility

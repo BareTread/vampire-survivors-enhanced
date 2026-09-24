@@ -138,8 +138,8 @@ export class AchievementSystem {
         // Notification queue (rendered as canvas overlays)
         this.activeNotifications = [];
         this.notificationQueue = [];
-        this.maxVisibleNotifications = 2;
-        this.notificationDuration = 3.5; // seconds
+        this.maxVisibleNotifications = 1; // one card at a time, queued
+        this.notificationDuration = 2.6; // seconds
 
         // Track which achievements were unlocked in previous sessions
         this.persistedUnlocks = new Set();
@@ -240,11 +240,6 @@ export class AchievementSystem {
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
             this.game.audioManager.playVampireSound('achievementUnlock', 0.4);
         }
-
-        // Also show toast for redundancy
-        if (this.game.showToast) {
-            this.game.showToast(`🏆 ${achievement.name}`, '#FFD700', 2500);
-        }
     }
 
     // === UPDATE & RENDER ===
@@ -299,69 +294,60 @@ export class AchievementSystem {
     /**
      * Render achievement notification popups on canvas
      */
-    render(ctx, camera) {
+    render(ctx) {
         if (this.activeNotifications.length === 0) return;
 
         ctx.save();
-        // Reset transform so we draw in screen space
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        const canvasWidth = ctx.canvas.width;
+        // Compact card under the character panel (the top-centre lane belongs
+        // to the timer and wave banner); slides in from the left, one at a time
+        const notif = this.activeNotifications[0];
+        const w = 240;
+        const h = 44;
+        const x = 8 - notif.slideOffset * 1.2;
+        const y = 98;
 
-        for (let i = 0; i < this.activeNotifications.length; i++) {
-            const notif = this.activeNotifications[i];
+        ctx.globalAlpha = notif.alpha;
+        ctx.fillStyle = 'rgba(14, 8, 22, 0.92)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 5);
+        else ctx.rect(x, y, w, h);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(232, 201, 106, 0.75)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-            // Position: top-center, stacked vertically
-            const boxWidth = 320;
-            const boxHeight = 60;
-            const x = (canvasWidth - boxWidth) / 2 + notif.slideOffset;
-            const y = 80 + i * 75;
+        // Laurel-less trophy: cup + stem + base
+        const ix = x + 24;
+        const iy = y + h / 2;
+        ctx.fillStyle = '#E8C96A';
+        ctx.beginPath();
+        ctx.moveTo(ix - 8, iy - 10);
+        ctx.lineTo(ix + 8, iy - 10);
+        ctx.quadraticCurveTo(ix + 8, iy + 1, ix, iy + 2);
+        ctx.quadraticCurveTo(ix - 8, iy + 1, ix - 8, iy - 10);
+        ctx.fill();
+        ctx.fillRect(ix - 1.5, iy + 2, 3, 5);
+        ctx.fillRect(ix - 6, iy + 7, 12, 3);
+        ctx.strokeStyle = '#E8C96A';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(ix - 8, iy - 5, 3.5, Math.PI * 0.5, Math.PI * 1.5);
+        ctx.arc(ix + 8, iy - 5, 3.5, Math.PI * 1.5, Math.PI * 0.5);
+        ctx.stroke();
 
-            ctx.globalAlpha = notif.alpha;
-
-            // Background
-            ctx.fillStyle = 'rgba(15, 15, 35, 0.92)';
-            ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
-            ctx.lineWidth = 2;
-
-            // Rounded rect
-            const r = 10;
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + boxWidth - r, y);
-            ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + r);
-            ctx.lineTo(x + boxWidth, y + boxHeight - r);
-            ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - r, y + boxHeight);
-            ctx.lineTo(x + r, y + boxHeight);
-            ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - r);
-            ctx.lineTo(x, y + r);
-            ctx.quadraticCurveTo(x, y, x + r, y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            // Gold shimmer on border
-            ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
-            ctx.shadowBlur = 12;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-
-            // "ACHIEVEMENT UNLOCKED" header
-            ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 10px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('🏆 ACHIEVEMENT UNLOCKED', x + boxWidth / 2, y + 18);
-
-            // Achievement name
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 14px Arial';
-            ctx.fillText(notif.name, x + boxWidth / 2, y + 36);
-
-            // Description
-            ctx.fillStyle = '#B0B0D0';
-            ctx.font = '11px Arial';
-            ctx.fillText(notif.description, x + boxWidth / 2, y + 52);
-        }
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(232, 201, 106, 0.85)';
+        ctx.font = "700 9px 'Cinzel', Georgia, serif";
+        ctx.fillText('ACHIEVEMENT', x + 44, y + 15);
+        ctx.fillStyle = '#F4EBD8';
+        ctx.font = "700 14px 'Cinzel', Georgia, serif";
+        ctx.fillText(notif.name, x + 44, y + 30);
+        ctx.fillStyle = 'rgba(200, 188, 210, 0.8)';
+        ctx.font = '10px Georgia, serif';
+        ctx.fillText(notif.description, x + 44, y + 41);
 
         ctx.restore();
     }

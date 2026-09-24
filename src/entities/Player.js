@@ -631,10 +631,6 @@ export class Player {
             }
         }
 
-        // Level-up feedback (partial heal, not full reset)
-        const partialHeal = Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio));
-        this.addDamageNumber(`+${partialHeal} HP`, '#00FF88', 'LEVEL UP');
-        this.addDamageNumber(`LEVEL ${this.level}`, '#FFD700', '');
     }
 
     addWeapon(weaponClass, config = {}) {
@@ -673,6 +669,48 @@ export class Player {
             color,
             isCritical
         );
+    }
+
+    /**
+     * Headline text above the hero ("5 KILL STREAK", "LAST STAND"). One slot:
+     * a new callout replaces the current one unless the current one is more
+     * important and still fresh, so announcements never pile up on the hero.
+     */
+    callout(text, color = '#FFD700', priority = 1) {
+        const now = performance.now();
+        const c = this._callout;
+        if (c && now - c.start < 900 && c.priority > priority) return;
+        this._callout = { text: String(text), color, priority, start: now };
+    }
+
+    renderCallout(ctx) {
+        const c = this._callout;
+        if (!c) return;
+        const age = (performance.now() - c.start) / 1000;
+        const life = 1.5;
+        if (age >= life) {
+            this._callout = null;
+            return;
+        }
+        const inT = Math.min(1, age / 0.18);
+        const rise = (1 - Math.pow(1 - inT, 3)) * 10 + age * 6;
+        const pop = age < 0.18 ? 1.25 - 0.25 * inT : 1;
+        const alpha = Math.min(1, age / 0.08) * Math.min(1, (life - age) / 0.4);
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(this.x, this.y - 44 - rise);
+        ctx.scale(pop, pop);
+        ctx.font = "700 13px 'Cinzel', 'Times New Roman', serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(12, 6, 16, 0.9)';
+        ctx.strokeText(c.text, 0, 0);
+        ctx.fillStyle = c.color;
+        ctx.fillText(c.text, 0, 0);
+        ctx.restore();
     }
 
     die() {
@@ -902,7 +940,6 @@ export class Player {
         if (timeSinceLastDamage < 3.0) {
             // Reset kill streak if damaged recently
             if (this.streaks.killStreak > 0) {
-                this.addDamageNumber('KILL STREAK BROKEN!', '#FF6666', '');
                 this.streaks.killStreak = 0;
             }
             return;
@@ -926,7 +963,7 @@ export class Player {
         // Show streak progress every 5 kills
         if (streak % 5 === 0 && streak >= 5) {
             const color = streak < 15 ? '#FFAA00' : streak < 30 ? '#FF6600' : '#FF0066';
-            this.addDamageNumber(`${streak} KILL STREAK!`, color, 'STREAK');
+            this.callout(`${streak} KILL STREAK`, color, 1);
 
             // Particle celebration
             if (this.game.systems.particle) {
@@ -984,7 +1021,7 @@ export class Player {
         }
 
         // Big celebration text
-        this.addDamageNumber(`${streak} KILL MILESTONE!`, '#FFD700', 'LEGENDARY');
+        this.callout(`${streak} KILLS — LEGENDARY`, '#FFD700', 3);
 
         // Audio fanfare
         if (this.game.audioManager) {
@@ -1027,7 +1064,7 @@ export class Player {
         // Bonus rewards for psychological reinforcement
         const bonusExp = threshold * 2;
         this.gainExperience(bonusExp);
-        this.addDamageNumber(`COMBO x${threshold}!`, '#FFD700', 'MILESTONE');
+        this.callout(`COMBO ×${threshold}`, '#FFD700', 2);
 
         // Temporary power boost for immediate gratification
         this.activatePowerUp('damageBoost', 5.0, 2.0 + intensity * 0.5);
@@ -1038,16 +1075,11 @@ export class Player {
         if (this.game.systems.particle) {
             this.game.systems.particle.createComboSparks(this.x, this.y, this.combo.count);
         }
-
-        // Escalating visual feedback
-        const sparkColor = this.combo.count < 25 ? '#FFAA00' : this.combo.count < 50 ? '#FF6600' : '#FF0066';
-        this.addDamageNumber(`x${this.combo.count}`, sparkColor, 'COMBO');
     }
 
     breakCombo() {
         if (this.combo.count >= 10) {
             // Only show loss for meaningful combos
-            this.addDamageNumber('COMBO LOST', '#FF4444', '');
 
             // Mild punishment to create loss aversion
             if (this.game.systems.particle) {
@@ -1098,10 +1130,6 @@ export class Player {
 
         // Update weapon stats
         this.updateWeaponStats();
-
-        if (type === 'invincible') {
-            this.addDamageNumber('INVINCIBLE ENDED', '#888888', '');
-        }
     }
 
     createPowerUpEffect(type, intensity) {
@@ -1123,7 +1151,7 @@ export class Player {
             this.game.systems.particle.createPowerUpEffect(this.x, this.y, color, intensity);
         }
 
-        this.addDamageNumber(type.toUpperCase(), color, 'POWER UP!');
+        this.callout(this.game.getPowerUpName?.(type)?.toUpperCase() || type.toUpperCase(), color, 2);
     }
 
     updateNearDeathEffects(dt) {
@@ -1163,7 +1191,7 @@ export class Player {
         }
 
         // Dramatic 'desperation mode' effect with larger text
-        this.addDamageNumber('LAST STAND!', '#FF4A3A', '');
+        this.callout('LAST STAND', '#FF4A3A', 3);
 
         // ENHANCED Visual drama - dramatic screen shake
         if (this.game && this.game.camera) {
@@ -1210,7 +1238,7 @@ export class Player {
         this.desperationMode.active = false;
 
         // Triumphant recovery
-        this.addDamageNumber('RECOVERED!', '#00FF88', 'TRIUMPH');
+        this.callout('RECOVERED', '#00FF88', 2);
 
         // Massive XP reward for surviving desperation mode
         const bonusXP = 25;
@@ -1276,7 +1304,7 @@ export class Player {
         // Temporary invincibility as reward
         this.activatePowerUp('invincible', 3.0, 1.0);
 
-        this.addDamageNumber(`PERFECT ${streakMinutes}min!`, '#FFD700', 'STREAK');
+        this.callout(`UNTOUCHED ${streakMinutes} MIN`, '#FFD700', 2);
 
         // Celebration
         if (this.game.systems.particle) {
@@ -1306,11 +1334,6 @@ export class Player {
         // Near-death damage reduction for dramatic survivability
         if (this.nearDeath.bonusActive) {
             finalDamage *= 1 - this.nearDeath.damageReduction;
-            const nowMs = performance.now();
-            if (!this._wardTextAt || nowMs - this._wardTextAt > 1500) {
-                this._wardTextAt = nowMs;
-                this.addDamageNumber('WARDED', '#FFAA00', '');
-            }
         }
 
         const holyBible = this.weapons.get('holy_bible');
@@ -1406,14 +1429,6 @@ export class Player {
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
 
-        // Enhanced visual feedback based on multipliers
-        const color = finalMultiplier > 2.0 ? '#FFD700' : finalMultiplier > 1.5 ? '#FFAA00' : '#44AAFF';
-
-        // Only call out genuinely boosted gains; routine XP reads via the bar.
-        if (finalMultiplier >= 1.5 && expGain >= 10) {
-            this.addDamageNumber(expGain, color, `x${finalMultiplier.toFixed(1)}`);
-        }
-
         // FIXED: Process level-ups ONE AT A TIME with proper queuing
         // Initialize level-up queue if it doesn't exist
         if (!this.levelUpQueue) {
@@ -1456,7 +1471,6 @@ export class Player {
         this.createLevelUpEffects();
 
         // Show level-up message
-        this.addDamageNumber(`LEVEL ${levelUpData.level}!`, '#FFD700', 'LEVEL UP');
 
         // Show the level-up UI for this specific level
         this.game.showLevelUpUI();
@@ -1496,7 +1510,7 @@ export class Player {
         this.invulnerable = true;
         this.invulnerabilityTime = this.reviveInvulnerabilityDuration;
         this.activatePowerUp('invincible', this.reviveInvulnerabilityDuration, 1.0);
-        this.addDamageNumber('REVIVED!', '#FFD700', 'SECOND WIND');
+        this.callout('SECOND WIND', '#FFD700', 4);
 
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.6);
@@ -1585,7 +1599,7 @@ export class Player {
         // Visual feedback for mode toggle
         const modeText = this.manualAiming.enabled ? 'MANUAL AIM ON' : 'AUTO AIM ON';
         const color = this.manualAiming.enabled ? '#00FFFF' : '#FFAA00';
-        this.addDamageNumber(modeText, color, 'MODE');
+        this.callout(modeText, color, 2);
 
         // Audio feedback
         if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
@@ -1725,7 +1739,7 @@ export class Player {
 
     triggerPerfectShotBonus() {
         // Visual celebration for perfect aim
-        this.addDamageNumber('PERFECT AIM!', '#00FFFF', 'SKILL');
+        this.callout('PERFECT AIM', '#00FFFF', 1);
 
         // Enhanced visual effects
         if (this.game.systems.particle) {
@@ -1761,7 +1775,7 @@ export class Player {
             const damage = 200 * this.manualAiming.accuracyBonus;
             nearestEnemy.takeDamage(damage, this, true); // Force critical
 
-            this.addDamageNumber('PRECISION STRIKE!', '#FF0066', 'SPECIAL');
+            this.callout('PRECISION STRIKE', '#FF0066', 1);
 
             // Cooldown visual feedback
             if (this.game.systems.particle) {
