@@ -152,3 +152,25 @@ describe('knockback', () => {
         expect(Math.hypot(ghoul.knockX, ghoul.knockY)).toBeLessThanOrEqual(420);
     });
 });
+
+describe('dead special enemies', () => {
+    test('a killed wraith or demon finishes dying instead of haunting the player', async () => {
+        const { Wraith } = await import('../src/entities/enemies/Wraith.js');
+        const { Demon } = await import('../src/entities/enemies/Demon.js');
+        for (const Cls of [Wraith, Demon]) {
+            const e = Object.create(Cls.prototype);
+            e.active = true;
+            e.dying = true;
+            e.health = 0;
+            e.deathScaleTimer = 0.1;
+            e.currentSpawnTime = 0;
+            e.updatePhaseTimers = () => { throw new Error('AI ran while dying'); };
+            e.updateDemonAI = e.updatePhaseTimers;
+            e.updateFloatingAnimation = e.updatePhaseTimers;
+            e.update(0.05);
+            expect(e.active).toBe(true);
+            e.update(0.1);
+            expect(e.active).toBe(false);
+        }
+    });
+});

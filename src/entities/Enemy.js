@@ -375,17 +375,29 @@ export class Enemy {
         return cappedMultiplier;
     }
 
+    /**
+     * Play out the death animation. Returns true while dying so update()
+     * (and every subclass override) stops before any AI or attacks run.
+     */
+    updateDeath(dt) {
+        if (!this.dying && this.health > 0) return false;
+        if (!this.dying) {
+            // Health hit zero outside die(): treat as dead, not as a ghost
+            this.dying = true;
+            this.deathScaleTimer = this.deathScaleDuration || 0.3;
+        }
+        this.deathScaleTimer -= dt;
+        if (this.deathScaleTimer <= 0) {
+            this.active = false;
+        }
+        return true;
+    }
+
     update(dt) {
         if (!this.active) return;
 
         // Death animation: shrink to nothing then deactivate
-        if (this.dying) {
-            this.deathScaleTimer -= dt;
-            if (this.deathScaleTimer <= 0) {
-                this.active = false;
-            }
-            return;
-        }
+        if (this.updateDeath(dt)) return;
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {

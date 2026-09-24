@@ -62,6 +62,7 @@ export class Wraith extends Enemy {
 
     update(dt) {
         if (!this.active) return;
+        if (this.updateDeath(dt)) return;
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
