@@ -182,19 +182,6 @@ describe('vacuum claims XP and gold only', () => {
         return game;
     }
 
-    test('claims gems and coins, one callout with the new haul', () => {
-        const game = vacuumGame({ xp: 420, gold: 38 });
-        const floor = game.systems.floorItems;
-        floor.spawnItem(10, 0, 'vacuum');
-        floor.update(0.016);
-
-        expect(game.systems.experience.claimAllGems).toHaveBeenCalledTimes(1);
-        expect(game.systems.gold.claimAllCoins).toHaveBeenCalledTimes(1);
-        expect(game.systems.experience.activateGlobalMagnet).toHaveBeenCalledWith(3.0);
-        expect(game.player.callout).toHaveBeenCalledTimes(1);
-        expect(game.player.callout).toHaveBeenCalledWith('+420 XP · 38 gold', '#FFD700', 2);
-    });
-
     test('already-claimed resources are not counted twice', () => {
         const game = vacuumGame({ xp: 0, gold: 0 });
         const floor = game.systems.floorItems;

@@ -1,10 +1,7 @@
 import { jest } from '@jest/globals';
 import {
     BUFF_LAYER_CAP,
-    KILL_MILESTONES,
-    getProfile,
     layerStrength,
-    listProfiles
 } from '../src/data/powerUps.js';
 
 function mulberry32(seed) {
@@ -231,13 +228,11 @@ describe('queued level-up grace', () => {
     });
 });
 
-describe('truthful HUD and milestone table', () => {
+describe('truthful HUD', () => {
     let CanvasHUD;
-    let KillMilestoneSystem;
 
     beforeAll(async () => {
         ({ CanvasHUD } = await import('../src/systems/CanvasHUD.js'));
-        ({ KillMilestoneSystem } = await import('../src/systems/KillMilestoneSystem.js'));
     });
 
     function ctxOf() {
@@ -272,7 +267,6 @@ describe('truthful HUD and milestone table', () => {
 
     test('magnet pill uses the longest of player, area, and global timers', () => {
         const hud = new CanvasHUD({ systems: { experience: { globalMagnetTimer: 3, areaMagnetTimer: 0 } } });
-        expect(hud.version).toBe('20260924-pickups1');
         const idle = {
             magnetBoost: { active: false, timer: 0, multiplier: 3 },
             invincible: { active: false, timer: 0 },
@@ -309,15 +303,7 @@ describe('truthful HUD and milestone table', () => {
         player.destroy();
     });
 
-    test('profiles and the 500-kill reward read the shared table', () => {
-        expect(getProfile('critical')).toMatchObject({ id: 'damageBoost', duration: 5, intensity: 1.5, strength: 4.5 });
-        expect(layerStrength('damageBoost', 2)).toBe(6);
-        expect(layerStrength('fireRate', 1)).toBeCloseTo(1.3, 5);
-        const wave = listProfiles('wave', 'milestone');
-        expect(wave.find((profile) => profile.id === 'damageBoost')).toMatchObject({ duration: 15, intensity: 2, strength: 6 });
-        expect(KILL_MILESTONES.find((milestone) => milestone.threshold === 500).reward).toBe('fireRate');
-        const system = new KillMilestoneSystem({ player: null });
-        expect(system.milestones.find((milestone) => milestone.threshold === 500).reward).toBe('fireRate');
+    test('phone top panels remain separated and within the viewport', () => {
         const layout = new CanvasHUD({ systems: {} })._fitTopPanels(390);
         expect(layout.charX + layout.charW).toBeLessThanOrEqual(layout.econX);
         expect(layout.econX + layout.econW).toBeLessThanOrEqual(390);

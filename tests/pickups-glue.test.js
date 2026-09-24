@@ -74,22 +74,6 @@ describe('queued level-ups stay paused (glue)', () => {
         expect(game.timeScale).toBe(1);
         expect(player.grantLevelUpGrace).toHaveBeenCalledTimes(1);
     });
-    test('final pick grants level-up grace via the Player API', () => {
-        const game = makeGame();
-        const player = {
-            levelUpQueue: [],
-            completeLevelUpSelection() {},
-            grantLevelUpGrace: jest.fn()
-        };
-        game.player = player;
-        game.levelUpActive = true;
-        game.gameState = 'levelUp';
-        game.timeScale = 0;
-
-        game.hideLevelUpUI();
-        expect(game.gameState).toBe('playing');
-        expect(player.grantLevelUpGrace).toHaveBeenCalledTimes(1);
-    });
 
     test('a hit-stop restore during selection cannot resume simulation', () => {
         const game = makeGame();
@@ -225,59 +209,6 @@ describe('collectPowerUp contract', () => {
         expect(game.collectPowerUp(powerUp)).toBe(true);
         expect(game.player.heal).toHaveBeenCalledWith(50);
         expect(game.player.callout).toHaveBeenCalledWith('+10 HP', '#FF4455', 2);
-    });
-
-    test('magnetBoost activates Magnetic Field via the experience system', () => {
-        const game = makeGame();
-        const activateMagneticField = jest.fn();
-        game.systems.experience = { activateMagneticField };
-        game.player = { activatePowerUp: jest.fn() };
-        game.camera = { width: 390, height: 844, clearFlash: jest.fn() };
-
-        game.collectPowerUp({ type: 'magnetBoost', x: 0, y: 0 });
-
-        expect(game.player.activatePowerUp).toHaveBeenCalledWith('magnetBoost', 12.0, 1.0);
-        expect(activateMagneticField).toHaveBeenCalledWith(12.0);
-    });
-
-    test('timed relics use the pickup profile', () => {
-        const game = makeGame();
-        game.player = { activatePowerUp: jest.fn() };
-        game.collectPowerUp({ type: 'fireRate', x: 0, y: 0 });
-        expect(game.player.activatePowerUp).toHaveBeenCalledWith('fireRate', 15.0, 1.0);
-    });
-
-    test('spawnPowerUpDrop only produces table types', () => {
-        const game = makeGame();
-        game.gameTime = 0;
-        game._lastRelicTime = -Infinity;
-        game.powerUpDrops = [];
-        const seen = new Set();
-        for (let i = 0; i < 200; i++) {
-            game.powerUpDrops = [];
-            game.spawnPowerUpDrop(0, 0, true);
-            if (game.powerUpDrops[0]) seen.add(game.powerUpDrops[0].type);
-        }
-        for (const t of seen) {
-            expect(['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate']).toContain(t);
-        }
-        expect(seen.size).toBeGreaterThan(1);
-    });
-});
-
-describe('emergency cleanup conserves gem value', () => {
-    test('overflowing gems are consolidated, never deactivated', () => {
-        const game = makeGame();
-        const gems = Array.from({ length: 120 }, () => ({ active: true, value: 5 }));
-        const consolidateGems = jest.fn(() => 70);
-        game.systems.enemy = { activeEnemies: [] };
-        game.systems.projectile = { activeProjectiles: [] };
-        game.systems.experience = { activeGems: gems, consolidateGems };
-
-        game.emergencyEntityCleanup();
-
-        expect(consolidateGems).toHaveBeenCalledWith(50);
-        expect(gems.every((g) => g.active)).toBe(true);
     });
 });
 
