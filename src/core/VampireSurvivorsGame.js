@@ -171,7 +171,8 @@ export class VampireSurvivorsGame {
 
         // Power-up drops management
         this.powerUpDrops = [];
-        this.maxPowerUpDrops = 8; // Cap to reduce clutter
+        this._lastRelicTime = -Infinity;
+        this.maxPowerUpDrops = 3; // Relics on the floor at once
 
         // Game loop
         this.lastTime = 0;
@@ -957,6 +958,7 @@ export class VampireSurvivorsGame {
         this.systems.rarity.reset(); // clear stat pick counts for new run
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
+        this._lastRelicTime = -Infinity;
 
         // Set up camera to follow player
         this.camera.x = this.camera.targetX = this.player.x;
@@ -1043,6 +1045,7 @@ export class VampireSurvivorsGame {
             console.warn('Minor cleanup issue on returnToMenu:', e);
         }
         this.powerUpDrops = [];
+        this._lastRelicTime = -Infinity;
         this.disposePlayer();
 
         this.updateUIVisibility();
@@ -2681,17 +2684,17 @@ export class VampireSurvivorsGame {
             this.player.gainExperience(waveNumber * 10);
             this.player.activatePowerUp('invincible', 5.0, 1.0);
             this.player.activatePowerUp('damageBoost', 15.0, 2.0);
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         } else if (isBossWave && this.player) {
             // Health restoration for boss waves
             this.player.heal(this.player.maxHealth * 0.5);
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         } else if (isSpecialWave && this.player) {
             // XP magnet effect for elite waves
             if (this.systems.experience) {
                 this.systems.experience.magnetizeAllGems();
             }
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         }
 
     }
@@ -2726,13 +2729,17 @@ export class VampireSurvivorsGame {
         }
     }
 
-    spawnPowerUpDrop(x, y) {
+    spawnPowerUpDrop(x, y, force = false) {
         // Ensure storage and respect cap to reduce clutter
         if (!this.powerUpDrops) this.powerUpDrops = [];
-        const cap = this.maxPowerUpDrops || 8;
+        const cap = this.maxPowerUpDrops || 3;
         if (this.powerUpDrops.length >= cap) {
             return; // Skip spawning when at cap
         }
+        // Global cooldown so relics stay special (wave rewards bypass it)
+        const now = this.gameTime || 0;
+        if (!force && now - (this._lastRelicTime ?? -Infinity) < 25) return;
+        this._lastRelicTime = now;
 
         // Random power-up type
         const powerUpTypes = ['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate'];

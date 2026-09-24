@@ -8,6 +8,9 @@ import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 const byDepth = (a, b) => a.y + a.size - (b.y + b.size);
 
 export class EnemySystem {
+    // First pressure surge at ~3:25, clear of the wave-5 formation (~2:40)
+    static FIRST_SURGE_TIME = 205;
+
     constructor(game) {
         this.game = game;
 
@@ -47,7 +50,7 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeTimer = 0;
         this.pressureSurgeActive = false;
-        this.nextSurgeTime = 150; // First surge at 2.5 minutes so the run does not stay sleepy for too long
+        this.nextSurgeTime = EnemySystem.FIRST_SURGE_TIME;
 
         // Elite aura tracking (max 1 aura elite per wave, unlocked after wave 8)
         this.auraEliteThisWave = false;
@@ -493,11 +496,19 @@ export class EnemySystem {
                 if (wantsElite) {
                     return this.countActiveOfType('elite') < this.getMaxConcurrentElites() ? 'elite' : (type === 'elite' ? 'basic' : type);
                 }
+                // Cultists keep their distance, so they pile up unless capped
+                if (type === 'ranged' && this.countActiveOfType('ranged') >= this.getMaxConcurrentRanged()) {
+                    return 'basic';
+                }
                 return type;
             }
         }
 
         return 'basic'; // Fallback
+    }
+
+    getMaxConcurrentRanged() {
+        return 3 + Math.floor(this.currentWave / 3);
     }
 
     getMaxConcurrentElites() {
@@ -1201,7 +1212,7 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeActive = false;
         this.pressureSurgeTimer = 0;
-        this.nextSurgeTime = 150;
+        this.nextSurgeTime = EnemySystem.FIRST_SURGE_TIME;
         this.currentPattern = 'random';
         this.performanceTracking.playerHealthAverage = 1.0;
         this.performanceTracking.timeSinceLastDamage = 0;

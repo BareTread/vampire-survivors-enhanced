@@ -131,3 +131,24 @@ describe('boss fights', () => {
         expect(bs._bossHit(10)).toBe(10);
     });
 });
+
+describe('knockback', () => {
+    test('impulse survives the chase AI and decays; heavy types resist', () => {
+        const mk = (type) => {
+            const e = Object.create(Enemy.prototype);
+            e.type = type;
+            e.knockX = 0;
+            e.knockY = 0;
+            return e;
+        };
+        const ghoul = mk('basic');
+        const golem = mk('juggernaut');
+        ghoul.applyKnockback(200, 0);
+        golem.applyKnockback(200, 0);
+        expect(ghoul.knockX).toBe(200);
+        expect(golem.knockX).toBeCloseTo(40);
+        // Stacked hits are capped
+        for (let i = 0; i < 10; i++) ghoul.applyKnockback(300, 0);
+        expect(Math.hypot(ghoul.knockX, ghoul.knockY)).toBeLessThanOrEqual(420);
+    });
+});

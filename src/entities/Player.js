@@ -63,7 +63,7 @@ export class Player {
         // Combat properties
         this.invulnerable = false;
         this.invulnerabilityTime = 0;
-        this.maxInvulnerabilityTime = 0.5; // Halved from 1.0s — lets swarm density translate to real pressure
+        this.maxInvulnerabilityTime = 0.6; // Enough to step out of a pinch; swarms still pressure
 
         // Equipment
         this.weapons = new Map();

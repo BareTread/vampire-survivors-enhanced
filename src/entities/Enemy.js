@@ -4,6 +4,7 @@ import { enemyDisplayName } from '../data/enemyNames.js';
 
 export class Enemy {
     static RECOIL_TIME = 0.28;
+    static KNOCK_RESIST = { tank: 0.45, elite: 0.5, juggernaut: 0.8, berserker: 0.3, summoner: 0.3 };
 
     constructor(game, x, y, type = 'basic') {
         this.game = game;
@@ -293,6 +294,24 @@ export class Enemy {
     }
 
     /**
+     * Push as a velocity impulse (px/s) that decays over ~0.3s, so it
+     * survives the chase AI rewriting velocity each frame. Heavy creatures
+     * resist; the total is capped so stacked hits can't fling anything.
+     */
+    applyKnockback(vx, vy) {
+        const resist = this.isBoss ? 0.9
+            : (Enemy.KNOCK_RESIST[this.type] ?? 0);
+        const k = 1 - resist;
+        this.knockX = (this.knockX || 0) + vx * k;
+        this.knockY = (this.knockY || 0) + vy * k;
+        const m = Math.hypot(this.knockX, this.knockY);
+        if (m > 420) {
+            this.knockX *= 420 / m;
+            this.knockY *= 420 / m;
+        }
+    }
+
+    /**
      * Contact damage for a base value. Enemy HP carries the difficulty curve;
      * damage only grows gently with time (1.0x → 1.7x at 10 min → 2.7x at
      * 30 min) so every hit costs a readable slice of health instead of
@@ -301,9 +320,9 @@ export class Enemy {
     contactDamage(base, capFrac = 0.22) {
         const minutes = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
         const timeScale = 1 + Math.min(minutes, 10) * 0.07 + Math.max(0, minutes - 10) * 0.05;
-        const grace = 0.6 + 0.4 * Math.min(1, minutes / 2.5);
+        const grace = 0.5 + 0.5 * Math.min(1, minutes / 3);
         const flowRaw = this.game?.systems?.flowState?.adaptiveDamageMultiplier || 1;
-        const flow = Math.max(0.8, Math.min(1.2, flowRaw));
+        const flow = Math.max(0.85, Math.min(1.1, flowRaw));
         return Math.max(1, Math.min(Math.floor(base * timeScale * grace * flow), this.hitCap(capFrac)));
     }
 
@@ -397,6 +416,16 @@ export class Enemy {
 
         // Elite-specific behaviors
         this.updateEliteBehaviors(dt);
+
+        // Knockback impulse rides on top of whatever the AI chose
+        if (this.knockX || this.knockY) {
+            this.velocity.x += this.knockX;
+            this.velocity.y += this.knockY;
+            const f = Math.exp(-10 * dt);
+            this.knockX *= f;
+            this.knockY *= f;
+            if (Math.abs(this.knockX) + Math.abs(this.knockY) < 3) this.knockX = this.knockY = 0;
+        }
 
         // Recoil after a bite overrides the chase, easing out
         if (this.recoilTime > 0) {
@@ -619,7 +648,7 @@ export class Enemy {
             this.y,
             player.x,
             player.y,
-            Math.round(this.damage * dmgMult),
+            Math.round(this.damage * dmgMult * 0.8), // shooters trade damage for safety
             150, // projectile speed
             '#FF4444' // bright red for visibility
         );
@@ -693,21 +722,15 @@ export class Enemy {
         // Hit freeze-frame: brief pause on hit for juicy feel
         this.freezeTimer = isCritical ? 0.06 : 0.03; // ~2 frames for crit, ~1 for normal
 
-        // Enhanced knockback: scale with damage (not just flat)
-        if (source) {
+        // Hits push the creature away from the hunter, heavier blows further
+        if (source && Number.isFinite(source.x)) {
             const dx = this.x - source.x;
             const dy = this.y - source.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const damageScale = Math.min(2.0, damage / 20); // Scale up to 2x for big hits
+            const damageScale = Math.min(1.5, damage / 25);
+            const strength = (isCritical ? 150 : 80) * damageScale;
             if (distance > 0.001) {
-                const knockbackStrength = (isCritical ? 180 : 100) * damageScale;
-                this.velocity.x += (dx / distance) * knockbackStrength;
-                this.velocity.y += (dy / distance) * knockbackStrength;
-            } else {
-                const randomAngle = Math.random() * Math.PI * 2;
-                const knockbackStrength = (isCritical ? 180 : 100) * damageScale;
-                this.velocity.x += Math.cos(randomAngle) * knockbackStrength;
-                this.velocity.y += Math.sin(randomAngle) * knockbackStrength;
+                this.applyKnockback((dx / distance) * strength, (dy / distance) * strength);
             }
         }
 
@@ -1017,17 +1040,11 @@ export class Enemy {
             }
         }
 
-        // Chance for power-up drop on elite kills
-        if (this.type === 'elite' || (this.game.player && this.game.player.combo.count >= 20)) {
-            const cap = this.game.maxPowerUpDrops || 8;
-            const current = this.game.powerUpDrops?.length || 0;
-            // Dynamic probability scales down as we approach the cap
-            let chance = 0.2; // base 20%
-            if (current >= cap * 0.75) chance = 0.05;
-            else if (current >= cap * 0.5) chance = 0.12;
-            if (Math.random() < chance) {
-                this.game.spawnPowerUpDrop(this.x, this.y);
-            }
+        // Relics are occasional rewards: likely from elites, rare otherwise,
+        // and never more often than every ~25s (see spawnPowerUpDrop)
+        const relicChance = this.type === 'elite' ? 0.35 : 0.004;
+        if (Math.random() < relicChance) {
+            this.game.spawnPowerUpDrop(this.x, this.y);
         }
 
         // Track kill for rewards system (kill streaks, XP multiplier)
@@ -1322,6 +1339,8 @@ export class Enemy {
         this.direction = 0;
         this.attackCooldown = 0;
         this.recoilTime = 0;
+        this.knockX = 0;
+        this.knockY = 0;
         this.flashTime = 0;
         this.freezeTimer = 0;
         this._frozenVisual = false;
