@@ -184,6 +184,17 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-09-24 (Game-Feel & Pacing Pass — intentional shake, readable screen, a run with an arc)
+
+**Playtested with a scripted kiting bot plus god-mode economy probes, then fixed what made runs feel chaotic or unfair. 194/194 tests passing (`tests/game-feel.test.js` is new).**
+
+- **Screen shake (`Camera`)**: trauma model — `addTrauma(amount, ceiling)`, visible shake = trauma², smooth layered-noise motion, dt-based decay, plus a damped-spring `kick(dx, dy)` and distance-aware `shakeAt(x, y, amount)`. Legacy `shake(intensity, duration)` maps weak calls to near-zero trauma. Only real impacts shake: getting hit (jolt away from the attacker, capped at 0.5 trauma so swarms stay readable), explosions near you, bosses, evolutions, Death. Removed shake from every enemy hit, weapon shot, crit, gem pickup, combo/streak text and wall contact (the source of the "uncontrollable" jitter). Crits and gems no longer flash the screen.
+- **Rule**: new camera effects should say *why* they fire. Frequent events get a trauma ceiling; world events use `shakeAt`.
+- **Pacing**: `Player.xpForLevel(l)` is linear (180 + 150·(l−1), steeper after 15) — no more eight level-ups in minute one. Enemy contact damage is `Enemy.contactDamage(base)`: gentle time scaling, early grace, per-hit cap (`hitCap`) — it no longer scales with player level/weapons (HP still does). Roster unfolds over ~10 min (cultists wave 3, knights 4, wraiths 6, dreadlords 7, demons 8…) and new types fade in over three waves; `ENEMY_ARRIVALS` omens appear in the wave banner. Cultists capped at `3 + wave/3`. First pressure surge at `EnemySystem.FIRST_SURGE_TIME` (3:25). Hero speed 118, early HP grace for enemies, whip +3 dmg/level, biting enemies recoil.
+- **Knockback**: `Enemy.applyKnockback(vx, vy)` — a decaying impulse applied after the AI (the AI used to overwrite it every frame). `Enemy.KNOCK_RESIST` per type; bosses 0.9.
+- **Bosses**: phase selection bug fixed (bosses were stuck in phase 0 forever); telegraphed hits capped at 30% max HP via `BossSystem._bossHit`.
+- **Screen clutter**: power-ups are relic sprites (`src/entities/rendering/PickupArt.js`) with glow, shadow, drift-to-player and an expiry blink — no text boxes. Relics drop mostly from elites with a 25s cooldown (max 3 on the floor). Hero text goes through `Player.callout(text, color, priority)` (one slot, priority wins); noise texts removed. Combo is a HUD meter (`CanvasHUD._renderComboMeter`). Wave start is a HUD banner (`CanvasHUD.showWaveBanner`) with an omen subtitle; achievements are one compact card at a time under the character panel. `DamageNumberPool.get` merges duplicate numbers for the same hit. Active power-ups show on the hero (gold ward, ember ring, speed wake).
+
 ### 2026-09-24 (Performance Pass — same pixels, ~55% less work per frame)
 
 **Profiled with CDP + per-process CPU sampling: main-thread JS was only ~3ms/frame even with 130 enemies; the CPU was going to canvas rasterization (full-screen gradients, a zoomed pattern floor, rotated sprite blits, shadowBlur). Crowd scene went from 34 FPS @ 117% CPU to a locked 60 FPS @ ~85% CPU (software raster, 1280×720). No leak found: 5-min soak keeps heap, DOM nodes, listeners and caches flat. 183/183 tests passing.**
