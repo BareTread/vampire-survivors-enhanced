@@ -1,4 +1,4 @@
-import { ExperienceGem } from '../entities/ExperienceGem.js';
+import { ExperienceGem } from '../entities/ExperienceGem.js?v=20260924-pickups2';
 import { managedSetTimeout, globalTimerManager } from '../core/TimerManager.js';
 
 export class ExperienceSystem {

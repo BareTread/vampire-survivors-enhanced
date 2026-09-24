@@ -20,7 +20,7 @@
  *
  * GoldSystem.renderHUD() is suppressed when this HUD is active.
  */
-import { HUD_BUFF_ORDER, POWER_UPS, formatHudStrength } from '../data/powerUps.js';
+import { HUD_BUFF_ORDER, POWER_UPS, formatHudStrength } from '../data/powerUps.js?v=20260924-pickups2';
 
 export class CanvasHUD {
 
@@ -78,7 +78,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260924-pickups1';
+        this.version = '20260924-pickups2';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;

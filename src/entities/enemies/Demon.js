@@ -1,5 +1,5 @@
 import { EnemyRenderer } from '../rendering/EnemyRenderer.js';
-import { Enemy } from '../Enemy.js';
+import { Enemy } from '../Enemy.js?v=20260924-pickups2';
 import { managedSetTimeout } from '../../core/TimerManager.js';
 
 export class Demon extends Enemy {

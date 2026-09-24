@@ -7,7 +7,7 @@
  * Painters draw upright with the base at the origin, like floor items.
  */
 import { bakeSprite, rgba } from './CharacterArt.js';
-import { POWER_UPS } from '../../data/powerUps.js';
+import { POWER_UPS } from '../../data/powerUps.js?v=20260924-pickups2';
 
 function accent(id) {
     return POWER_UPS[id]?.color || '#FFFFFF';

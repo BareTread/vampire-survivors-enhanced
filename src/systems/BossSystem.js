@@ -1,5 +1,5 @@
 import { enemyVisualTop } from '../entities/rendering/CharacterArt.js';
-import { Enemy } from '../entities/Enemy.js';
+import { Enemy } from '../entities/Enemy.js?v=20260924-pickups2';
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { managedSetTimeout } from '../core/TimerManager.js';
 

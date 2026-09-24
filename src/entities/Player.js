@@ -1,6 +1,6 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
-import { POWER_UPS, LEVEL_UP_GRACE_SECONDS, HUD_BUFF_ORDER, getProfile, listProfiles, layerStrength, pruneBuffLayers } from '../data/powerUps.js';
+import { POWER_UPS, LEVEL_UP_GRACE_SECONDS, HUD_BUFF_ORDER, getProfile, listProfiles, layerStrength, pruneBuffLayers } from '../data/powerUps.js?v=20260924-pickups2';
 
 export class Player {
     /**

@@ -1,7 +1,7 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { EnemyRenderer } from './rendering/EnemyRenderer.js';
 import { enemyDisplayName } from '../data/enemyNames.js';
-import { getProfile } from '../data/powerUps.js';
+import { getProfile } from '../data/powerUps.js?v=20260924-pickups2';
 
 export class Enemy {
     static RECOIL_TIME = 0.28;

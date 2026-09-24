@@ -1,5 +1,5 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
-import { KILL_MILESTONES } from '../data/powerUps.js';
+import { KILL_MILESTONES } from '../data/powerUps.js?v=20260924-pickups2';
 
 /**
  * KillMilestoneSystem — tracks total kills per run and triggers celebrations

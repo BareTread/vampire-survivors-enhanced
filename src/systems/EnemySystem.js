@@ -1,7 +1,7 @@
 import { EnemyRenderer } from '../entities/rendering/EnemyRenderer.js';
-import { Enemy } from '../entities/Enemy.js';
-import { Wraith } from '../entities/enemies/Wraith.js';
-import { Demon } from '../entities/enemies/Demon.js';
+import { Enemy } from '../entities/Enemy.js?v=20260924-pickups2';
+import { Wraith } from '../entities/enemies/Wraith.js?v=20260924-pickups2';
+import { Demon } from '../entities/enemies/Demon.js?v=20260924-pickups2';
 import { MathUtils } from '../utils/MathUtils.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 
