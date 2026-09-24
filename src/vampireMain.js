@@ -1,6 +1,6 @@
 // Vampire Survivors Game - Main Entry Point
 
-import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js?v=20260924-feel1';
+import { VampireSurvivorsGame } from './core/VampireSurvivorsGame.js?v=20260924-pickups2';
 import { InputManager } from './core/InputManager.js';
 import { AudioManager } from './core/AudioManager.js';
 
@@ -377,6 +377,12 @@ window.debugCommands = {
     },
     getDebugInfo: () => {
         return window.gameBootstrap?.game?.getDebugInfo();
+    },
+    setRewardTelemetry: (enabled = true) => {
+        window.gameBootstrap?.game?.rewardTelemetry?.setEnabled(enabled !== false);
+    },
+    getRewardStats: () => {
+        return window.gameBootstrap?.game?.rewardTelemetry?.getStats();
     },
     cleanupArtifacts: () => {
         console.log('🧹 Running artifact cleanup...');

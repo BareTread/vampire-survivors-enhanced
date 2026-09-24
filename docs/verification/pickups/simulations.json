@@ -1,0 +1,2586 @@
+{
+  "method": "real game.gameLoop(virtualNow) driven manually; rAF discarded; render stubbed; real update error recovery + memory cleanup retained; buff coverage sampled inside player.updatePowerUps wrapper pre-prune (identical to RewardTelemetry.trackCombatFrame); no timeScale forcing; god mode = takeDamage stub + invulnerable flag only",
+  "baselineRevision": "7489914",
+  "correctedRevision": "3359608",
+  "seeds": [
+    1729,
+    2718,
+    31415
+  ],
+  "limits": [
+    "God mode, scripted kiting and visual/audio stubs cannot establish human feel or difficulty.",
+    "Baseline seeds 1729 and 31415 stalled without forced recovery; compare their matched-horizon checkpoints, not partial runs against 600 seconds.",
+    "Baseline lacks a dropped-XP ledger; external createGem accounting may slightly undercount its losses. Corrected raw and official ledgers agree.",
+    "notes.updateErrors is the engine error-log entry count, capped at 10, NOT a total exception count. criticalErrors counts real five-second-throttled recovery calls.",
+    "The pre-existing upgraded-Garlic status-effect error and slow-motion recovery defect were not suppressed or fixed.",
+    "Two infrastructure tab failures were discarded; those seeds were rerun in fresh tabs."
+  ],
+  "baseline": {
+    "1729": {
+      "label": "baseline-1729",
+      "seed": 1729,
+      "commit": null,
+      "url": "http://127.0.0.1:8018/index.html",
+      "combatTarget": 600,
+      "reachedTarget": false,
+      "frames": 16596,
+      "wallMs": 3061,
+      "gameTime": 271.0833333332643,
+      "virtualSeconds": 276.59999999997746,
+      "level": 46,
+      "weapons": [
+        "whip@6",
+        "fire_wand@7",
+        "magic_missile@8",
+        "holy_bible@8",
+        "garlic_aura@6",
+        "shadow_dagger@4"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 271.0833333332643,
+        "buffs": {
+          "invincible": {
+            "seconds": 42.933333333334616,
+            "percent": 15.837688287738905
+          },
+          "speedBoost": {
+            "seconds": 53.76666666667662,
+            "percent": 19.833999385191632
+          },
+          "damageBoost": {
+            "seconds": 166.89999999997087,
+            "percent": 61.56778358438858
+          },
+          "fireRate": {
+            "seconds": 45.00000000000272,
+            "percent": 16.600061481714423
+          },
+          "magnetBoost": {
+            "seconds": 0,
+            "percent": 0
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 34.38333333333464,
+            "percent": 12.683676606213364
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 889
+            },
+            "coin": {
+              "gold": 69
+            },
+            "relic": {
+              "speedBoost": 3,
+              "damageBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 28
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 7619,
+          "awardedBase": 5880,
+          "currentFloor": 312,
+          "lost": 1427,
+          "bonus": 188492
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 207,
+          "awardedBase": 149,
+          "awarded": 149,
+          "currentFloor": 2,
+          "lost": 56,
+          "bonus": 0
+        }
+      },
+      "official": null,
+      "checkpoints": [],
+      "kiting": {
+        "pathDistance": 40403.76831499187,
+        "movingFraction": 0.9998150431565967,
+        "steerFraction": 0.08279901356350185,
+        "meanNearestEnemy": 111.35343645300966,
+        "fractionNearestUnder80": 0.268249075215783,
+        "fractionNearestUnder140": 0.7506165228113441,
+        "approachEntered": 1174,
+        "approachCollected": 939,
+        "approachExpired": 24,
+        "approachCollectRate": 0.7998296422487223,
+        "kills": 1127,
+        "picks": 45,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": 592,
+            "y": 477,
+            "level": 2,
+            "kills": 37
+          },
+          {
+            "t": 60,
+            "x": -111,
+            "y": 1112,
+            "level": 4,
+            "kills": 80
+          },
+          {
+            "t": 90,
+            "x": -1720,
+            "y": -111,
+            "level": 12,
+            "kills": 145
+          },
+          {
+            "t": 120,
+            "x": 1221,
+            "y": -1315,
+            "level": 17,
+            "kills": 219
+          },
+          {
+            "t": 150,
+            "x": 1199,
+            "y": 429,
+            "level": 23,
+            "kills": 341
+          },
+          {
+            "t": 180,
+            "x": 535,
+            "y": 25,
+            "level": 27,
+            "kills": 445
+          },
+          {
+            "t": 210,
+            "x": 1604,
+            "y": -1686,
+            "level": 32,
+            "kills": 728
+          },
+          {
+            "t": 240,
+            "x": -1365,
+            "y": 695,
+            "level": 37,
+            "kills": 851
+          },
+          {
+            "t": 270,
+            "x": -1719,
+            "y": 1077,
+            "level": 42,
+            "kills": 1126
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 121,
+        "gemLifetimeValue": 627,
+        "floorRejected": 0,
+        "relicRejected": 3,
+        "healingConsumed": 0,
+        "damageAttempts": 22,
+        "pickStuck": 0,
+        "zeroDtFrames": 331,
+        "updateErrors": 10,
+        "criticalErrors": 12,
+        "loopErrors": 0,
+        "stallSnapshot": {
+          "timeScale": 0,
+          "hitStop": 0,
+          "savedScale": null,
+          "slowMo": false,
+          "slowMoTimer": 0,
+          "gameState": "playing",
+          "combatSeconds": 271.0833333332643
+        },
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "this.game.systems.statusEffect.applyEffect is not a function",
+          "clock stall: no combat progress for 300 frames at combat 271.08"
+        ]
+      }
+    },
+    "2718": {
+      "label": "baseline-2718",
+      "seed": 2718,
+      "commit": null,
+      "url": "http://127.0.0.1:8018/index.html",
+      "combatTarget": 600,
+      "reachedTarget": true,
+      "frames": 40597,
+      "wallMs": 22536,
+      "gameTime": 600.0128110658069,
+      "virtualSeconds": 676.6166666664861,
+      "level": 103,
+      "weapons": [
+        "whip@8",
+        "magic_missile@8",
+        "holy_bible@8",
+        "bone_boomerang@8",
+        "fire_wand@8",
+        "garlic_aura@8"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 600.0128110658069,
+        "buffs": {
+          "invincible": {
+            "seconds": 103.62676704061381,
+            "percent": 17.27075907871715
+          },
+          "speedBoost": {
+            "seconds": 41.300000000002356,
+            "percent": 6.883186365077918
+          },
+          "damageBoost": {
+            "seconds": 513.9639197688533,
+            "percent": 85.65882432674991
+          },
+          "fireRate": {
+            "seconds": 75.00000000000979,
+            "percent": 12.49973310849593
+          },
+          "magnetBoost": {
+            "seconds": 27.516666666658132,
+            "percent": 4.586013191581707
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 60.13333333334611,
+            "percent": 10.022008234546002
+          }
+        },
+        "pickups": {
+          "collected": {
+            "coin": {
+              "gold": 855
+            },
+            "gem": {
+              "xp": 4256
+            },
+            "relic": {
+              "health": 2,
+              "fireRate": 2,
+              "invincible": 3,
+              "speedBoost": 1,
+              "damageBoost": 2,
+              "magnetBoost": 2
+            },
+            "floorItem": {
+              "vacuum": 4,
+              "health_orb": 2
+            }
+          },
+          "expired": {
+            "relic": {
+              "speedBoost": 3,
+              "health": 2,
+              "invincible": 1,
+              "damageBoost": 2
+            },
+            "coin": {
+              "gold": 967
+            }
+          }
+        },
+        "healing": {
+          "requested": 148,
+          "actual": 0,
+          "wasted": 148
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 123422,
+          "awardedBase": 56924,
+          "currentFloor": 837,
+          "lost": 65661,
+          "bonus": 1047184
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 5855,
+          "awardedBase": 2610,
+          "awarded": 2610,
+          "currentFloor": 143,
+          "lost": 3102,
+          "bonus": 0
+        }
+      },
+      "official": null,
+      "checkpoints": [],
+      "kiting": {
+        "pathDistance": 84223.0523313927,
+        "movingFraction": 0.9997710506232511,
+        "steerFraction": 0.02487916560671585,
+        "meanNearestEnemy": 123.36151480291593,
+        "fractionNearestUnder80": 0.20503688628847622,
+        "fractionNearestUnder140": 0.5929788857796998,
+        "approachEntered": 7335,
+        "approachCollected": 5069,
+        "approachExpired": 365,
+        "approachCollectRate": 0.6910702113156101,
+        "kills": 9312,
+        "picks": 102,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": -411,
+            "y": 46,
+            "level": 2,
+            "kills": 36
+          },
+          {
+            "t": 60,
+            "x": -532,
+            "y": 893,
+            "level": 3,
+            "kills": 65
+          },
+          {
+            "t": 90,
+            "x": 1696,
+            "y": 1135,
+            "level": 11,
+            "kills": 150
+          },
+          {
+            "t": 120,
+            "x": 1627,
+            "y": -1718,
+            "level": 16,
+            "kills": 221
+          },
+          {
+            "t": 150,
+            "x": -716,
+            "y": -646,
+            "level": 22,
+            "kills": 357
+          },
+          {
+            "t": 180,
+            "x": -1372,
+            "y": 916,
+            "level": 26,
+            "kills": 517
+          },
+          {
+            "t": 210,
+            "x": 664,
+            "y": 1293,
+            "level": 32,
+            "kills": 784
+          },
+          {
+            "t": 240,
+            "x": -1523,
+            "y": 1373,
+            "level": 37,
+            "kills": 1100
+          },
+          {
+            "t": 270,
+            "x": -1694,
+            "y": 127,
+            "level": 42,
+            "kills": 1407
+          },
+          {
+            "t": 300,
+            "x": -419,
+            "y": -1265,
+            "level": 47,
+            "kills": 1679
+          },
+          {
+            "t": 330,
+            "x": 1720,
+            "y": -897,
+            "level": 52,
+            "kills": 2177
+          },
+          {
+            "t": 360,
+            "x": 557,
+            "y": 649,
+            "level": 58,
+            "kills": 2696
+          },
+          {
+            "t": 390,
+            "x": -1484,
+            "y": -696,
+            "level": 63,
+            "kills": 3320
+          },
+          {
+            "t": 420,
+            "x": -1569,
+            "y": 66,
+            "level": 69,
+            "kills": 4056
+          },
+          {
+            "t": 450,
+            "x": -1260,
+            "y": -33,
+            "level": 75,
+            "kills": 5001
+          },
+          {
+            "t": 480,
+            "x": -521,
+            "y": 344,
+            "level": 81,
+            "kills": 5819
+          },
+          {
+            "t": 510,
+            "x": 42,
+            "y": 802,
+            "level": 86,
+            "kills": 6536
+          },
+          {
+            "t": 540,
+            "x": 617,
+            "y": 1721,
+            "level": 92,
+            "kills": 7569
+          },
+          {
+            "t": 570,
+            "x": 386,
+            "y": 1287,
+            "level": 97,
+            "kills": 8470
+          },
+          {
+            "t": 600,
+            "x": 1212,
+            "y": 1087,
+            "level": 103,
+            "kills": 9312
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 71,
+        "gemLifetimeValue": 331,
+        "floorRejected": 0,
+        "relicRejected": 158,
+        "healingConsumed": 4,
+        "damageAttempts": 114,
+        "pickStuck": 0,
+        "zeroDtFrames": 1195,
+        "updateErrors": 10,
+        "criticalErrors": 74,
+        "loopErrors": 0,
+        "stallSnapshot": null,
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "this.game.systems.statusEffect.applyEffect is not a function"
+        ]
+      }
+    },
+    "31415": {
+      "label": "baseline-31415",
+      "seed": 31415,
+      "commit": null,
+      "url": "http://127.0.0.1:8018/index.html",
+      "combatTarget": 600,
+      "reachedTarget": false,
+      "frames": 26833,
+      "wallMs": 6907,
+      "gameTime": 380.9165481771156,
+      "virtualSeconds": 447.2166666668963,
+      "level": 64,
+      "weapons": [
+        "whip@8",
+        "fire_wand@8",
+        "lightning_chain@8",
+        "throwing_knife@8",
+        "garlic_aura@8",
+        "magic_missile@8"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 380.9165481771156,
+        "buffs": {
+          "invincible": {
+            "seconds": 58.099958014595344,
+            "percent": 15.252673661103449
+          },
+          "speedBoost": {
+            "seconds": 33.20000000000149,
+            "percent": 8.715819819034067
+          },
+          "damageBoost": {
+            "seconds": 313.93321484375986,
+            "percent": 82.41522095747588
+          },
+          "fireRate": {
+            "seconds": 60.000000000004064,
+            "percent": 15.751481600664336
+          },
+          "magnetBoost": {
+            "seconds": 12.216666666666908,
+            "percent": 3.2071766703573346
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 46.71666666666843,
+            "percent": 12.264278590739114
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 1976
+            },
+            "coin": {
+              "gold": 429
+            },
+            "relic": {
+              "invincible": 2,
+              "fireRate": 1,
+              "magnetBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 463
+            },
+            "relic": {
+              "invincible": 2,
+              "health": 1,
+              "damageBoost": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 46069,
+          "awardedBase": 23400,
+          "currentFloor": 464,
+          "lost": 22205,
+          "bonus": 374983
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 3093,
+          "awardedBase": 1360,
+          "awarded": 1360,
+          "currentFloor": 226,
+          "lost": 1507,
+          "bonus": 0
+        }
+      },
+      "official": null,
+      "checkpoints": [],
+      "kiting": {
+        "pathDistance": 52426.326007357806,
+        "movingFraction": 0.9985131528783835,
+        "steerFraction": 0.11940526115135341,
+        "meanNearestEnemy": 151.6072378308758,
+        "fractionNearestUnder80": 0.10827296988181472,
+        "fractionNearestUnder140": 0.3948913457872665,
+        "approachEntered": 3132,
+        "approachCollected": 2393,
+        "approachExpired": 99,
+        "approachCollectRate": 0.7640485312899106,
+        "kills": 3691,
+        "picks": 63,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": 21,
+            "y": 79,
+            "level": 3,
+            "kills": 46
+          },
+          {
+            "t": 60,
+            "x": -455,
+            "y": -1037,
+            "level": 6,
+            "kills": 106
+          },
+          {
+            "t": 90,
+            "x": 1383,
+            "y": 187,
+            "level": 13,
+            "kills": 205
+          },
+          {
+            "t": 120,
+            "x": 757,
+            "y": 330,
+            "level": 17,
+            "kills": 325
+          },
+          {
+            "t": 150,
+            "x": 1256,
+            "y": 1333,
+            "level": 23,
+            "kills": 473
+          },
+          {
+            "t": 180,
+            "x": 1721,
+            "y": 650,
+            "level": 27,
+            "kills": 675
+          },
+          {
+            "t": 210,
+            "x": 846,
+            "y": -1719,
+            "level": 32,
+            "kills": 922
+          },
+          {
+            "t": 240,
+            "x": -1720,
+            "y": -1600,
+            "level": 38,
+            "kills": 1257
+          },
+          {
+            "t": 270,
+            "x": -1302,
+            "y": -908,
+            "level": 43,
+            "kills": 1627
+          },
+          {
+            "t": 300,
+            "x": -1311,
+            "y": -1722,
+            "level": 47,
+            "kills": 1914
+          },
+          {
+            "t": 330,
+            "x": -223,
+            "y": -672,
+            "level": 52,
+            "kills": 2544
+          },
+          {
+            "t": 360,
+            "x": 1686,
+            "y": -625,
+            "level": 57,
+            "kills": 3174
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 36,
+        "gemLifetimeValue": 166,
+        "floorRejected": 0,
+        "relicRejected": 43,
+        "healingConsumed": 0,
+        "damageAttempts": 21,
+        "pickStuck": 0,
+        "zeroDtFrames": 543,
+        "updateErrors": 10,
+        "criticalErrors": 0,
+        "loopErrors": 0,
+        "stallSnapshot": {
+          "timeScale": 0,
+          "hitStop": 0,
+          "savedScale": null,
+          "slowMo": false,
+          "slowMoTimer": -0.004625000000968819,
+          "gameState": "playing",
+          "combatSeconds": 380.9165481771156
+        },
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "clock stall: no combat progress for 300 frames at combat 380.92"
+        ]
+      }
+    }
+  },
+  "corrected": {
+    "1729": {
+      "label": "root-1729",
+      "seed": 1729,
+      "commit": "3359608",
+      "url": "http://127.0.0.1:8017/index.html?sim=2",
+      "combatTarget": 600,
+      "reachedTarget": true,
+      "frames": 39040,
+      "wallMs": 13143,
+      "gameTime": 600.0147399368725,
+      "virtualSeconds": 650.6666666662438,
+      "level": 102,
+      "weapons": [
+        "whip@8",
+        "ice_shard@8",
+        "garlic_aura@8",
+        "bone_boomerang@8",
+        "fire_wand@8",
+        "throwing_knife@8"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 600.0147399368725,
+        "buffs": {
+          "invincible": {
+            "seconds": 101.69999999992518,
+            "percent": 16.949583607000225
+          },
+          "speedBoost": {
+            "seconds": 32.750000000004775,
+            "percent": 5.458199244146969
+          },
+          "damageBoost": {
+            "seconds": 547.3603429625792,
+            "percent": 91.2244827552348
+          },
+          "fireRate": {
+            "seconds": 53.0000000000153,
+            "percent": 8.83311633404063
+          },
+          "magnetBoost": {
+            "seconds": 42.12373482916008,
+            "percent": 7.0204500032102395
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 49.566666666688455,
+            "percent": 8.260908169006541
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 1571
+            },
+            "coin": {
+              "gold": 1317
+            },
+            "relic": {
+              "invincible": 3,
+              "magnetBoost": 3,
+              "damageBoost": 2
+            },
+            "floorItem": {
+              "vacuum": 5,
+              "treasure_chest": 2
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 847
+            },
+            "relic": {
+              "health": 2,
+              "magnetBoost": 2,
+              "invincible": 2,
+              "speedBoost": 1,
+              "damageBoost": 1,
+              "fireRate": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 129472,
+          "awardedBase": 126822,
+          "currentFloor": 2650,
+          "lost": 0,
+          "bonus": 959646
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 6819,
+          "awardedBase": 4146,
+          "awarded": 4146,
+          "currentFloor": 74,
+          "lost": 2599,
+          "bonus": 0
+        }
+      },
+      "official": {
+        "enabled": true,
+        "combatSeconds": 600.0147399368725,
+        "buffs": {
+          "invincible": {
+            "seconds": 101.69999999992518,
+            "percent": 16.949583607000225
+          },
+          "speedBoost": {
+            "seconds": 32.750000000004775,
+            "percent": 5.458199244146969
+          },
+          "damageBoost": {
+            "seconds": 547.3603429625792,
+            "percent": 91.2244827552348
+          },
+          "fireRate": {
+            "seconds": 53.0000000000153,
+            "percent": 8.83311633404063
+          },
+          "magnetBoost": {
+            "seconds": 42.12373482916008,
+            "percent": 7.0204500032102395
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 49.566666666688455,
+            "percent": 8.260908169006541
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 1571
+            },
+            "coin": {
+              "gold": 1317
+            },
+            "relic": {
+              "invincible": 3,
+              "magnetBoost": 3,
+              "damageBoost": 2
+            },
+            "floorItem": {
+              "vacuum": 5,
+              "treasure_chest": 2
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 847
+            },
+            "relic": {
+              "health": 2,
+              "magnetBoost": 2,
+              "invincible": 2,
+              "speedBoost": 1,
+              "damageBoost": 1,
+              "fireRate": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 129472,
+          "awardedBase": 126822,
+          "currentFloor": 2650,
+          "lost": 0,
+          "bonus": 959646
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 6819,
+          "awardedBase": 4146,
+          "awarded": 4146,
+          "currentFloor": 74,
+          "lost": 2599,
+          "bonus": 0
+        }
+      },
+      "checkpoints": [
+        {
+          "at": 271.0833333332643,
+          "combatSeconds": 271.0833333334281,
+          "gameTime": 271.0833333334281,
+          "virtualSeconds": 271.9500000001401,
+          "official": {
+            "enabled": true,
+            "combatSeconds": 271.0833333334281,
+            "buffs": {
+              "invincible": {
+                "seconds": 48.10000000001843,
+                "percent": 17.743621272671977
+              },
+              "speedBoost": {
+                "seconds": 32.750000000004775,
+                "percent": 12.081155856130339
+              },
+              "damageBoost": {
+                "seconds": 223.9166666667325,
+                "percent": 82.60067629879653
+              },
+              "fireRate": {
+                "seconds": 53.0000000000153,
+                "percent": 19.551183522900747
+              },
+              "magnetBoost": {
+                "seconds": 0,
+                "percent": 0
+              }
+            },
+            "overlaps": {
+              "damageBoost+fireRate": {
+                "seconds": 49.566666666688455,
+                "percent": 18.284660313558366
+              }
+            },
+            "pickups": {
+              "collected": {
+                "gem": {
+                  "xp": 151
+                },
+                "coin": {
+                  "gold": 34
+                },
+                "relic": {
+                  "invincible": 2
+                }
+              },
+              "expired": {
+                "coin": {
+                  "gold": 99
+                },
+                "relic": {
+                  "health": 1,
+                  "magnetBoost": 1,
+                  "invincible": 1
+                }
+              }
+            },
+            "healing": {
+              "requested": 0,
+              "actual": 0,
+              "wasted": 0
+            },
+            "xp": {
+              "openingFloor": 0,
+              "dropped": 11585,
+              "awardedBase": 3196,
+              "currentFloor": 8389,
+              "lost": 0,
+              "bonus": 188021
+            },
+            "gold": {
+              "openingFloor": 0,
+              "dropped": 435,
+              "awardedBase": 69,
+              "awarded": 69,
+              "currentFloor": 24,
+              "lost": 342,
+              "bonus": 0
+            }
+          },
+          "external": {
+            "enabled": true,
+            "combatSeconds": 271.0833333334281,
+            "buffs": {
+              "invincible": {
+                "seconds": 48.10000000001843,
+                "percent": 17.743621272671977
+              },
+              "speedBoost": {
+                "seconds": 32.750000000004775,
+                "percent": 12.081155856130339
+              },
+              "damageBoost": {
+                "seconds": 223.9166666667325,
+                "percent": 82.60067629879653
+              },
+              "fireRate": {
+                "seconds": 53.0000000000153,
+                "percent": 19.551183522900747
+              },
+              "magnetBoost": {
+                "seconds": 0,
+                "percent": 0
+              }
+            },
+            "overlaps": {
+              "damageBoost+fireRate": {
+                "seconds": 49.566666666688455,
+                "percent": 18.284660313558366
+              }
+            },
+            "pickups": {
+              "collected": {
+                "gem": {
+                  "xp": 151
+                },
+                "coin": {
+                  "gold": 34
+                },
+                "relic": {
+                  "invincible": 2
+                }
+              },
+              "expired": {
+                "coin": {
+                  "gold": 99
+                },
+                "relic": {
+                  "health": 1,
+                  "magnetBoost": 1,
+                  "invincible": 1
+                }
+              }
+            },
+            "healing": {
+              "requested": 0,
+              "actual": 0,
+              "wasted": 0
+            },
+            "xp": {
+              "openingFloor": 0,
+              "dropped": 11585,
+              "awardedBase": 3196,
+              "currentFloor": 8389,
+              "lost": 0,
+              "bonus": 188021
+            },
+            "gold": {
+              "openingFloor": 0,
+              "dropped": 435,
+              "awardedBase": 69,
+              "awarded": 69,
+              "currentFloor": 24,
+              "lost": 342,
+              "bonus": 0
+            }
+          }
+        }
+      ],
+      "kiting": {
+        "pathDistance": 94058.596034718,
+        "movingFraction": 0.9990229475296417,
+        "steerFraction": 0.04489159998943727,
+        "meanNearestEnemy": 114.75418993545911,
+        "fractionNearestUnder80": 0.26707861311362857,
+        "fractionNearestUnder140": 0.6767276664290053,
+        "approachEntered": 3241,
+        "approachCollected": 2872,
+        "approachExpired": 317,
+        "approachCollectRate": 0.8861462511570503,
+        "kills": 10249,
+        "picks": 101,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": 107,
+            "y": -419,
+            "level": 2,
+            "kills": 35
+          },
+          {
+            "t": 60,
+            "x": -1553,
+            "y": 1720,
+            "level": 3,
+            "kills": 69
+          },
+          {
+            "t": 90,
+            "x": 580,
+            "y": 1444,
+            "level": 12,
+            "kills": 173
+          },
+          {
+            "t": 120,
+            "x": 831,
+            "y": 1719,
+            "level": 17,
+            "kills": 287
+          },
+          {
+            "t": 150,
+            "x": 1546,
+            "y": 896,
+            "level": 22,
+            "kills": 448
+          },
+          {
+            "t": 180,
+            "x": 1722,
+            "y": -966,
+            "level": 27,
+            "kills": 673
+          },
+          {
+            "t": 210,
+            "x": 27,
+            "y": -1306,
+            "level": 32,
+            "kills": 933
+          },
+          {
+            "t": 240,
+            "x": -1315,
+            "y": 1064,
+            "level": 36,
+            "kills": 1213
+          },
+          {
+            "t": 270,
+            "x": -1353,
+            "y": -188,
+            "level": 41,
+            "kills": 1520
+          },
+          {
+            "t": 300,
+            "x": -463,
+            "y": -577,
+            "level": 45,
+            "kills": 1775
+          },
+          {
+            "t": 330,
+            "x": -1369,
+            "y": -528,
+            "level": 52,
+            "kills": 2277
+          },
+          {
+            "t": 360,
+            "x": -1,
+            "y": -1301,
+            "level": 57,
+            "kills": 2968
+          },
+          {
+            "t": 390,
+            "x": 1561,
+            "y": -1323,
+            "level": 62,
+            "kills": 3747
+          },
+          {
+            "t": 420,
+            "x": 1480,
+            "y": -1720,
+            "level": 70,
+            "kills": 4597
+          },
+          {
+            "t": 450,
+            "x": 1665,
+            "y": -1642,
+            "level": 75,
+            "kills": 5565
+          },
+          {
+            "t": 480,
+            "x": 1649,
+            "y": -1722,
+            "level": 79,
+            "kills": 6549
+          },
+          {
+            "t": 510,
+            "x": 1017,
+            "y": -1055,
+            "level": 86,
+            "kills": 7352
+          },
+          {
+            "t": 540,
+            "x": 856,
+            "y": -1439,
+            "level": 90,
+            "kills": 8467
+          },
+          {
+            "t": 570,
+            "x": -237,
+            "y": -829,
+            "level": 96,
+            "kills": 9361
+          },
+          {
+            "t": 600,
+            "x": -383,
+            "y": -652,
+            "level": 102,
+            "kills": 10249
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 0,
+        "gemLifetimeValue": 0,
+        "floorRejected": 0,
+        "relicRejected": 168,
+        "healingConsumed": 0,
+        "damageAttempts": 26,
+        "pickStuck": 0,
+        "zeroDtFrames": 1074,
+        "updateErrors": 10,
+        "criticalErrors": 26,
+        "loopErrors": 0,
+        "stallSnapshot": null,
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "this.game.systems.statusEffect.applyEffect is not a function"
+        ]
+      }
+    },
+    "2718": {
+      "label": "root-2718",
+      "seed": 2718,
+      "commit": "3359608",
+      "url": "http://127.0.0.1:8017/index.html?sim=1",
+      "combatTarget": 600,
+      "reachedTarget": true,
+      "frames": 40214,
+      "wallMs": 26537,
+      "gameTime": 600.0026378122725,
+      "virtualSeconds": 670.233333333161,
+      "level": 103,
+      "weapons": [
+        "whip@8",
+        "fire_wand@8",
+        "garlic_aura@8",
+        "lightning_chain@8",
+        "magic_missile@8",
+        "bone_boomerang@8"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 600.0026378122725,
+        "buffs": {
+          "invincible": {
+            "seconds": 96.6993935576525,
+            "percent": 16.116494739129394
+          },
+          "speedBoost": {
+            "seconds": 48.01666666665143,
+            "percent": 8.002742594887522
+          },
+          "damageBoost": {
+            "seconds": 514.1359711455103,
+            "percent": 85.6889518053039
+          },
+          "fireRate": {
+            "seconds": 97.9999999999621,
+            "percent": 16.333261526530844
+          },
+          "magnetBoost": {
+            "seconds": 12.700000000000049,
+            "percent": 2.1166573610920687
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 81.3166666666453,
+            "percent": 13.552718195230248
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 1311
+            },
+            "relic": {
+              "fireRate": 3,
+              "damageBoost": 5,
+              "invincible": 2,
+              "speedBoost": 2
+            },
+            "coin": {
+              "gold": 1506
+            },
+            "floorItem": {
+              "vacuum": 4,
+              "treasure_chest": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 686
+            },
+            "relic": {
+              "invincible": 1,
+              "damageBoost": 1,
+              "health": 1,
+              "speedBoost": 1,
+              "fireRate": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 131504,
+          "awardedBase": 125840,
+          "currentFloor": 5664,
+          "lost": 0,
+          "bonus": 982114
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 6676,
+          "awardedBase": 4460,
+          "awarded": 4460,
+          "currentFloor": 96,
+          "lost": 2120,
+          "bonus": 0
+        }
+      },
+      "official": {
+        "enabled": true,
+        "combatSeconds": 600.0026378122725,
+        "buffs": {
+          "invincible": {
+            "seconds": 96.6993935576525,
+            "percent": 16.116494739129394
+          },
+          "speedBoost": {
+            "seconds": 48.01666666665143,
+            "percent": 8.002742594887522
+          },
+          "damageBoost": {
+            "seconds": 514.1359711455103,
+            "percent": 85.6889518053039
+          },
+          "fireRate": {
+            "seconds": 97.9999999999621,
+            "percent": 16.333261526530844
+          },
+          "magnetBoost": {
+            "seconds": 12.700000000000049,
+            "percent": 2.1166573610920687
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 81.3166666666453,
+            "percent": 13.552718195230248
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 1311
+            },
+            "relic": {
+              "fireRate": 3,
+              "damageBoost": 5,
+              "invincible": 2,
+              "speedBoost": 2
+            },
+            "coin": {
+              "gold": 1506
+            },
+            "floorItem": {
+              "vacuum": 4,
+              "treasure_chest": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 686
+            },
+            "relic": {
+              "invincible": 1,
+              "damageBoost": 1,
+              "health": 1,
+              "speedBoost": 1,
+              "fireRate": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 131504,
+          "awardedBase": 125840,
+          "currentFloor": 5664,
+          "lost": 0,
+          "bonus": 982114
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 6676,
+          "awardedBase": 4460,
+          "awarded": 4460,
+          "currentFloor": 96,
+          "lost": 2120,
+          "bonus": 0
+        }
+      },
+      "checkpoints": [],
+      "kiting": {
+        "pathDistance": 87714.54180371285,
+        "movingFraction": 0.9968664017120147,
+        "steerFraction": 0.02853357790685825,
+        "meanNearestEnemy": 90.61735345472715,
+        "fractionNearestUnder80": 0.46170895750535007,
+        "fractionNearestUnder140": 0.7961377764190359,
+        "approachEntered": 2979,
+        "approachCollected": 2749,
+        "approachExpired": 189,
+        "approachCollectRate": 0.9227928835179591,
+        "kills": 10315,
+        "picks": 102,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": -231,
+            "y": -382,
+            "level": 2,
+            "kills": 37
+          },
+          {
+            "t": 60,
+            "x": -495,
+            "y": 1285,
+            "level": 3,
+            "kills": 72
+          },
+          {
+            "t": 90,
+            "x": -1074,
+            "y": 553,
+            "level": 11,
+            "kills": 175
+          },
+          {
+            "t": 120,
+            "x": 32,
+            "y": 17,
+            "level": 17,
+            "kills": 255
+          },
+          {
+            "t": 150,
+            "x": 801,
+            "y": 1720,
+            "level": 22,
+            "kills": 373
+          },
+          {
+            "t": 180,
+            "x": 1193,
+            "y": -193,
+            "level": 27,
+            "kills": 568
+          },
+          {
+            "t": 210,
+            "x": -483,
+            "y": -740,
+            "level": 32,
+            "kills": 800
+          },
+          {
+            "t": 240,
+            "x": 1720,
+            "y": -1719,
+            "level": 36,
+            "kills": 1092
+          },
+          {
+            "t": 270,
+            "x": 1393,
+            "y": -1481,
+            "level": 42,
+            "kills": 1443
+          },
+          {
+            "t": 300,
+            "x": -898,
+            "y": -935,
+            "level": 46,
+            "kills": 1669
+          },
+          {
+            "t": 330,
+            "x": -283,
+            "y": -1100,
+            "level": 51,
+            "kills": 2213
+          },
+          {
+            "t": 360,
+            "x": -1110,
+            "y": -1665,
+            "level": 56,
+            "kills": 2927
+          },
+          {
+            "t": 390,
+            "x": -1717,
+            "y": -1426,
+            "level": 61,
+            "kills": 3672
+          },
+          {
+            "t": 420,
+            "x": -1621,
+            "y": -1345,
+            "level": 65,
+            "kills": 4546
+          },
+          {
+            "t": 450,
+            "x": -1402,
+            "y": -1579,
+            "level": 70,
+            "kills": 5383
+          },
+          {
+            "t": 480,
+            "x": -531,
+            "y": -1071,
+            "level": 80,
+            "kills": 6328
+          },
+          {
+            "t": 510,
+            "x": -1720,
+            "y": -1579,
+            "level": 87,
+            "kills": 7181
+          },
+          {
+            "t": 540,
+            "x": -1560,
+            "y": -148,
+            "level": 92,
+            "kills": 8232
+          },
+          {
+            "t": 570,
+            "x": -1449,
+            "y": 423,
+            "level": 98,
+            "kills": 9271
+          },
+          {
+            "t": 600,
+            "x": -1510,
+            "y": 746,
+            "level": 103,
+            "kills": 10315
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 0,
+        "gemLifetimeValue": 0,
+        "floorRejected": 0,
+        "relicRejected": 139,
+        "healingConsumed": 0,
+        "damageAttempts": 157,
+        "pickStuck": 0,
+        "zeroDtFrames": 864,
+        "updateErrors": 10,
+        "criticalErrors": 5,
+        "loopErrors": 0,
+        "stallSnapshot": null,
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "this.game.systems.statusEffect.applyEffect is not a function"
+        ]
+      }
+    },
+    "31415": {
+      "label": "root-31415",
+      "seed": 31415,
+      "commit": "3359608",
+      "url": "http://127.0.0.1:8017/index.html?sim=4",
+      "combatTarget": 600,
+      "reachedTarget": true,
+      "frames": 39908,
+      "wallMs": 17945,
+      "gameTime": 600.0118034421286,
+      "virtualSeconds": 665.1333333332386,
+      "level": 99,
+      "weapons": [
+        "whip@8",
+        "garlic_aura@8",
+        "holy_bible@8",
+        "bone_boomerang@8",
+        "lightning_chain@8",
+        "throwing_knife@8"
+      ],
+      "health": 100,
+      "maxHealth": 100,
+      "character": "antonio",
+      "stats": {
+        "enabled": true,
+        "combatSeconds": 600.0118034421286,
+        "buffs": {
+          "invincible": {
+            "seconds": 90.59282726495047,
+            "percent": 15.098507520225507
+          },
+          "speedBoost": {
+            "seconds": 41.56666666665481,
+            "percent": 6.92764149441669
+          },
+          "damageBoost": {
+            "seconds": 463.86856177526334,
+            "percent": 77.30990609087304
+          },
+          "fireRate": {
+            "seconds": 67.99999999999365,
+            "percent": 11.333110383811356
+          },
+          "magnetBoost": {
+            "seconds": 12.883333333331306,
+            "percent": 2.147179982030788
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 55.79999999999298,
+            "percent": 9.299817050244899
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 937
+            },
+            "coin": {
+              "gold": 1039
+            },
+            "relic": {
+              "damageBoost": 2,
+              "speedBoost": 1,
+              "fireRate": 1,
+              "magnetBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 845
+            },
+            "relic": {
+              "invincible": 1,
+              "speedBoost": 5,
+              "fireRate": 2,
+              "health": 1,
+              "magnetBoost": 2,
+              "damageBoost": 2
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 113611,
+          "awardedBase": 107303,
+          "currentFloor": 6308,
+          "lost": 0,
+          "bonus": 907915
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 5648,
+          "awardedBase": 3001,
+          "awarded": 3001,
+          "currentFloor": 89,
+          "lost": 2558,
+          "bonus": 0
+        }
+      },
+      "official": {
+        "enabled": true,
+        "combatSeconds": 600.0118034421286,
+        "buffs": {
+          "invincible": {
+            "seconds": 90.59282726495047,
+            "percent": 15.098507520225507
+          },
+          "speedBoost": {
+            "seconds": 41.56666666665481,
+            "percent": 6.92764149441669
+          },
+          "damageBoost": {
+            "seconds": 463.86856177526334,
+            "percent": 77.30990609087304
+          },
+          "fireRate": {
+            "seconds": 67.99999999999365,
+            "percent": 11.333110383811356
+          },
+          "magnetBoost": {
+            "seconds": 12.883333333331306,
+            "percent": 2.147179982030788
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 55.79999999999298,
+            "percent": 9.299817050244899
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 937
+            },
+            "coin": {
+              "gold": 1039
+            },
+            "relic": {
+              "damageBoost": 2,
+              "speedBoost": 1,
+              "fireRate": 1,
+              "magnetBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 845
+            },
+            "relic": {
+              "invincible": 1,
+              "speedBoost": 5,
+              "fireRate": 2,
+              "health": 1,
+              "magnetBoost": 2,
+              "damageBoost": 2
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 113611,
+          "awardedBase": 107303,
+          "currentFloor": 6308,
+          "lost": 0,
+          "bonus": 907915
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 5648,
+          "awardedBase": 3001,
+          "awarded": 3001,
+          "currentFloor": 89,
+          "lost": 2558,
+          "bonus": 0
+        }
+      },
+      "checkpoints": [
+        {
+          "at": 380.9165481771156,
+          "combatSeconds": 380.92847010872873,
+          "gameTime": 380.92847010872873,
+          "virtualSeconds": 439.58333333348435,
+          "official": {
+            "enabled": true,
+            "combatSeconds": 380.92847010872873,
+            "buffs": {
+              "invincible": {
+                "seconds": 62.70949393166014,
+                "percent": 16.462275427657303
+              },
+              "speedBoost": {
+                "seconds": 41.56666666665481,
+                "percent": 10.911934898116279
+              },
+              "damageBoost": {
+                "seconds": 244.7852284418826,
+                "percent": 64.26015581665852
+              },
+              "fireRate": {
+                "seconds": 53.00000000001454,
+                "percent": 13.91337328629879
+              },
+              "magnetBoost": {
+                "seconds": 0,
+                "percent": 0
+              }
+            },
+            "overlaps": {
+              "damageBoost+fireRate": {
+                "seconds": 40.80000000001216,
+                "percent": 10.710672265679323
+              }
+            },
+            "pickups": {
+              "collected": {
+                "gem": {
+                  "xp": 305
+                },
+                "coin": {
+                  "gold": 417
+                },
+                "relic": {
+                  "damageBoost": 2,
+                  "speedBoost": 1
+                }
+              },
+              "expired": {
+                "coin": {
+                  "gold": 411
+                },
+                "relic": {
+                  "invincible": 1,
+                  "speedBoost": 1,
+                  "fireRate": 1,
+                  "health": 1,
+                  "magnetBoost": 2
+                }
+              }
+            },
+            "healing": {
+              "requested": 0,
+              "actual": 0,
+              "wasted": 0
+            },
+            "xp": {
+              "openingFloor": 0,
+              "dropped": 46044,
+              "awardedBase": 13578,
+              "currentFloor": 32466,
+              "lost": 0,
+              "bonus": 341532
+            },
+            "gold": {
+              "openingFloor": 0,
+              "dropped": 3065,
+              "awardedBase": 1358,
+              "awarded": 1358,
+              "currentFloor": 410,
+              "lost": 1297,
+              "bonus": 0
+            }
+          },
+          "external": {
+            "enabled": true,
+            "combatSeconds": 380.92847010872873,
+            "buffs": {
+              "invincible": {
+                "seconds": 62.70949393166014,
+                "percent": 16.462275427657303
+              },
+              "speedBoost": {
+                "seconds": 41.56666666665481,
+                "percent": 10.911934898116279
+              },
+              "damageBoost": {
+                "seconds": 244.7852284418826,
+                "percent": 64.26015581665852
+              },
+              "fireRate": {
+                "seconds": 53.00000000001454,
+                "percent": 13.91337328629879
+              },
+              "magnetBoost": {
+                "seconds": 0,
+                "percent": 0
+              }
+            },
+            "overlaps": {
+              "damageBoost+fireRate": {
+                "seconds": 40.80000000001216,
+                "percent": 10.710672265679323
+              }
+            },
+            "pickups": {
+              "collected": {
+                "gem": {
+                  "xp": 305
+                },
+                "coin": {
+                  "gold": 417
+                },
+                "relic": {
+                  "damageBoost": 2,
+                  "speedBoost": 1
+                }
+              },
+              "expired": {
+                "coin": {
+                  "gold": 411
+                },
+                "relic": {
+                  "invincible": 1,
+                  "speedBoost": 1,
+                  "fireRate": 1,
+                  "health": 1,
+                  "magnetBoost": 2
+                }
+              }
+            },
+            "healing": {
+              "requested": 0,
+              "actual": 0,
+              "wasted": 0
+            },
+            "xp": {
+              "openingFloor": 0,
+              "dropped": 46044,
+              "awardedBase": 13578,
+              "currentFloor": 32466,
+              "lost": 0,
+              "bonus": 341532
+            },
+            "gold": {
+              "openingFloor": 0,
+              "dropped": 3065,
+              "awardedBase": 1358,
+              "awarded": 1358,
+              "currentFloor": 410,
+              "lost": 1297,
+              "bonus": 0
+            }
+          }
+        }
+      ],
+      "kiting": {
+        "pathDistance": 83715.56696076688,
+        "movingFraction": 0.999821692393907,
+        "steerFraction": 0.05007896479698405,
+        "meanNearestEnemy": 100.83515779844892,
+        "fractionNearestUnder80": 0.3899332620102909,
+        "fractionNearestUnder140": 0.727928065617199,
+        "approachEntered": 2112,
+        "approachCollected": 1907,
+        "approachExpired": 152,
+        "approachCollectRate": 0.9029356060606061,
+        "kills": 9084,
+        "picks": 98,
+        "samples": [
+          {
+            "t": 0,
+            "x": 2,
+            "y": 0,
+            "level": 1,
+            "kills": 0
+          },
+          {
+            "t": 30,
+            "x": -38,
+            "y": 78,
+            "level": 3,
+            "kills": 45
+          },
+          {
+            "t": 60,
+            "x": 875,
+            "y": -577,
+            "level": 4,
+            "kills": 90
+          },
+          {
+            "t": 90,
+            "x": 1296,
+            "y": -1509,
+            "level": 11,
+            "kills": 164
+          },
+          {
+            "t": 120,
+            "x": 777,
+            "y": -715,
+            "level": 16,
+            "kills": 273
+          },
+          {
+            "t": 150,
+            "x": 1720,
+            "y": -1464,
+            "level": 22,
+            "kills": 434
+          },
+          {
+            "t": 180,
+            "x": 1720,
+            "y": -1526,
+            "level": 27,
+            "kills": 700
+          },
+          {
+            "t": 210,
+            "x": -100,
+            "y": -1720,
+            "level": 32,
+            "kills": 1016
+          },
+          {
+            "t": 240,
+            "x": -1239,
+            "y": 133,
+            "level": 36,
+            "kills": 1365
+          },
+          {
+            "t": 270,
+            "x": -1720,
+            "y": 223,
+            "level": 41,
+            "kills": 1665
+          },
+          {
+            "t": 300,
+            "x": -1663,
+            "y": -865,
+            "level": 45,
+            "kills": 1916
+          },
+          {
+            "t": 330,
+            "x": 259,
+            "y": -962,
+            "level": 50,
+            "kills": 2389
+          },
+          {
+            "t": 360,
+            "x": -938,
+            "y": -747,
+            "level": 56,
+            "kills": 2983
+          },
+          {
+            "t": 390,
+            "x": -901,
+            "y": 663,
+            "level": 60,
+            "kills": 3633
+          },
+          {
+            "t": 420,
+            "x": -924,
+            "y": 1401,
+            "level": 65,
+            "kills": 4353
+          },
+          {
+            "t": 450,
+            "x": 328,
+            "y": 810,
+            "level": 70,
+            "kills": 5217
+          },
+          {
+            "t": 480,
+            "x": -597,
+            "y": 22,
+            "level": 78,
+            "kills": 5943
+          },
+          {
+            "t": 510,
+            "x": 1303,
+            "y": -9,
+            "level": 83,
+            "kills": 6597
+          },
+          {
+            "t": 540,
+            "x": 1702,
+            "y": -1719,
+            "level": 87,
+            "kills": 7390
+          },
+          {
+            "t": 570,
+            "x": 1049,
+            "y": -454,
+            "level": 94,
+            "kills": 8312
+          },
+          {
+            "t": 600,
+            "x": 865,
+            "y": -1720,
+            "level": 99,
+            "kills": 9084
+          }
+        ]
+      },
+      "notes": {
+        "gemLifetimeDeletes": 0,
+        "gemLifetimeValue": 0,
+        "floorRejected": 0,
+        "relicRejected": 103,
+        "healingConsumed": 0,
+        "damageAttempts": 151,
+        "pickStuck": 0,
+        "zeroDtFrames": 555,
+        "updateErrors": 10,
+        "criticalErrors": 83,
+        "loopErrors": 0,
+        "stallSnapshot": null,
+        "stubs": [
+          "render() noop (canvas drawing only)",
+          "particle create/burst/spawn/emit + update cleared",
+          "audioManager methods noop",
+          "adaptiveMusic/ambientParticles/decals/canvasHUD update noop",
+          "globalDamageNumberPool.update noop",
+          "player.takeDamage returns 0 (god mode; no invincible buff flag)"
+        ],
+        "errors": [
+          "this.game.systems.statusEffect.applyEffect is not a function"
+        ]
+      }
+    }
+  },
+  "matchedHorizon": {
+    "1729": {
+      "at": 271.0833333332643,
+      "root": {
+        "enabled": true,
+        "combatSeconds": 271.0833333334281,
+        "buffs": {
+          "invincible": {
+            "seconds": 48.10000000001843,
+            "percent": 17.743621272671977
+          },
+          "speedBoost": {
+            "seconds": 32.750000000004775,
+            "percent": 12.081155856130339
+          },
+          "damageBoost": {
+            "seconds": 223.9166666667325,
+            "percent": 82.60067629879653
+          },
+          "fireRate": {
+            "seconds": 53.0000000000153,
+            "percent": 19.551183522900747
+          },
+          "magnetBoost": {
+            "seconds": 0,
+            "percent": 0
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 49.566666666688455,
+            "percent": 18.284660313558366
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 151
+            },
+            "coin": {
+              "gold": 34
+            },
+            "relic": {
+              "invincible": 2
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 99
+            },
+            "relic": {
+              "health": 1,
+              "magnetBoost": 1,
+              "invincible": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 11585,
+          "awardedBase": 3196,
+          "currentFloor": 8389,
+          "lost": 0,
+          "bonus": 188021
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 435,
+          "awardedBase": 69,
+          "awarded": 69,
+          "currentFloor": 24,
+          "lost": 342,
+          "bonus": 0
+        }
+      },
+      "rootOfficial": {
+        "enabled": true,
+        "combatSeconds": 271.0833333334281,
+        "buffs": {
+          "invincible": {
+            "seconds": 48.10000000001843,
+            "percent": 17.743621272671977
+          },
+          "speedBoost": {
+            "seconds": 32.750000000004775,
+            "percent": 12.081155856130339
+          },
+          "damageBoost": {
+            "seconds": 223.9166666667325,
+            "percent": 82.60067629879653
+          },
+          "fireRate": {
+            "seconds": 53.0000000000153,
+            "percent": 19.551183522900747
+          },
+          "magnetBoost": {
+            "seconds": 0,
+            "percent": 0
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 49.566666666688455,
+            "percent": 18.284660313558366
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 151
+            },
+            "coin": {
+              "gold": 34
+            },
+            "relic": {
+              "invincible": 2
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 99
+            },
+            "relic": {
+              "health": 1,
+              "magnetBoost": 1,
+              "invincible": 1
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 11585,
+          "awardedBase": 3196,
+          "currentFloor": 8389,
+          "lost": 0,
+          "bonus": 188021
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 435,
+          "awardedBase": 69,
+          "awarded": 69,
+          "currentFloor": 24,
+          "lost": 342,
+          "bonus": 0
+        }
+      }
+    },
+    "31415": {
+      "at": 380.9165481771156,
+      "root": {
+        "enabled": true,
+        "combatSeconds": 380.92847010872873,
+        "buffs": {
+          "invincible": {
+            "seconds": 62.70949393166014,
+            "percent": 16.462275427657303
+          },
+          "speedBoost": {
+            "seconds": 41.56666666665481,
+            "percent": 10.911934898116279
+          },
+          "damageBoost": {
+            "seconds": 244.7852284418826,
+            "percent": 64.26015581665852
+          },
+          "fireRate": {
+            "seconds": 53.00000000001454,
+            "percent": 13.91337328629879
+          },
+          "magnetBoost": {
+            "seconds": 0,
+            "percent": 0
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 40.80000000001216,
+            "percent": 10.710672265679323
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 305
+            },
+            "coin": {
+              "gold": 417
+            },
+            "relic": {
+              "damageBoost": 2,
+              "speedBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 411
+            },
+            "relic": {
+              "invincible": 1,
+              "speedBoost": 1,
+              "fireRate": 1,
+              "health": 1,
+              "magnetBoost": 2
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 46044,
+          "awardedBase": 13578,
+          "currentFloor": 32466,
+          "lost": 0,
+          "bonus": 341532
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 3065,
+          "awardedBase": 1358,
+          "awarded": 1358,
+          "currentFloor": 410,
+          "lost": 1297,
+          "bonus": 0
+        }
+      },
+      "rootOfficial": {
+        "enabled": true,
+        "combatSeconds": 380.92847010872873,
+        "buffs": {
+          "invincible": {
+            "seconds": 62.70949393166014,
+            "percent": 16.462275427657303
+          },
+          "speedBoost": {
+            "seconds": 41.56666666665481,
+            "percent": 10.911934898116279
+          },
+          "damageBoost": {
+            "seconds": 244.7852284418826,
+            "percent": 64.26015581665852
+          },
+          "fireRate": {
+            "seconds": 53.00000000001454,
+            "percent": 13.91337328629879
+          },
+          "magnetBoost": {
+            "seconds": 0,
+            "percent": 0
+          }
+        },
+        "overlaps": {
+          "damageBoost+fireRate": {
+            "seconds": 40.80000000001216,
+            "percent": 10.710672265679323
+          }
+        },
+        "pickups": {
+          "collected": {
+            "gem": {
+              "xp": 305
+            },
+            "coin": {
+              "gold": 417
+            },
+            "relic": {
+              "damageBoost": 2,
+              "speedBoost": 1
+            }
+          },
+          "expired": {
+            "coin": {
+              "gold": 411
+            },
+            "relic": {
+              "invincible": 1,
+              "speedBoost": 1,
+              "fireRate": 1,
+              "health": 1,
+              "magnetBoost": 2
+            }
+          }
+        },
+        "healing": {
+          "requested": 0,
+          "actual": 0,
+          "wasted": 0
+        },
+        "xp": {
+          "openingFloor": 0,
+          "dropped": 46044,
+          "awardedBase": 13578,
+          "currentFloor": 32466,
+          "lost": 0,
+          "bonus": 341532
+        },
+        "gold": {
+          "openingFloor": 0,
+          "dropped": 3065,
+          "awardedBase": 1358,
+          "awarded": 1358,
+          "currentFloor": 410,
+          "lost": 1297,
+          "bonus": 0
+        }
+      }
+    }
+  }
+}

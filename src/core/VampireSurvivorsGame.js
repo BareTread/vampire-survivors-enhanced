@@ -1,9 +1,9 @@
 import { ENEMY_ARRIVALS } from '../data/enemyNames.js';
-import { getPowerUpSprite, getPowerUpGlow, POWER_UP_COLORS } from '../entities/rendering/PickupArt.js';
-import { Player } from '../entities/Player.js';
-import { EnemySystem } from '../systems/EnemySystem.js';
+import { getPowerUpSprite, getPowerUpGlow } from '../entities/rendering/PickupArt.js?v=20260924-pickups2';
+import { Player } from '../entities/Player.js?v=20260924-pickups2';
+import { EnemySystem } from '../systems/EnemySystem.js?v=20260924-pickups2';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
-import { ExperienceSystem } from '../systems/ExperienceSystem.js';
+import { ExperienceSystem } from '../systems/ExperienceSystem.js?v=20260924-pickups2';
 import { ParticleSystemCore } from '../systems/ParticleSystemCore.js';
 import { StatusEffectSystem } from '../systems/StatusEffectSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
@@ -14,24 +14,24 @@ import { RewardsSystem } from '../systems/RewardsSystem.js';
 import { MicroChallengeSystem } from '../systems/MicroChallengeSystem.js';
 import { AdaptiveMusicSystem } from '../systems/AdaptiveMusicSystem.js';
 import { PassiveItemSystem } from '../systems/PassiveItemSystem.js';
-import { KillMilestoneSystem } from '../systems/KillMilestoneSystem.js';
+import { KillMilestoneSystem } from '../systems/KillMilestoneSystem.js?v=20260924-pickups2';
 import { ScreenEffectsSystem } from '../systems/ScreenEffectsSystem.js';
-import { RunTimerSystem } from '../systems/RunTimerSystem.js';
+import { RunTimerSystem } from '../systems/RunTimerSystem.js?v=20260924-pickups2';
 import { PersistenceSystem } from '../systems/PersistenceSystem.js';
-import { GoldSystem } from '../systems/GoldSystem.js';
+import { GoldSystem } from '../systems/GoldSystem.js?v=20260924-pickups2';
 import { WeaponEvolutionSystem } from '../systems/WeaponEvolutionSystem.js';
 import { SynergySystem } from '../systems/SynergySystem.js';
 import { RaritySystem } from '../systems/RaritySystem.js';
-import { BossSystem } from '../systems/BossSystem.js';
-import { DynamicEventSystem } from '../systems/DynamicEventSystem.js';
+import { BossSystem } from '../systems/BossSystem.js?v=20260924-pickups2';
+import { DynamicEventSystem } from '../systems/DynamicEventSystem.js?v=20260924-pickups2';
 import { AmbientParticleSystem } from '../systems/AmbientParticleSystem.js';
 import { GroundDecalSystem } from '../systems/GroundDecalSystem.js';
 import { TitleScreenSystem } from '../systems/TitleScreenSystem.js';
 import { RunSummarySystem } from '../systems/RunSummarySystem.js';
-import { CanvasHUD } from '../systems/CanvasHUD.js?v=20260317-hudfix2';
+import { CanvasHUD } from '../systems/CanvasHUD.js?v=20260924-pickups2';
 import { CHARACTERS } from '../data/characters.js';
 import { globalDamageNumberPool } from './DamageNumberPool.js';
-import { Camera } from './Camera.js';
+import { Camera } from './Camera.js?v=20260924-pickups2';
 import { Renderer } from './Renderer.js';
 import { GraphicsUpgrade } from './GraphicsUpgrade.js';
 import { World } from './ECS.js';
@@ -42,7 +42,7 @@ import { MagicMissile } from '../entities/weapons/MagicMissile.js';
 import { Whip } from '../entities/weapons/Whip.js';
 import { ThrowingKnife } from '../entities/weapons/ThrowingKnife.js';
 import { LightningChain } from '../entities/weapons/LightningChain.js';
-import { GarlicAura } from '../entities/weapons/GarlicAura.js';
+import { GarlicAura } from '../entities/weapons/GarlicAura.js?v=20260924-pickups2';
 import { HolyBible } from '../entities/weapons/HolyBible.js';
 import { FireWand } from '../entities/weapons/FireWand.js';
 import { BoneBoomerang } from '../entities/weapons/BoneBoomerang.js';
@@ -50,14 +50,16 @@ import { IceShard } from '../entities/weapons/IceShard.js';
 import { ShadowDagger } from '../entities/weapons/ShadowDagger.js';
 import { ProjectileDebugger } from '../debug/ProjectileDebugger.js';
 import { ProgressionTelemetry } from '../debug/ProgressionTelemetry.js';
+import { RewardTelemetry } from '../debug/RewardTelemetry.js?v=20260924-pickups2';
 import { ResponsiveCanvas } from '../core/ResponsiveCanvas.js';
 import { SettingsMenu } from '../ui/SettingsMenu.js';
 import { HelpOverlay } from '../ui/HelpOverlay.js';
 import { InventoryOverlaySystem } from '../systems/InventoryOverlaySystem.js';
-import { FloorItemSystem } from '../systems/FloorItemSystem.js';
+import { FloorItemSystem } from '../systems/FloorItemSystem.js?v=20260924-pickups2';
 import { ChallengeSystem } from '../systems/ChallengeSystem.js';
 import { CodexSystem } from '../systems/CodexSystem.js';
-import { LevelUpOverlay } from '../systems/LevelUpOverlay.js';
+import { LevelUpOverlay } from '../systems/LevelUpOverlay.js?v=20260924-pickups2';
+import { POWER_UPS, getProfile, listProfiles } from '../data/powerUps.js?v=20260924-pickups2';
 
 // Static weapon metadata — avoids constructing throwaway weapon instances in level-up generation
 const WEAPON_METADATA = {
@@ -155,6 +157,7 @@ export class VampireSurvivorsGame {
         // Debug systems
         this.projectileDebugger = new ProjectileDebugger(this);
         this.progressionTelemetry = new ProgressionTelemetry(this);
+        this.rewardTelemetry = new RewardTelemetry(this);
 
         // Responsive canvas
         // DISABLED: ResponsiveCanvas was limiting canvas size and causing display issues
@@ -547,28 +550,13 @@ export class VampireSurvivorsGame {
     }
 
     getPowerUpName(type) {
-        const names = {
-            health: 'Health',
-            invincible: 'Invincibility',
-            speedBoost: 'Speed',
-            damageBoost: 'Damage',
-            magnetBoost: 'Magnet',
-            fireRate: 'Fire Rate'
-        };
-        return names[type] || 'Power-up';
+        return POWER_UPS[type]?.name || 'Power-up';
     }
 
     getPowerUpPickupHint(type) {
-        const hints = {
-            health: 'Heal 50%',
-            invincible: 'Invincible 5s',
-            speedBoost: 'Speed x2 (8s)',
-            damageBoost: 'Damage x3 (10s)',
-            magnetBoost: 'Pull all gems',
-            fireRate: 'Fire rate +30% (15s)'
-        };
-        return hints[type] || 'Power-up';
+        return POWER_UPS[type]?.hint || 'Power-up';
     }
+
 
     handleKeyDown(key) {
         switch (key.toLowerCase()) {
@@ -614,14 +602,15 @@ export class VampireSurvivorsGame {
                 break;
             case 'm':
                 if (this.inputManager.keys['shift']) {
-                    // Debug: Activate global magnet and magnet boost for quick testing
+                    // Debug: Magnetic Field + global magnet pulse for quick testing
                     if (this.player && this.systems && this.systems.experience) {
-                        this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
-                        this.systems.experience.magnetizeAllGems();
+                        const profile = getProfile('pickup', 'magnetBoost');
+                        this.player.activatePowerUp('magnetBoost', profile.duration, profile.intensity);
+                        this.systems.experience.activateMagneticField(profile.duration);
                         if (typeof this.systems.experience.activateGlobalMagnet === 'function') {
-                            this.systems.experience.activateGlobalMagnet(12.0);
+                            this.systems.experience.activateGlobalMagnet(profile.duration);
                         }
-                        console.log('🧲 Debug: Global magnet activated for 12s');
+                        console.log('🧲 Debug: Magnetic field activated for 12s');
                     }
                 } else if (this.gameState === 'summary') {
                     this.returnToMenu();
@@ -724,27 +713,31 @@ export class VampireSurvivorsGame {
         const p = this.player.powerUps || {};
 
         // Helper to push an entry
-        const pushEntry = (key, label, seconds, color, icon) => {
+        const pushEntry = (key, label, seconds, color) => {
             if (seconds > 0.05) {
-                entries.push({ key, label, seconds, color, icon });
+                entries.push({ key, label, seconds, color });
             }
         };
 
         // Speed
         if (p.speedBoost?.active) {
-            pushEntry('speedBoost', 'Speed', p.speedBoost.timer, '#4ade80', '⚡');
+            const d = POWER_UPS.speedBoost;
+            pushEntry('speedBoost', d.name, p.speedBoost.timer, d.hudColor);
         }
         // Damage
         if (p.damageBoost?.active) {
-            pushEntry('damageBoost', 'Damage', p.damageBoost.timer, '#f59e0b', '🗡️');
+            const d = POWER_UPS.damageBoost;
+            pushEntry('damageBoost', d.name, p.damageBoost.timer, d.hudColor);
         }
         // Fire rate
         if (p.fireRate?.active) {
-            pushEntry('fireRate', 'Fire Rate', p.fireRate.timer, '#60a5fa', '🔥');
+            const d = POWER_UPS.fireRate;
+            pushEntry('fireRate', d.name, p.fireRate.timer, d.hudColor);
         }
         // Invincibility
         if (p.invincible?.active) {
-            pushEntry('invincible', 'Invincible', p.invincible.timer, '#fde047', '🛡️');
+            const d = POWER_UPS.invincible;
+            pushEntry('invincible', d.name, p.invincible.timer, d.hudColor);
         }
         // Magnet: combine player magnetBoost, system-level global magnet timer, and area magnet timer
         const playerMagnet = p.magnetBoost?.active ? p.magnetBoost.timer || 0 : 0;
@@ -758,9 +751,9 @@ export class VampireSurvivorsGame {
                 : 0;
         const magnetTime = Math.max(playerMagnet, systemMagnet, areaMagnet);
         if (magnetTime > 0.05) {
-            pushEntry('magnet', 'Magnet', magnetTime, '#22d3ee', '🧲');
+            const d = POWER_UPS.magnetBoost;
+            pushEntry('magnet', d.name, magnetTime, d.hudColor);
         }
-
         // Render compact pills with remaining time (no heavy DOM churn)
         if (entries.length === 0) {
             container.innerHTML = '';
@@ -784,7 +777,6 @@ export class VampireSurvivorsGame {
                         box-shadow: 0 0 10px rgba(0,0,0,0.35), inset 0 0 8px rgba(255,255,255,0.06);
                         pointer-events: none;
                     ">
-                    <span style="margin-right:6px;">${e.icon}</span>
                     <strong style="color:${e.color}">${e.label}</strong>
                     <span style="opacity:.85; margin-left:6px; color:#E6E6FA">${secs}s</span>
                 </span>
@@ -959,6 +951,8 @@ export class VampireSurvivorsGame {
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
         this._lastRelicTime = -Infinity;
+        // Fresh per-run stats; honors opt-in (stays enabled if it was on)
+        this.rewardTelemetry.onRunReset();
 
         // Set up camera to follow player
         this.camera.x = this.camera.targetX = this.player.x;
@@ -1046,6 +1040,8 @@ export class VampireSurvivorsGame {
         }
         this.powerUpDrops = [];
         this._lastRelicTime = -Infinity;
+        // Reset clears queued picks, progress, and level-up grace immunity.
+        this.player?.resetRewardState?.();
         this.disposePlayer();
 
         this.updateUIVisibility();
@@ -1105,9 +1101,6 @@ export class VampireSurvivorsGame {
     }
 
     hideLevelUpUI() {
-        this.levelUpActive = false;
-        this.gameState = 'playing';
-        this.timeScale = 1.0; // Resume game
         this._levelUpHoveredIndex = -1;
         this.canvas.style.cursor = 'default';
 
@@ -1121,9 +1114,20 @@ export class VampireSurvivorsGame {
             this.systems.particle.clearScreenEffects();
         }
 
-        // FIXED: Process next queued level-up after player makes selection
+        // Queued level-ups chain synchronously: completeLevelUpSelection shows
+        // the next pick immediately, so the game never leaves the paused
+        // 'levelUp' state between picks (no timer-driven playing gap).
+        this.levelUpActive = false;
         if (this.player && this.player.completeLevelUpSelection) {
             this.player.completeLevelUpSelection();
+        }
+        if (this.levelUpActive) return; // next queued pick is already showing
+
+        // Final pick: resume with a brief no-flash immunity grace.
+        this.gameState = 'playing';
+        this.timeScale = 1.0; // Resume game
+        if (this.player) {
+            this.player.grantLevelUpGrace();
         }
     }
 
@@ -1423,6 +1427,8 @@ export class VampireSurvivorsGame {
                 this.performanceThrottle.samples.shift();
             }
 
+            // A camera hit-stop finishing during level-up must not resume the clock.
+            if (this.gameState === 'levelUp') this.timeScale = 0;
             // Apply time scale with single multiplication
             const scaledDeltaTime = this.deltaTime * this.timeScale;
 
@@ -1665,16 +1671,13 @@ export class VampireSurvivorsGame {
                 }
             }
 
-            // Clear experience gems if too many
+            // Consolidate experience gems if too many — merge, never destroy value.
+            // Claimed (in-flight vacuum/magnet) gems are never victims.
             if (this.systems.experience && this.systems.experience.activeGems) {
                 const gems = this.systems.experience.activeGems;
-                if (gems.length > 100) {
-                    const toRemove = gems.slice(0, gems.length - 50);
-                    for (const gem of toRemove) {
-                        gem.active = false;
-                    }
-
-                    console.log(`💎 Emergency cleanup: removed ${toRemove.length} gems`);
+                if (gems.length > 100 && typeof this.systems.experience.consolidateGems === 'function') {
+                    const merged = this.systems.experience.consolidateGems(50);
+                    console.log(`💎 Emergency cleanup: consolidated ${merged} gems`);
                 }
             }
         } catch (error) {
@@ -1725,6 +1728,10 @@ export class VampireSurvivorsGame {
 
 
         if (this.gameState === 'playing' || this.gameState === 'levelUp') {
+            // Queued picks must observe zero simulation time: a camera hit-stop
+            // finishing mid-selection restores timeScale, so pin it while the
+            // upgrade UI owns the clock.
+            if (this.gameState === 'levelUp') this.timeScale = 0;
             if (this.gameState === 'playing') this.gameTime += dt;
 
             // dt is already scaled by timeScale in gameLoop (scaledDeltaTime)
@@ -1747,57 +1754,7 @@ export class VampireSurvivorsGame {
 
             // Upgrade selection stays frozen even if a pending camera hit-stop restores timeScale.
             if (this.gameState === 'playing' && this.timeScale > 0) {
-                // Strategic system update order for minimal cache misses
-                // 1. Terrain (provides spatial context)
-                this.systems.terrain.update(dt);
-
-                // 2. Enemies (movement and AI)
-                this.systems.enemy.update(dt);
-
-                // 3. Projectiles (collision detection benefits from updated enemy positions)
-                this.systems.projectile.update(dt);
-
-                // 4. Experience (collision with updated player position)
-                this.systems.experience.update(dt);
-
-                // 5. Status effects (depend on updated entity states)
-                this.systems.statusEffect.update(dt);
-
-                // 5.5. FOUNDATION systems (depend on game events from above systems)
-                this.systems.flowState.update(dt);
-                this.systems.rewards.update(dt);
-                this.systems.achievement.update(dt);
-                this.systems.microChallenge.update(dt);
-                this.systems.adaptiveMusic.update(dt);
-                this.systems.killMilestone.update(dt);
-                this.systems.screenEffects.update(dt);
-                this.systems.runTimer.update(dt);
-                this.systems.gold.update(dt);
-                this.systems.weaponEvolution.update(dt);
-                this.systems.synergy.update(dt);
-                this.systems.boss.update(dt);
-                this.systems.dynamicEvents.update(dt);
-                this.systems.ambientParticles.update(dt);
-                this.systems.decals.update(dt);
-                this.systems.floorItems.update(dt);
-
-                // 6. Power-ups (benefit from all position updates)
-                this.updatePowerUpDrops(dt);
-
-                // 7. Audio intensity updates (only when game is active)
-                const entityCount =
-                    this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
-                const audioFreq = entityCount > 120 ? 16 : 8;
-                if (this.totalFrameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
-                    const intensity = Math.min(1, entityCount * 0.02);
-                    this.audioManager.setGameIntensity(intensity);
-                }
-
-                // 8. UI updates (adaptive frequency based on entity density)
-                const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
-                if (this.totalFrameCount % uiUpdateFreq === 0) {
-                    this.updateGameUI();
-                }
+                this._updatePlayingSystems(dt);
             }
 
             // Visual systems always update (even when paused) for smooth UI
@@ -1809,6 +1766,64 @@ export class VampireSurvivorsGame {
 
             // Update damage numbers from centralized pool
             globalDamageNumberPool.update(dt);
+        }
+    }
+
+    /**
+     * Simulation systems, in cache-friendly order. A system can open the
+     * level-up UI mid-frame (gem XP, streak bonuses, skill bonuses), so the
+     * game state is re-checked between steps — nothing after the pick may
+     * advance while the player is choosing.
+     */
+    _updatePlayingSystems(dt) {
+        if (!this._simSteps) {
+            this._simSteps = [
+                'terrain', // spatial context first
+                'enemy', // movement and AI
+                'projectile', // collision benefits from updated enemy positions
+                'experience', // collision with updated player position
+                'statusEffect', // depends on updated entity states
+                'flowState',
+                'rewards',
+                'achievement',
+                'microChallenge',
+                'adaptiveMusic',
+                'killMilestone',
+                'screenEffects',
+                'runTimer',
+                'gold',
+                'weaponEvolution',
+                'synergy',
+                'boss',
+                'dynamicEvents',
+                'ambientParticles',
+                'decals',
+                'floorItems'
+            ];
+        }
+
+        for (const key of this._simSteps) {
+            this.systems[key].update(dt);
+            if (this.gameState !== 'playing') return; // level-up opened mid-frame
+        }
+
+        // Power-ups (benefit from all position updates)
+        this.updatePowerUpDrops(dt);
+        if (this.gameState !== 'playing') return;
+
+        // Audio intensity updates (only when game is active)
+        const entityCount =
+            this.systems.enemy.getEnemyCount() + this.systems.projectile.activeProjectiles.length;
+        const audioFreq = entityCount > 120 ? 16 : 8;
+        if (this.totalFrameCount % audioFreq === 0 && this.audioManager && this.audioManager.setGameIntensity) {
+            const intensity = Math.min(1, entityCount * 0.02);
+            this.audioManager.setGameIntensity(intensity);
+        }
+
+        // UI updates (adaptive frequency based on entity density)
+        const uiUpdateFreq = entityCount > 180 ? 30 : entityCount > 120 ? 20 : entityCount > 80 ? 15 : 12;
+        if (this.totalFrameCount % uiUpdateFreq === 0) {
+            this.updateGameUI();
         }
     }
 
@@ -2682,8 +2697,9 @@ export class VampireSurvivorsGame {
         if (isMilestoneWave && this.player) {
             // Give massive rewards for milestone waves
             this.player.gainExperience(waveNumber * 10);
-            this.player.activatePowerUp('invincible', 5.0, 1.0);
-            this.player.activatePowerUp('damageBoost', 15.0, 2.0);
+            for (const profile of listProfiles('wave', 'milestone')) {
+                this.player.activatePowerUp(profile.id, profile.duration, profile.intensity);
+            }
             this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         } else if (isBossWave && this.player) {
             // Health restoration for boss waves
@@ -2741,8 +2757,8 @@ export class VampireSurvivorsGame {
         if (!force && now - (this._lastRelicTime ?? -Infinity) < 25) return;
         this._lastRelicTime = now;
 
-        // Random power-up type
-        const powerUpTypes = ['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate'];
+        // Random power-up type (the power-ups table is the source of truth)
+        const powerUpTypes = Object.keys(POWER_UPS);
         const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
 
         // Create power-up drop entity
@@ -2776,6 +2792,7 @@ export class VampireSurvivorsGame {
 
             // Remove expired power-ups
             if (powerUp.timer >= powerUp.lifetime) {
+                this.rewardTelemetry?.trackPickupExpired('relic', powerUp.type);
                 this.powerUpDrops.splice(i, 1);
                 continue;
             }
@@ -2794,7 +2811,8 @@ export class VampireSurvivorsGame {
                 }
 
                 if (distance < 30) {
-                    this.collectPowerUp(powerUp);
+                    // Unconsumed pickups (e.g. health at full HP) stay on the floor
+                    if (this.collectPowerUp(powerUp) === false) continue;
                     powerUp.collected = true;
                     this.powerUpDrops.splice(i, 1);
                 }
@@ -2803,63 +2821,52 @@ export class VampireSurvivorsGame {
     }
 
     collectPowerUp(powerUp) {
-        if (!this.player) return;
+        if (!this.player) return false;
+
+        const def = POWER_UPS[powerUp.type];
 
         // Apply power-up effect
         switch (powerUp.type) {
-            case 'health':
-                this.player.heal(this.player.maxHealth * 0.5);
+            case 'health': {
+                // Never wasted: at full HP or when healing is disallowed the
+                // relic stays on the floor. heal() returns HP actually restored.
+                const requested = this.player.maxHealth * def.healFraction;
+                const healed = this.player.heal(requested);
+                if (healed <= 0) return false;
+                this.rewardTelemetry?.trackHealing(requested, healed);
+                this.player.callout?.(`+${Math.round(healed)} HP`, this.getPowerUpColor('health'), 2);
                 break;
-            case 'invincible':
-                this.player.activatePowerUp('invincible', 5.0, 1.0);
-                break;
-            case 'speedBoost':
-                // Match label: Speed x2 (base multiplier 2.0, intensity 1.0)
-                this.player.activatePowerUp('speedBoost', 8.0, 1.0);
-                break;
-            case 'damageBoost':
-                // Match label: Damage x3 (base multiplier 3.0, intensity 1.0)
-                this.player.activatePowerUp('damageBoost', 10.0, 1.0);
-                break;
-            case 'magnetBoost':
-                // Timed area magnet: pull gems within a large radius for the duration
-                this.player.activatePowerUp('magnetBoost', 12.0, 1.0);
+            }
+            case 'magnetBoost': {
+                // Magnetic Field: timed radius pull of XP and gold. The radius is
+                // max(3 × effective pickup range, 360) — never viewport-derived —
+                // and is recomputed while active if pickup range changes.
+                const profile = getProfile('pickup', 'magnetBoost');
+                this.player.activatePowerUp('magnetBoost', profile.duration, profile.intensity);
                 if (
                     this.systems &&
                     this.systems.experience &&
-                    typeof this.systems.experience.activateAreaMagnet === 'function'
+                    typeof this.systems.experience.activateMagneticField === 'function'
                 ) {
-                    const playerSize = this.player?.size || 12;
-                    const screenMin =
-                        this.camera && this.camera.width && this.camera.height
-                            ? Math.min(this.camera.width, this.camera.height)
-                            : 800;
-                    const desiredRadius = Math.max(playerSize * 10, screenMin * 0.2);
-                    this.systems.experience.activateAreaMagnet(desiredRadius, 12.0);
-                    // Optional: small initial pulse to make effect immediately visible
-                    if (typeof this.systems.experience.magnetizeGemsInRadius === 'function') {
-                        this.systems.experience.magnetizeGemsInRadius(desiredRadius, 0.35);
-                    }
+                    this.systems.experience.activateMagneticField(profile.duration);
                 }
                 break;
-            case 'fireRate':
-                // Match label: Fire rate +30% (base reduction 0.3, intensity 1.0)
-                this.player.activatePowerUp('fireRate', 15.0, 1.0);
+            }
+            default: {
+                const profile = getProfile('pickup', powerUp.type);
+                if (!profile) break;
+                this.player.activatePowerUp(powerUp.type, profile.duration, profile.intensity);
                 break;
+            }
         }
-
-        // Health has no timer pill, so it gets its own callout; timed relics
-        // announce themselves via Player.activatePowerUp and the HUD pills.
-        if (powerUp.type === 'health') {
-            this.player.callout?.(this.getPowerUpPickupHint('health').toUpperCase(), this.getPowerUpColor('health'), 2);
-        }
-
         // Collection effects
         this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, this.getPowerUpColor(powerUp.type));
+        this.rewardTelemetry?.trackPickupCollected('relic', powerUp.type);
 
         if (this.audioManager) {
             this.audioManager.playPowerUpCollect();
         }
+        return true;
     }
 
     renderPowerUpDrops(renderer) {
@@ -2921,7 +2928,7 @@ export class VampireSurvivorsGame {
     }
 
     getPowerUpColor(type) {
-        return POWER_UP_COLORS[type] || '#FFFFFF';
+        return POWER_UPS[type]?.color || '#FFFFFF';
     }
 
     stop() {

@@ -267,7 +267,9 @@ export class LevelUpOverlay {
         ctx.fillText('Choose your power', w / 2, compact ? 34 : 66);
         ctx.fillStyle = '#c7bda8';
         ctx.font = '14px Georgia, serif';
-        ctx.fillText(`Level ${this.game.player.level}  ·  The hunt waits for your decision`, w / 2, compact ? 66 : 108, w - 24);
+        const progress = this.game.player?.levelUpProgress;
+        const progressText = progress && progress.total > 1 ? `  ·  Pick ${progress.current} of ${progress.total}` : '';
+        ctx.fillText(`Level ${this.game.player.level}  ·  The hunt waits for your decision${progressText}`, w / 2, compact ? 66 : 108, w - 24);
 
         this.game.levelUpOptions.forEach((option, i) => {
             const base = rects[i];

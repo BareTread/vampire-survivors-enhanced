@@ -1,4 +1,5 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
+import { KILL_MILESTONES } from '../data/powerUps.js?v=20260924-pickups2';
 
 /**
  * KillMilestoneSystem — tracks total kills per run and triggers celebrations
@@ -16,56 +17,7 @@ export class KillMilestoneSystem {
         this.totalKills = 0;
         this.nextMilestoneIndex = 0;
 
-        this.milestones = [
-            {
-                threshold: 100,
-                label: '100 KILLS!',
-                reward: 'speedBoost',
-                rewardDuration: 5,
-                gemCount: 8,
-                color: '#44FF44'
-            },
-            {
-                threshold: 250,
-                label: '250 KILLS!',
-                reward: 'damageBoost',
-                rewardDuration: 6,
-                gemCount: 12,
-                color: '#44BBFF'
-            },
-            {
-                threshold: 500,
-                label: '500 KILLS!',
-                reward: 'fireRateBoost',
-                rewardDuration: 8,
-                gemCount: 16,
-                color: '#BB44FF'
-            },
-            {
-                threshold: 1000,
-                label: '1000 KILLS!',
-                reward: 'damageBoost',
-                rewardDuration: 10,
-                gemCount: 24,
-                color: '#FFAA00'
-            },
-            {
-                threshold: 2500,
-                label: '2500 KILLS!',
-                reward: 'invincible',
-                rewardDuration: 5,
-                gemCount: 32,
-                color: '#FF4488'
-            },
-            {
-                threshold: 5000,
-                label: '5000 KILLS!',
-                reward: 'damageBoost',
-                rewardDuration: 12,
-                gemCount: 48,
-                color: '#FFD700'
-            }
-        ];
+        this.milestones = KILL_MILESTONES;
 
         // Active celebration display
         this.activeCelebration = null;
@@ -112,7 +64,7 @@ export class KillMilestoneSystem {
 
         // 4. Temporary power-up reward
         if (player.activatePowerUp) {
-            player.activatePowerUp(milestone.reward, milestone.rewardDuration);
+            player.activatePowerUp(milestone.reward, milestone.duration, milestone.intensity ?? 1);
         }
 
         // 5. Audio cue

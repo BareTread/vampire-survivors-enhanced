@@ -157,23 +157,36 @@ export class FloorItemSystem {
     }
 
     // ── Apply collected item effect ────────────────────────────────────────
+    // Returns false when the item is NOT consumed (e.g. a health orb at full
+    // HP or under the no_heals hex) so update() leaves it on the floor.
     applyItem(type, player, at = null) {
         switch (type) {
             case 'health_orb': {
+                // heal() returns HP actually restored; 0 when dead, full, or
+                // healing is disallowed (no_heals) — then the orb stays.
                 const heal = Math.round(player.maxHealth * (0.15 + Math.random() * 0.10));
-                player.health = Math.min(player.maxHealth, player.health + heal);
-                player.addDamageNumber(`+${heal} HP`, '#44FF88', '');
-                if (this.game.camera) this.game.camera.shake(2, 0.15);
+                const restored = player.heal ? (player.heal(heal) || 0) : 0;
+                if (restored <= 0) return false;
+                this.game.rewardTelemetry?.trackHealing(heal, restored);
+                // Report only HP actually restored; no shake or flash.
+                player.callout?.(`+${restored} HP`, '#44FF88', 1);
                 break;
             }
 
             case 'vacuum': {
-                const exp = this.game.systems.experience;
-                if (exp) {
-                    exp.magnetizeAllGems();
-                    if (exp.activateGlobalMagnet) exp.activateGlobalMagnet(3.0);
+                // Claim XP gems and gold coins only — tactical pickups stay.
+                const exp  = this.game.systems.experience;
+                const gold = this.game.systems.gold;
+                const gems  = exp?.claimAllGems?.()  || { count: 0, xp: 0 };
+                const coins = gold?.claimAllCoins?.() || { count: 0, gold: 0 };
+                // Short global attraction timer keeps the HUD pill honest;
+                // claimed resources home regardless of expiry.
+                exp?.activateGlobalMagnet?.(3.0);
+                const xp = gems.xp || 0;
+                const goldAmount = coins.gold || 0;
+                if (xp > 0 || goldAmount > 0) {
+                    player.callout?.(`+${xp} XP · ${goldAmount} gold`, '#FFD700', 2);
                 }
-                player.callout?.('VACUUM', '#FFD700', 2);
                 break;
             }
 
@@ -188,7 +201,7 @@ export class FloorItemSystem {
                         (enemy.x < bounds.left || enemy.x > bounds.right ||
                          enemy.y < bounds.top  || enemy.y > bounds.bottom)
                     ) continue;
-                    enemy.takeDamage(999999, this, false);
+                    enemy.takeDamage(999999, { cause: 'rosary' }, false);
                     killed++;
                 }
                 player.callout?.('HOLY SMITE', '#F0F0FF', 3);
@@ -211,11 +224,14 @@ export class FloorItemSystem {
             if (this.game.audioManager && this.game.audioManager.playVampireSound)
                 this.game.audioManager.playVampireSound('powerUpCollect', 0.5, 1.0);
         } catch (_) { /* silent */ }
+
+        return true;
     }
 
-    // ── Chest reward (random outcome) ────────────────────────────────────
+    // ── Chest reward ────────────────────────────────────────────────────
+    // Guaranteed order: a level for an eligible non-maxed weapon, else an
+    // eligible passive level, else a fixed gold payout. No evolutions.
     _openChest(player, at = null) {
-        const roll = Math.random();
         const gold = this.game.systems.gold;
         const cam  = this.game.camera;
         const fx = { x: at ? at.x : player.x, y: at ? at.y : player.y, t: 0 };
@@ -227,43 +243,54 @@ export class FloorItemSystem {
             this.game.audioManager?.playVampireSound?.('victoryFanfare', 0.55, 1.1);
         } catch (_) { /* silent */ }
 
-        if (roll < 0.55 && gold) {
-            // Gold burst: scatter coins at player position
-            const value = 80 + Math.floor(Math.random() * 120);
-            for (let i = 0; i < 8; i++) {
-                gold.spawnCoin(
-                    player.x + (Math.random() - 0.5) * 40,
-                    player.y + (Math.random() - 0.5) * 40,
-                    Math.ceil(value / 8)
-                );
-            }
-            reward('TREASURE', `+${value} gold`, '#FFD24A');
-        } else if (roll < 0.82) {
-            // Random stat upgrade
-            const stats = ['damage', 'speed', 'health', 'luck', 'area', 'cooldown'];
-            const stat  = stats[Math.floor(Math.random() * stats.length)];
-            this.game.applyStatUpgrade(stat);
-            const statNames = { damage: 'Might', speed: 'Swiftness', health: 'Vitality', luck: 'Fortune', area: 'Reach', cooldown: 'Haste' };
-            reward('RELIC FOUND', `${statNames[stat] || stat} blessing`, '#C8A0FF');
+        // 1) Weapon level: lowest-level non-evolved weapon that isn't maxed.
+        const weapons = Array.from(player.weapons.values())
+            .filter(w => !w.evolved && w.level < w.maxLevel)
+            .sort((a, b) => a.level - b.level);
+        if (weapons.length > 0) {
+            const w = weapons[0];
+            player.upgradeWeapon(w.id);
+            reward('EMPOWERED', `${w.name} rises to level ${w.level}`, '#7CF2FF');
         } else {
-            // Free weapon level (random non-evolved weapon that isn't max level)
-            const weapons = Array.from(player.weapons.values())
-                .filter(w => !w.evolved && w.level < w.maxLevel);
-            if (weapons.length > 0) {
-                const w = weapons[Math.floor(Math.random() * weapons.length)];
-                this.game.player.upgradeWeapon(w.id);
-                reward('EMPOWERED', `${w.name} rises to level ${w.level}`, '#7CF2FF');
+            // 2) Passive level: owned non-maxed first, else a new item if a
+            // slot is free. iron_will forbids passive pickups entirely.
+            const passives = this.game.systems.passiveItems;
+            const noPassives = !!this.game.systems.challenge?.hasModifier?.('iron_will');
+            const granted = !noPassives && passives ? this._grantPassiveLevel(passives) : null;
+            if (granted) {
+                reward('RELIC FOUND', `${granted.name} ${granted.newLevel > 1 ? `→ Lv ${granted.newLevel}` : 'acquired'}`, '#C8A0FF');
             } else {
-                // Fallback: gold
+                // 3) Exact gold fallback.
+                const value = 150;
                 if (gold) {
                     for (let i = 0; i < 5; i++)
-                        gold.spawnCoin(player.x, player.y, 30);
+                        gold.spawnCoin(player.x, player.y, Math.ceil(value / 5));
                 }
-                reward('TREASURE', '+150 gold', '#FFD24A');
+                reward('TREASURE', `+${value} gold`, '#FFD24A');
             }
         }
 
         if (cam) cam.shake(6, 0.3);
+    }
+
+    /** Grant one passive level; returns {name, newLevel} or null. */
+    _grantPassiveLevel(passives) {
+        // Owned, non-maxed items first (lowest level wins).
+        const owned = Array.from(passives.items.values())
+            .filter(it => it.currentLevel < it.maxLevel)
+            .sort((a, b) => a.currentLevel - b.currentLevel);
+        if (owned.length > 0) {
+            const it = owned[0];
+            if (passives.upgradeItem(it.id)) return { name: it.name, newLevel: it.currentLevel };
+        }
+        // Otherwise a new passive if a slot is free.
+        if (passives.items.size < passives.maxSlots) {
+            for (const def of passives.itemDefinitions.values()) {
+                if (passives.items.has(def.id)) continue;
+                if (passives.addItem(def.id)) return { name: def.name, newLevel: 1 };
+            }
+        }
+        return null;
     }
 
     // ── Drop hooks called by Enemy / BossSystem ──────────────────────────
@@ -284,22 +311,29 @@ export class FloorItemSystem {
     }
 
     onBossDeath(bossX, bossY) {
-        this.spawnItem(bossX,      bossY, 'treasure_chest');
-        this.spawnItem(bossX + 55, bossY, 'health_orb');
-        this.spawnItem(bossX - 55, bossY, 'vacuum');
+        this.spawnItem(bossX,      bossY, 'treasure_chest', { guaranteed: true });
+        this.spawnItem(bossX + 55, bossY, 'health_orb',     { guaranteed: true });
+        this.spawnItem(bossX - 55, bossY, 'vacuum',         { guaranteed: true });
     }
 
-    spawnItem(x, y, type) {
-        if (this.items.length >= this.maxItems) return;
+    spawnItem(x, y, type, { guaranteed = false } = {}) {
         if (!this.getItemDef(type)) return;
+        if (this.items.length >= this.maxItems) {
+            if (!guaranteed) return;
+            // Guaranteed rewards bypass the cap: evict the oldest ordinary
+            // item; if everything on the floor is guaranteed, exceed the cap
+            // rather than lose the reward.
+            const evict = this.items.findIndex(i => !i.guaranteed);
+            if (evict >= 0) this.items.splice(evict, 1);
+        }
         this.items.push({
             x, y, type,
+            guaranteed,
             bobOffset: Math.random() * Math.PI * 2,
             age: 0,
             active: true
         });
     }
-
     // ── Game loop ─────────────────────────────────────────────────────────
     update(dt) {
         for (let i = this.chestFx.length - 1; i >= 0; i--) {
@@ -322,8 +356,11 @@ export class FloorItemSystem {
             const dy = player.y - item.y;
 
             if (dx * dx + dy * dy <= collectRangeSq) {
-                this.applyItem(item.type, player, item);
-                this.items.splice(i, 1);
+                // Unconsumed items (e.g. health orb at full HP) stay on the floor.
+                if (this.applyItem(item.type, player, item) !== false) {
+                    this.game.rewardTelemetry?.trackPickupCollected('floorItem', item.type);
+                    this.items.splice(i, 1);
+                }
             }
         }
     }

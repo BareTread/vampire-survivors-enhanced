@@ -7,6 +7,11 @@
  * Painters draw upright with the base at the origin, like floor items.
  */
 import { bakeSprite, rgba } from './CharacterArt.js';
+import { POWER_UPS } from '../../data/powerUps.js?v=20260924-pickups2';
+
+function accent(id) {
+    return POWER_UPS[id]?.color || '#FFFFFF';
+}
 
 const PAINTERS = {
     health(ctx) {
@@ -24,7 +29,7 @@ const PAINTERS = {
         ctx.lineTo(3, -17);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#e8374a';
+        ctx.fillStyle = accent('health');
         ctx.beginPath();
         ctx.ellipse(0, -6, 7, 4.5, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -42,7 +47,7 @@ const PAINTERS = {
         ctx.quadraticCurveTo(-8, -3, -9, -10);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#ffd84a';
+        ctx.fillStyle = accent('invincible');
         ctx.beginPath();
         ctx.moveTo(-6.5, -17.5);
         ctx.lineTo(6.5, -17.5);
@@ -65,7 +70,7 @@ const PAINTERS = {
         ctx.bezierCurveTo(-8, -6, -7, -18, 0, -24);
         ctx.bezierCurveTo(7, -18, 8, -6, 0, 0);
         ctx.fill();
-        ctx.fillStyle = '#6ff2ff';
+        ctx.fillStyle = accent('speedBoost');
         ctx.beginPath();
         ctx.moveTo(0, -3);
         ctx.bezierCurveTo(-5, -8, -4, -17, 0, -21);
@@ -81,7 +86,7 @@ const PAINTERS = {
     },
     damageBoost(ctx) {
         // Burning skull
-        ctx.fillStyle = '#ff7a1a';
+        ctx.fillStyle = accent('damageBoost');
         ctx.beginPath();
         ctx.moveTo(-8, -12);
         ctx.quadraticCurveTo(-9, -22, -3, -26);
@@ -135,7 +140,7 @@ const PAINTERS = {
         ctx.lineTo(-7, -13);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#5cf08a';
+        ctx.fillStyle = accent('magnetBoost');
         ctx.beginPath();
         ctx.moveTo(0, -22);
         ctx.lineTo(3.5, -13);
@@ -164,7 +169,7 @@ const PAINTERS = {
         ctx.lineTo(-1.2, -12);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#e04aff';
+        ctx.fillStyle = accent('fireRate');
         ctx.beginPath();
         ctx.moveTo(-3.5, -17);
         ctx.lineTo(3.5, -17);
@@ -184,14 +189,7 @@ const PAINTERS = {
 
 const BOX = { l: -14, r: 14, t: -30, b: 3 };
 
-export const POWER_UP_COLORS = {
-    health: '#FF4455',
-    invincible: '#FFD700',
-    speedBoost: '#40E0FF',
-    damageBoost: '#FF7A1A',
-    magnetBoost: '#44FF77',
-    fireRate: '#E04AFF'
-};
+
 
 const spriteCache = new Map();
 const glowCache = new Map();
@@ -214,7 +212,7 @@ export function getPowerUpGlow(type) {
         c.width = c.height = 64;
         const g = c.getContext && c.getContext('2d');
         if (g) {
-            const color = POWER_UP_COLORS[type] || '#FFFFFF';
+            const color = accent(type);
             const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
             grad.addColorStop(0, rgba(color, 0.55));
             grad.addColorStop(0.45, rgba(color, 0.18));

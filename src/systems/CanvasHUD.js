@@ -20,6 +20,8 @@
  *
  * GoldSystem.renderHUD() is suppressed when this HUD is active.
  */
+import { HUD_BUFF_ORDER, POWER_UPS, formatHudStrength } from '../data/powerUps.js?v=20260924-pickups2';
+
 export class CanvasHUD {
 
     // ─── Design tokens ──────────────────────────────────────────────────
@@ -76,7 +78,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260924-feel1';
+        this.version = '20260924-pickups2';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;
@@ -340,9 +342,9 @@ export class CanvasHUD {
         // Dimensions — grow slightly if challenge modifiers are active
         const challenge = this.game.systems.challenge;
         const hasChallenge = challenge && challenge.activeModifiers.size > 0;
-        const PX = 8, PY = 16;
-        const PW = 240, PH = hasChallenge ? 80 : 72;
-
+        const layout = this._fitTopPanels(W);
+        const PX = layout.charX, PY = 16;
+        const PW = layout.charW, PH = hasChallenge ? 80 : 72;
         this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
 
         // ── HP bar ──────────────────────────────────────────
@@ -502,8 +504,9 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     _renderEconomyPanel(ctx, player, W, H) {
         const C  = CanvasHUD.C;
-        const PW = 210, PH = 64;
-        const PX = W - PW - 8, PY = 16;
+        const layout = this._fitTopPanels(W);
+        const PW = layout.econW, PH = 64;
+        const PX = layout.econX, PY = 16;
 
         this._panel(ctx, PX, PY, PW, PH, 5, C.panelBg, C.panelBorder);
 
@@ -574,7 +577,9 @@ export class CanvasHUD {
 
         // ── Combo meter, then power-up pills (right-anchored, below panel) ──
         const comboH = this._renderComboMeter(ctx, player, PX, PY + PH + 6, PW);
-        this._renderPowerUpPills(ctx, player, W, PY + PH + 6 + comboH);
+        let pillY = PY + PH + 6 + comboH;
+        if (layout.narrow) pillY = Math.max(pillY, 16 + (this.game.systems?.challenge?.activeModifiers?.size > 0 ? 80 : 72) + 6);
+        this._renderPowerUpPills(ctx, player, W, pillY);
     }
 
     /** Draining combo meter; returns the vertical space it used. */
@@ -615,94 +620,149 @@ export class CanvasHUD {
     }
 
     // ─── Power-up pills ─────────────────────────────────────────────────
-    _renderPowerUpPills(ctx, player, W, startY) {
-        if (!player.powerUps) return;
+    _fitTopPanels(W) {
+        const margin = 8;
+        const gap = 6;
+        const charW = 240;
+        const econW = 210;
+        const avail = W - margin * 2 - gap;
+        if (charW + econW <= avail) {
+            return { narrow: false, charX: margin, charW, econX: W - margin - econW, econW };
+        }
+        const fittedChar = Math.max(120, Math.floor(avail * (charW / (charW + econW))));
+        const fittedEcon = Math.max(96, avail - fittedChar);
+        return {
+            narrow: true,
+            charX: margin,
+            charW: fittedChar,
+            econX: margin + fittedChar + gap,
+            econW: fittedEcon
+        };
+    }
+    /** Phone run-timer sits under the char panel; null keeps the desktop top-center pill. */
+    narrowTimerPlace(W) {
+        const layout = this._fitTopPanels(W);
+        if (!layout.narrow) return null;
+        const challenge = this.game.systems?.challenge;
+        const hasChallenge = !!(challenge && challenge.activeModifiers && challenge.activeModifiers.size > 0);
+        const charBottom = 16 + (hasChallenge ? 80 : 72);
+        const w = Math.min(110, layout.charW);
+        return { x: layout.charX, y: charBottom + 6, w };
+    }
 
-        const configs = [
-            { key: 'invincible',  label: 'INVINCIBLE', icon: 'shield', color: '#E8C96A' },
-            { key: 'speedBoost',  label: 'SPEED',      icon: 'bolt',   color: '#4AD8E8' },
-            { key: 'damageBoost', label: 'DAMAGE',     icon: 'swords', color: '#FF6622' },
-            { key: 'fireRate',    label: 'FIRE RATE',  icon: 'burst',  color: '#D878FF' },
-            { key: 'magnetBoost', label: 'MAGNET',     icon: 'magnet', color: '#44FF99' },
-        ];
+    _bottomMapSize(W, H) {
+        const natural = Math.max(108, Math.min(130, Math.floor(Math.min(W, H) * 0.17)));
+        if (W >= 720) return natural;
+        const room = W - 26 - natural;
+        if (room >= 220) return natural;
+        return Math.max(72, Math.min(natural, Math.floor(W * 0.24)));
+    }
 
-        const active = [];
-        for (const cfg of configs) {
-            const pu = player.powerUps[cfg.key];
-            if (!pu?.active) continue;
-            let timer = pu.timer;
-            if (cfg.key === 'magnetBoost') {
-                timer = Math.max(timer, this.game.systems.experience?.globalMagnetTimer || 0);
+    _liftClear(x, y, w, h, rects) {
+        let next = y;
+        for (let pass = 0; pass < 4; pass++) {
+            let moved = false;
+            for (const rect of rects) {
+                if (!rect) continue;
+                const hit = x < rect.x + rect.w && x + w > rect.x && next < rect.y + rect.h && next + h > rect.y;
+                if (hit) {
+                    next = rect.y - h - 8;
+                    moved = true;
+                }
             }
-            if (timer <= 0) continue;
-            active.push({ ...cfg, timer });
+            if (!moved) break;
+        }
+        return Math.max(88, next);
+    }
+
+
+    _renderPowerUpPills(ctx, player, W, startY) {
+        const experience = this.game.systems?.experience;
+        const area = Number(experience?.areaMagnetTimer) || 0;
+        const globalMagnet = Number(experience?.globalMagnetTimer) || 0;
+        const active = [];
+
+        for (const id of HUD_BUFF_ORDER) {
+            const def = POWER_UPS[id];
+            const pu = player?.powerUps?.[id];
+            let remaining = pu?.active ? Number(pu.timer) || 0 : 0;
+            let strength = pu?.active ? (pu.currentMultiplier ?? pu.multiplier ?? 0) : 0;
+            if (player && typeof player.getBuffPresentation === 'function') {
+                const presented = player.getBuffPresentation(id);
+                remaining = presented.remaining;
+                strength = presented.strength;
+            }
+            const playerActive = !!(pu?.active) || strength > 0;
+            const playerRemaining = pu?.active ? Number(pu.timer) || 0 : remaining;
+            if (id === 'magnetBoost') remaining = Math.max(remaining, area, globalMagnet);
+            if (!(remaining > 0)) continue;
+            let strengthText = '';
+            const timerIsPlayerLayer = id !== 'magnetBoost' || Math.abs(remaining - playerRemaining) < 0.05;
+            if (playerActive && def.kind !== 'flag' && timerIsPlayerLayer) {
+                strengthText = formatHudStrength(id, strength || pu?.currentMultiplier || pu?.multiplier);
+            }
+            active.push({
+                label: def.label,
+                icon: def.icon,
+                color: def.hudColor || def.color,
+                timer: remaining,
+                strengthText
+            });
         }
         if (active.length === 0) return;
 
         ctx.save();
-
-        const PH  = 19;   // pill height
-        const GAP = 4;    // gap between pills
+        const PH = 19;
+        const GAP = 4;
+        const maxW = Math.max(72, W - 16);
 
         for (let i = 0; i < active.length; i++) {
             const pu = active[i];
-            const y  = startY + i * (PH + GAP);
-
-            // Alpha + expiry pulse
+            const y = startY + i * (PH + GAP);
             const expiring = pu.timer < 3;
             const alpha = expiring
                 ? 0.38 + 0.62 * (pu.timer / 3) * (0.7 + 0.3 * Math.sin(performance.now() * 0.012))
                 : 1.0;
-
             const timerStr = `${pu.timer.toFixed(1)}s`;
+            const label = pu.strengthText ? `${pu.label} ${pu.strengthText}` : pu.label;
 
-            ctx.font = `bold 8px "Georgia", serif`;
-            const labelW = ctx.measureText(pu.label).width;
-            ctx.font = `bold 9px "Courier New", monospace`;
+            ctx.font = 'bold 8px "Georgia", serif';
+            const labelW = ctx.measureText(label).width;
+            ctx.font = 'bold 9px "Courier New", monospace';
             const timerW = ctx.measureText(timerStr).width;
-
-            // Pill width: left-stripe(3) + pad(6) + icon(10) + pad(4) + label + pad(6) + timer + pad(6)
-            const pillW = 3 + 6 + 10 + 4 + labelW + 6 + timerW + 6;
-            const pillX = W - 8 - pillW;
+            let pillW = 3 + 6 + 10 + 4 + labelW + 6 + timerW + 6;
+            let pillX = W - 8 - pillW;
+            if (pillW > maxW) {
+                pillW = maxW;
+                pillX = 8;
+            } else if (pillX < 8) {
+                pillX = 8;
+            }
 
             ctx.globalAlpha = alpha;
-
-            // Background
             ctx.fillStyle = 'rgba(6, 4, 16, 0.86)';
             this._roundRect(ctx, pillX, y, pillW, PH, 4);
             ctx.fill();
-
-            // Right-side dim border
             ctx.strokeStyle = `rgba(${this._hexToRgb(pu.color)}, 0.35)`;
-            ctx.lineWidth   = 1;
+            ctx.lineWidth = 1;
             this._roundRect(ctx, pillX, y, pillW, PH, 4);
             ctx.stroke();
-
-            // Left color stripe
             ctx.fillStyle = pu.color;
             ctx.fillRect(pillX, y + 3, 3, PH - 6);
-
-            // Rounded left end of stripe (visual candy)
             ctx.beginPath();
             ctx.arc(pillX + 1.5, y + 3, 1.5, 0, Math.PI * 2);
             ctx.arc(pillX + 1.5, y + PH - 3, 1.5, 0, Math.PI * 2);
             ctx.fill();
-
-            // Icon (drawn glyph)
             this._icon(ctx, pu.icon, pillX + 12, y + PH / 2, 5.5, pu.color);
-
-            // Label
-            ctx.font      = `bold 8px "Georgia", serif`;
+            ctx.font = 'bold 8px "Georgia", serif';
             ctx.fillStyle = 'rgba(228, 218, 190, 0.92)';
             ctx.textAlign = 'left';
-            ctx.fillText(pu.label, pillX + 20, y + PH / 2);
-
-            // Timer
-            ctx.font      = `bold 9px "Courier New", monospace`;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, pillX + 20, y + PH / 2);
+            ctx.font = 'bold 9px "Courier New", monospace';
             ctx.fillStyle = expiring ? '#FF8888' : '#FFFFFF';
             ctx.textAlign = 'right';
             ctx.fillText(timerStr, pillX + pillW - 5, y + PH / 2);
-
             ctx.globalAlpha = 1;
         }
 
@@ -719,34 +779,46 @@ export class CanvasHUD {
         const passives = this.game.systems.passiveItems?.getOwnedItems() || [];
         const synergies = this.game.systems.synergy?.getActiveSynergies() || [];
 
-        if (weapons.length === 0 && passives.length === 0) return;
-
-        // Sizes
-        const WS  = 46;   // weapon slot size
-        const WG  = 8;    // weapon slot gap
-        const PS  = 32;   // passive slot size
-        const PG  = 6;    // passive slot gap
-        const PAD = 12;   // panel inner padding
-        const LH  = 14;   // label row height
-        const RG  = 8;    // row gap
-
-        // Width of each row
-        const weaponRowW  = weapons.length  > 0 ? weapons.length  * (WS + WG) - WG : 0;
-        const passiveRowW = passives.length > 0 ? passives.length * (PS + PG) - PG : 0;
-
-        // Synergy badge width estimate
-        let synW = 0;
-        if (synergies.length > 0) {
-            ctx.font = `10px "Georgia", serif`;
-            for (const s of synergies) {
-                const lbl = `${s.icon}${s.name}`;
-                synW += ctx.measureText(lbl).width + 10 + 6; // pill + gap
-            }
-            synW -= 6;
+        if (weapons.length === 0 && passives.length === 0) {
+            this._inventoryRect = null;
+            return;
         }
 
-        const contentW = Math.max(weaponRowW, passiveRowW, synW, 40);
-        const panelW   = contentW + PAD * 2;
+        // Sizes
+        const mapSize = this._bottomMapSize(W, H);
+        const maxPanel = Math.max(96, W - 8 - 10 - mapSize - 8);
+        let WS = 46;
+        let WG = 8;
+        let PS = 32;
+        let PG = 6;
+        const PAD = 12;
+        const LH = 14;
+        const RG = 8;
+        const rowW = (n, size, gap) => (n > 0 ? n * (size + gap) - gap : 0);
+        let weaponRowW = rowW(weapons.length, WS, WG);
+        let passiveRowW = rowW(passives.length, PS, PG);
+        if (weaponRowW > maxPanel - PAD * 2 && weapons.length > 0) {
+            WG = 4;
+            WS = Math.max(28, Math.floor((maxPanel - PAD * 2 - (weapons.length - 1) * WG) / weapons.length));
+            weaponRowW = rowW(weapons.length, WS, WG);
+        }
+        if (passiveRowW > maxPanel - PAD * 2 && passives.length > 0) {
+            PG = 4;
+            PS = Math.max(22, Math.floor((maxPanel - PAD * 2 - (passives.length - 1) * PG) / passives.length));
+            passiveRowW = rowW(passives.length, PS, PG);
+        }
+
+        let synW = 0;
+        if (synergies.length > 0) {
+            ctx.font = '10px "Georgia", serif';
+            for (const s of synergies) {
+                synW += ctx.measureText(`${s.icon}${s.name}`).width + 16;
+            }
+            synW = Math.max(0, synW - 6);
+        }
+
+        const contentW = Math.min(maxPanel - PAD * 2, Math.max(weaponRowW, passiveRowW, synW, 40));
+        const panelW = contentW + PAD * 2;
 
         // Height
         let panelH = PAD;
@@ -757,6 +829,7 @@ export class CanvasHUD {
 
         const PX = 8;
         const PY = H - panelH - 8 - this._getBottomHUDOffset();
+        this._inventoryRect = { x: PX, y: PY, w: panelW, h: panelH };
 
         this._panel(ctx, PX, PY, panelW, panelH, 5, C.panelBg, C.panelBorder);
 
@@ -917,9 +990,10 @@ export class CanvasHUD {
     // ════════════════════════════════════════════════════════════════════
     _renderMinimap(ctx, W, H) {
         const C = CanvasHUD.C;
-        const SIZE = Math.max(108, Math.min(130, Math.floor(Math.min(W, H) * 0.17)));
+        const SIZE = this._bottomMapSize(W, H);
         const MX = W - SIZE - 10;
         const MY = H - SIZE - 10 - this._getBottomHUDOffset();
+        this._minimapRect = { x: MX, y: MY, w: SIZE, h: SIZE };
         const RANGE = 1800;
 
         const player = this.game.player;
@@ -1164,7 +1238,8 @@ export class CanvasHUD {
         const chipW = 148;
         const chipH = 30;
         const chipX = (W - chipW) / 2;
-        const chipY = H - chipH - 12 - this._getBottomHUDOffset();
+        let chipY = this._liftClear(chipX, H - chipH - 12 - this._getBottomHUDOffset(), chipW, chipH, [this._inventoryRect, this._minimapRect]);
+        this._dashRect = { x: chipX, y: chipY, w: chipW, h: chipH };
 
         const cdDur = Math.max(0.01, dash.cooldownDuration || 1);
         const cdRatio = Math.min(1, Math.max(0, (dash.cooldown || 0) / cdDur));
@@ -1253,14 +1328,19 @@ export class CanvasHUD {
         const hints = 'WASD move   ·   SPACE evade   ·   TAB build   ·   ESC pause';
         ctx.save();
         ctx.globalAlpha = alpha * 0.85;
-        ctx.font = '12px Georgia, serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const tw = ctx.measureText(hints).width;
-        const bx = (W - tw) / 2 - 14;
-        const by = H - 92 - this._getBottomHUDOffset();
-        const bw = tw + 28;
+        let fontSize = W < 500 ? 9 : 12;
+        ctx.font = `${fontSize}px Georgia, serif`;
+        let tw = ctx.measureText(hints).width;
+        const maxText = Math.max(40, W - 36);
+        if (tw > maxText && tw > 0) {
+            fontSize = Math.max(8, Math.floor(fontSize * maxText / tw));
+            ctx.font = `${fontSize}px Georgia, serif`;
+            tw = ctx.measureText(hints).width;
+        }
+        const bw = Math.min(tw + 28, W - 16);
+        const bx = Math.max(8, (W - bw) / 2);
         const bh = 22;
+        const by = this._liftClear(bx, H - 92 - this._getBottomHUDOffset(), bw, bh, [this._inventoryRect, this._minimapRect, this._dashRect]);
 
         this._roundRect(ctx, bx, by, bw, bh, 5);
         ctx.fillStyle = 'rgba(12, 11, 15, 0.72)';
@@ -1270,6 +1350,8 @@ export class CanvasHUD {
         this._roundRect(ctx, bx, by, bw, bh, 5);
         ctx.stroke();
 
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.fillStyle = 'rgba(226, 216, 192, 0.9)';
         ctx.fillText(hints, W / 2, by + bh / 2 + 0.5);
         ctx.restore();

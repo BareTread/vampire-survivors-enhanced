@@ -28,6 +28,7 @@ import { EnemySystem } from '../src/systems/EnemySystem.js';
 import { RunTimerSystem } from '../src/systems/RunTimerSystem.js';
 import { TerrainRenderer } from '../src/core/TerrainRenderer.js';
 import { CodexSystem } from '../src/systems/CodexSystem.js';
+import { Player } from '../src/entities/Player.js';
 
 // ── Shared mock factories ────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ function makeGame(overrides = {}) {
             health: 80,
             weapons: new Map(),
             addDamageNumber: jest.fn(),
+            heal: Player.prototype.heal,
             stats: { damage: 1, luck: 1, speed: 1, area: 1 }
         },
         camera: {
@@ -135,12 +137,6 @@ describe('FloorItemSystem', () => {
         expect(game.player.health).toBeLessThanOrEqual(100);
     });
 
-    test('vacuum activates gem magnet', () => {
-        const game = makeGame();
-        const sys = new FloorItemSystem(game);
-        sys.applyItem('vacuum', game.player);
-        expect(game.systems.experience.magnetizeAllGems).toHaveBeenCalled();
-    });
 
     test('onEnemyDeath does not drop for basic enemies', () => {
         const sys = new FloorItemSystem(makeGame());

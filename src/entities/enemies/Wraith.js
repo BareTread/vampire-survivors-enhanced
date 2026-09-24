@@ -1,5 +1,5 @@
 import { EnemyRenderer } from '../rendering/EnemyRenderer.js';
-import { Enemy } from '../Enemy.js';
+import { Enemy } from '../Enemy.js?v=20260924-pickups2';
 import { managedSetTimeout } from '../../core/TimerManager.js';
 
 export class Wraith extends Enemy {
@@ -286,14 +286,30 @@ export class Wraith extends Enemy {
     }
 
     takeDamage(amount, source = null, isCritical = false) {
-        // Immune to damage during phase mode
-        if (this.immuneToDamage || this.phaseMode) {
+        // Immune to damage during phase mode — but a rosary cleanse
+        // pierces the phase gate like it pierces elite shields.
+        const cause = source && typeof source === 'object' ? source.cause : null;
+        if ((this.immuneToDamage || this.phaseMode) && cause !== 'rosary') {
             this.createImmuneEffect();
             return false;
         }
 
         // Normal damage processing
         return super.takeDamage(amount, source, isCritical);
+    }
+
+    // Pool reuse must not inherit phase state: a wraith reset mid-phase would
+    // respawn immune and untouchable by the next rosary.
+    reset(x, y, type = 'wraith') {
+        super.reset(x, y, type);
+        this.phaseMode = false;
+        this.phaseTimer = 0;
+        this.phaseCooldownTimer = 0;
+        this.canPassThroughWalls = false;
+        this.immuneToDamage = false;
+        this.currentAlpha = this.baseAlpha;
+        this.phaseTrail = [];
+        this.speed = this.normalSpeed;
     }
 
     createPhaseEnterEffect() {

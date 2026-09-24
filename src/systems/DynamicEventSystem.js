@@ -354,16 +354,11 @@ export class DynamicEventSystem {
         const xpValue = 200 + Math.floor(gameTime * 3);
         if (expSys && expSys.createGemExplosion) {
             expSys.createGemExplosion(chest.x, chest.y, xpValue, 8, 14);
+        } else if (expSys && expSys.createMultipleGems) {
+            // Fallback must conserve the promised total exactly (no ceil overaward)
+            expSys.createMultipleGems(chest.x, chest.y, 12, xpValue);
         } else if (expSys && expSys.createGem) {
-            for (let i = 0; i < 12; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const d = Math.random() * 80;
-                expSys.createGem(
-                    chest.x + Math.cos(angle) * d,
-                    chest.y + Math.sin(angle) * d,
-                    Math.ceil(xpValue / 12)
-                );
-            }
+            expSys.createGem(chest.x, chest.y, xpValue);
         }
 
         // Burst particles

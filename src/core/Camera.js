@@ -95,9 +95,11 @@ export class Camera {
         if (this.hitStopFrames > 0) {
             this.hitStopFrames--;
             if (this.hitStopFrames <= 0) {
-                // Restore timeScale and trigger zoom punch on exit
+                // A level-up still owns the pause even when hit-stop ends.
                 if (this._game && this._hitStopSavedTimeScale !== null) {
-                    this._game.timeScale = this._hitStopSavedTimeScale;
+                    if (this._game.gameState !== 'levelUp') {
+                        this._game.timeScale = this._hitStopSavedTimeScale;
+                    }
                     this._hitStopSavedTimeScale = null;
                 }
                 this.hitStopIntensity = 0;
@@ -708,9 +710,11 @@ export class Camera {
         // Don't override a longer hit-stop already in progress
         if (this.hitStopFrames >= adjustedFrames) return;
         
-        // Save current timeScale only if we're not already in hit-stop
+        // A hit-stop started by an evolution during selection must resume
+        // combat, not restore the level-up's paused timeScale after the pick.
         if (this._hitStopSavedTimeScale === null) {
-            this._hitStopSavedTimeScale = this._game.timeScale;
+            this._hitStopSavedTimeScale = this._game.gameState === 'levelUp'
+                ? 1 : this._game.timeScale;
         }
         
         this.hitStopFrames = adjustedFrames;

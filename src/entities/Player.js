@@ -1,5 +1,6 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
+import { POWER_UPS, LEVEL_UP_GRACE_SECONDS, HUD_BUFF_ORDER, getProfile, listProfiles, layerStrength, pruneBuffLayers } from '../data/powerUps.js?v=20260924-pickups2';
 
 export class Player {
     /**
@@ -92,13 +93,7 @@ export class Player {
         };
 
         // POWER-UP STATES - Temporary god-mode feelings
-        this.powerUps = {
-            invincible: { active: false, timer: 0 },
-            speedBoost: { active: false, timer: 0, multiplier: 2.0 },
-            damageBoost: { active: false, timer: 0, multiplier: 3.0 },
-            magnetBoost: { active: false, timer: 0, multiplier: 3.0 },
-            fireRate: { active: false, timer: 0, multiplier: 0.3 } // Lower = faster
-        };
+        this._initBuffState();
 
         // ENHANCED DESPERATION MODE - Dramatic comeback mechanics
         this.nearDeath = {
@@ -152,7 +147,7 @@ export class Player {
 
         this.revivesRemaining = 0;
         this.reviveHealPercent = 0.5;
-        this.reviveInvulnerabilityDuration = 3.0;
+        this.reviveInvulnerabilityDuration = POWER_UPS.invincible.revive.duration;
         this._destroyed = false;
         this._inputHandlers = null;
 
@@ -283,6 +278,10 @@ export class Player {
     }
 
     update(dt) {
+        if (this.levelUpGraceTimer > 0 && dt > 0) {
+            this.levelUpGraceTimer = Math.max(0, this.levelUpGraceTimer - dt);
+        }
+
         // Update invulnerability
         if (this.invulnerable) {
             this.invulnerabilityTime -= dt;
@@ -311,12 +310,11 @@ export class Player {
         this.updateComboSystem(dt);
         this.updatePowerUps(dt);
         this.updateNearDeathEffects(dt);
+        if (this._levelUpSelectionOpen()) return;
         this.updateStreaks(dt);
-
-        // Update weapons
+        if (this._levelUpSelectionOpen()) return;
         this.updateWeapons(dt);
-
-        // Update manual aiming system
+        if (this._levelUpSelectionOpen()) return;
         this.updateManualAiming(dt);
     }
 
@@ -416,7 +414,9 @@ export class Player {
 
     updateWeapons(dt) {
         for (const weapon of this.weapons.values()) {
+            if (this._levelUpSelectionOpen()) break;
             weapon.update(dt);
+            if (this._levelUpSelectionOpen()) break;
         }
     }
 
@@ -501,13 +501,15 @@ export class Player {
     }
 
     heal(amount) {
-        if (this.health <= 0) return;
+        if (this.health <= 0) return 0;
+        if (this.game?.systems?.challenge?.hasModifier?.('no_heals')) return 0;
 
-        const healing = Math.min(amount, this.maxHealth - this.health);
+        const healing = Math.max(0, Math.min(amount, this.maxHealth - this.health));
         if (healing > 0) {
             this.health += healing;
             this.addDamageNumber(healing, '#44FF44');
         }
+        return healing;
     }
 
     gainExperience(amount) {
@@ -991,18 +993,8 @@ export class Player {
         const bonusExp = streak * 5;
         this.gainExperience(bonusExp);
 
-        // Temporary power boosts
-        if (streak >= 10) {
-            this.activatePowerUp('damageBoost', 10.0, 1.5 + streak / 100);
-        }
-        if (streak >= 25) {
-            this.activatePowerUp('speedBoost', 8.0, 1.3);
-        }
-        if (streak >= 50) {
-            this.activatePowerUp('fireRate', 15.0, 0.7); // Faster fire rate
-        }
-        if (streak >= 100) {
-            this.activatePowerUp('invincible', 5.0, 1.0);
+        for (const profile of listProfiles('streak', streak)) {
+            this.activatePowerUp(profile.id, profile.duration, profile.intensity);
         }
 
         // Visual celebration
@@ -1070,7 +1062,10 @@ export class Player {
         this.callout(`COMBO ×${threshold}`, '#FFD700', 2);
 
         // Temporary power boost for immediate gratification
-        this.activatePowerUp('damageBoost', 5.0, 2.0 + intensity * 0.5);
+        const comboProfile = getProfile('combo', threshold);
+        if (comboProfile) {
+            this.activatePowerUp(comboProfile.id, comboProfile.duration, comboProfile.intensity);
+        }
     }
 
     triggerComboFeedback() {
@@ -1096,31 +1091,39 @@ export class Player {
     }
 
     updatePowerUps(dt) {
-        // Update all active power-ups
-        for (const [name, powerUp] of Object.entries(this.powerUps)) {
-            if (powerUp.active) {
-                powerUp.timer -= dt;
-                if (powerUp.timer <= 0) {
-                    this.deactivatePowerUp(name);
-                }
+        if (dt > 0) this.combatTime += dt;
+        this.game.rewardTelemetry?.trackCombatFrame(dt);
+        let strengthChanged = false;
+        for (const name of Object.keys(this.powerUps)) {
+            const powerUp = this.powerUps[name];
+            const wasActive = powerUp.active;
+            const previous = powerUp.currentMultiplier;
+            this._syncBuffSnapshot(name);
+            if (wasActive !== powerUp.active || previous !== powerUp.currentMultiplier) {
+                strengthChanged = true;
             }
         }
+        if (strengthChanged) this.updateWeaponStats();
+    }
+
+    _levelUpSelectionOpen() {
+        const game = this.game;
+        if (!game) return false;
+        return game.levelUpActive === true || game.gameState === 'levelUp';
     }
 
     activatePowerUp(type, duration, intensity = 1.0) {
         const powerUp = this.powerUps[type];
-        if (!powerUp) return;
+        const def = POWER_UPS[type];
+        if (!powerUp || !def || def.kind === 'heal') return;
 
-        powerUp.active = true;
-        powerUp.timer = duration;
-        if (powerUp.multiplier !== undefined) {
-            powerUp.currentMultiplier = powerUp.multiplier * intensity;
-        }
+        const strength = layerStrength(type, intensity);
+        const layers = this.buffLayers[type] || [];
+        layers.push({ strength, expiresAt: this.combatTime + Math.max(0, duration) });
+        this.buffLayers[type] = pruneBuffLayers(layers, this.combatTime);
+        this._syncBuffSnapshot(type);
 
-        // Visual feedback for power-up activation
         this.createPowerUpEffect(type, intensity);
-
-        // Update weapon stats if applicable
         this.updateWeaponStats();
     }
 
@@ -1128,33 +1131,104 @@ export class Player {
         const powerUp = this.powerUps[type];
         if (!powerUp) return;
 
+        this.buffLayers[type] = [];
         powerUp.active = false;
         powerUp.timer = 0;
-
-        // Update weapon stats
+        if (powerUp.multiplier !== undefined) delete powerUp.currentMultiplier;
         this.updateWeaponStats();
     }
 
     createPowerUpEffect(type, intensity) {
-        const colors = {
-            invincible: '#FFD700',
-            speedBoost: '#00FFFF',
-            damageBoost: '#FF6600',
-            magnetBoost: '#44FF44',
-            fireRate: '#FF44FF'
-        };
+        const def = POWER_UPS[type];
+        const color = def?.color || '#FFFFFF';
 
-        const color = colors[type] || '#FFFFFF';
-
-        // Power-up activation celebration
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash(color, 0.3 * intensity);
         }
-        if (this.game.systems.particle) {
+        if (this.game.systems?.particle) {
             this.game.systems.particle.createPowerUpEffect(this.x, this.y, color, intensity);
         }
 
-        this.callout(this.game.getPowerUpName?.(type)?.toUpperCase() || type.toUpperCase(), color, 2);
+        const name = def?.name || this.game.getPowerUpName?.(type) || type;
+        this.callout(String(name).toUpperCase(), color, 2);
+    }
+
+    _initBuffState() {
+        this.powerUps = {};
+        this.buffLayers = {};
+        this.combatTime = 0;
+        this.levelUpQueue = [];
+        this.levelUpProgress = { current: 0, total: 0 };
+        this.levelUpGraceTimer = 0;
+        for (const id of HUD_BUFF_ORDER) {
+            const def = POWER_UPS[id];
+            const entry = { active: false, timer: 0 };
+            if (def.kind === 'multiplier' || def.kind === 'attackRate') {
+                entry.multiplier = layerStrength(id, 1);
+            }
+            this.powerUps[id] = entry;
+            this.buffLayers[id] = [];
+        }
+    }
+
+    resetRewardState() {
+        this.combatTime = 0;
+        this.levelUpGraceTimer = 0;
+        this.levelUpQueue = [];
+        this.levelUpProgress = { current: 0, total: 0 };
+        this.buffLayers = this.buffLayers || {};
+        for (const id of Object.keys(this.powerUps || {})) {
+            this.buffLayers[id] = [];
+            const powerUp = this.powerUps[id];
+            powerUp.active = false;
+            powerUp.timer = 0;
+            if (powerUp.multiplier !== undefined) delete powerUp.currentMultiplier;
+        }
+    }
+
+    grantLevelUpGrace() {
+        this.levelUpGraceTimer = Math.max(this.levelUpGraceTimer || 0, LEVEL_UP_GRACE_SECONDS);
+    }
+
+    hasQueuedLevelUps() {
+        return !!(this.levelUpQueue && this.levelUpQueue.length > 0);
+    }
+
+    isDamageImmune() {
+        return !!(
+            this.powerUps?.invincible?.active ||
+            this.invulnerable ||
+            this.dash?.active ||
+            this.levelUpGraceTimer > 0
+        );
+    }
+
+    getBuffPresentation(type) {
+        this._syncBuffSnapshot(type);
+        const powerUp = this.powerUps[type];
+        if (!powerUp?.active) return { active: false, strength: 0, remaining: 0 };
+        return {
+            active: true,
+            strength: powerUp.currentMultiplier ?? 1,
+            remaining: powerUp.timer
+        };
+    }
+
+    _syncBuffSnapshot(type) {
+        const powerUp = this.powerUps[type];
+        if (!powerUp) return;
+        const layers = pruneBuffLayers(this.buffLayers?.[type], this.combatTime || 0);
+        this.buffLayers[type] = layers;
+        if (layers.length === 0) {
+            powerUp.active = false;
+            powerUp.timer = 0;
+            if (powerUp.multiplier !== undefined) delete powerUp.currentMultiplier;
+            return;
+        }
+        const strongest = layers[0];
+        powerUp.active = true;
+        powerUp.timer = Math.max(0, strongest.expiresAt - this.combatTime);
+        if (powerUp.multiplier !== undefined) powerUp.currentMultiplier = strongest.strength;
     }
 
     updateNearDeathEffects(dt) {
@@ -1305,7 +1379,8 @@ export class Player {
         this.gainExperience(bonusExp);
 
         // Temporary invincibility as reward
-        this.activatePowerUp('invincible', 3.0, 1.0);
+        const untouched = getProfile('noDamage');
+        if (untouched) this.activatePowerUp(untouched.id, untouched.duration, untouched.intensity);
 
         this.callout(`UNTOUCHED ${streakMinutes} MIN`, '#FFD700', 2);
 
@@ -1318,7 +1393,7 @@ export class Player {
     // Override damage to include near-death bonuses and power-up effects
     takeDamageEnhanced(amount, source = null) {
         // Invincibility power-up
-        if (this.powerUps.invincible.active) {
+        if (this.powerUps.invincible.active || this.levelUpGraceTimer > 0) {
             return false;
         }
 
@@ -1431,19 +1506,18 @@ export class Player {
 
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
+        this.game.rewardTelemetry?.trackXPGranted(expGain);
 
         // FIXED: Process level-ups ONE AT A TIME with proper queuing
-        // Initialize level-up queue if it doesn't exist
-        if (!this.levelUpQueue) {
-            this.levelUpQueue = [];
-        }
+        if (!this.levelUpQueue) this.levelUpQueue = [];
+        if (!this.levelUpProgress) this.levelUpProgress = { current: 0, total: 0 };
 
-        // Check for level-ups and queue them
+        let added = 0;
         while (this.experience >= this.experienceToNext) {
             this.experience -= this.experienceToNext;
             this.level++;
+            added++;
 
-            // Queue this level-up for processing
             this.levelUpQueue.push({
                 level: this.level,
                 oldLevel: this.level - 1
@@ -1451,13 +1525,17 @@ export class Player {
 
             this.experienceToNext = Player.xpForLevel(this.level);
 
-            // Level-ups still recover health, but no longer erase all danger.
             if (!this.game.systems?.challenge?.hasModifier('no_heals')) {
                 this.heal(Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio)));
             }
         }
 
-        // Process the first queued level-up (if any) and not already in level-up UI
+        if (added > 0) {
+            const inChain = this.game.levelUpActive || (this.levelUpProgress.current > 0 && this.levelUpProgress.total > 0);
+            if (inChain) this.levelUpProgress.total += added;
+            else this.levelUpProgress = { current: 0, total: this.levelUpQueue.length };
+        }
+
         if (this.levelUpQueue.length > 0 && !this.game.levelUpActive) {
             this.processNextLevelUp();
         }
@@ -1465,33 +1543,24 @@ export class Player {
 
     processNextLevelUp() {
         if (!this.levelUpQueue || this.levelUpQueue.length === 0) return;
-        if (this.game.levelUpActive) return; // Already showing level-up UI
+        if (this.game.levelUpActive) return;
 
-        // Get the next level-up from queue
-        const levelUpData = this.levelUpQueue.shift();
+        this.levelUpQueue.shift();
+        if (!this.levelUpProgress) this.levelUpProgress = { current: 0, total: 1 };
+        if (this.levelUpProgress.total < 1) this.levelUpProgress.total = 1;
+        this.levelUpProgress.current += 1;
 
-        // Create level-up effects for this specific level
         this.createLevelUpEffects();
-
-        // Show level-up message
-
-        // Show the level-up UI for this specific level
         this.game.showLevelUpUI();
     }
 
     completeLevelUpSelection() {
-        // Called when player makes a selection in the level-up UI
-        // Check if there are more level-ups queued
         if (this.levelUpQueue && this.levelUpQueue.length > 0) {
-            // Process the next level-up after a short delay
-            managedSetTimeout(
-                () => {
-                    this.processNextLevelUp();
-                },
-                500,
-                this
-            ); // Half second delay between level-ups
+            this.processNextLevelUp();
+            return;
         }
+        this.levelUpProgress = { current: 0, total: 0 };
+        this.grantLevelUpGrace();
     }
 
     applyPersistentUpgrades() {
@@ -1510,9 +1579,11 @@ export class Player {
 
         this.revivesRemaining--;
         this.health = Math.max(1, Math.floor(this.maxHealth * this.reviveHealPercent));
+        const reviveProfile = getProfile('revive');
+        const reviveDuration = this.reviveInvulnerabilityDuration || reviveProfile.duration;
         this.invulnerable = true;
-        this.invulnerabilityTime = this.reviveInvulnerabilityDuration;
-        this.activatePowerUp('invincible', this.reviveInvulnerabilityDuration, 1.0);
+        this.invulnerabilityTime = reviveDuration;
+        this.activatePowerUp(reviveProfile.id, reviveDuration, reviveProfile.intensity);
         this.callout('SECOND WIND', '#FFD700', 4);
 
         if (this.game.camera) {
@@ -1545,19 +1616,9 @@ export class Player {
             stats.damage *= this.powerUps.damageBoost.currentMultiplier || this.powerUps.damageBoost.multiplier;
         }
 
-        // Fire-rate boosts reduce weapon cooldown. Our weapons compute
-        // effective cooldown as: baseCooldown / stats.cooldown.
-        // Interpret fireRate.currentMultiplier as a cooldown reduction fraction (e.g. 0.3 => 30% faster).
+        // Attack speed: weapons use baseCooldown / stats.cooldown, so ×1.3 is cooldown / 1.3.
         if (this.powerUps.fireRate.active) {
-            const raw =
-                this.powerUps.fireRate.currentMultiplier != null
-                    ? this.powerUps.fireRate.currentMultiplier
-                    : this.powerUps.fireRate.multiplier;
-            // Clamp to a sane range to avoid extreme values
-            const reduction = Math.max(0.0, Math.min(0.75, raw)); // max 75% faster
-            // Convert reduction fraction to a multiplier for stats.cooldown (bigger => faster firing)
-            // Example: reduction=0.3 -> factor = 1 / (1 - 0.3) = ~1.428x faster
-            const factor = 1.0 / (1.0 - reduction);
+            const factor = this.powerUps.fireRate.currentMultiplier ?? layerStrength('fireRate', 1);
             stats.cooldown *= factor;
         }
 
