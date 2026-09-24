@@ -1,0 +1,14 @@
+{
+  "baseline": "7489914",
+  "integrated": "37a878f",
+  "viewport": [1280, 720],
+  "method": "Real requestAnimationFrame game loop in managed headless Chromium. 130 enemy spawn calls, 360 five-XP gem drops, cap 60, player stationary at (1000,1000), weapons cleared, damage immunity. 360 frame intervals minus 60 warmup. performance.now wrappers measure actual update and render. Scenes ran serially in fresh tabs.",
+  "baselineCrowd": {"fps": 60.0012, "frameMedianMs": 16.7, "frameP95Ms": 16.7, "updateMedianMs": 0.6, "updateP95Ms": 0.9, "renderMedianMs": 1.4, "renderP95Ms": 1.9, "enemyCount": 118, "gemCount": 60, "xpDropped": 1800, "xpOnFloor": 300, "xpLost": 1500},
+  "integratedCrowd": [
+    {"fps": 60.0024, "frameMedianMs": 16.7, "frameP95Ms": 16.8, "updateMedianMs": 0.5, "updateP95Ms": 1.0, "renderMedianMs": 1.4, "renderP95Ms": 2.0, "enemyCount": 115, "gemCount": 60, "xpDropped": 1800, "xpOnFloor": 1800, "xpLost": 0},
+    {"fps": 60.0024, "frameMedianMs": 16.7, "frameP95Ms": 16.7, "updateMedianMs": 0.6, "updateP95Ms": 1.0, "renderMedianMs": 1.3, "renderP95Ms": 1.8, "enemyCount": 115, "gemCount": 60, "xpDropped": 1800, "xpOnFloor": 1800, "xpLost": 0}
+  ],
+  "sparseStress": {"method": "Separate stress probe, cap raised to 5000; 600 expired far gems, direct consolidateExpiredGems timing. Not the crowd benchmark.", "sparseSpacing": 5000, "sparseWorldSpan": 120000, "sparseCleanupMs": 0.2, "denseSpacing": 70, "denseCleanupMs": 1.0, "xpBefore": 3000, "xpAfter": 3000, "steadyStateFps": 60.0012},
+  "final3359608": {"fps": 60.0024, "frameMedianMs": 16.7, "frameP95Ms": 16.8, "updateMedianMs": 0.5, "updateP95Ms": 0.9, "renderMedianMs": 1.4, "renderP95Ms": 2.2, "enemyCount": 114, "gemCount": 60, "xpDropped": 1800, "xpOnFloor": 1800, "xpLost": 0, "browserErrors": 0, "telemetry": "default off; final instrumented build"},
+  "limits": "60 Hz RAF ceiling; frame tails and update/render costs distinguish regressions. Shared headless GPU, not representative of all devices. Enemy count drifts as moving enemies leave despawn bounds. Single cleanup timing is a boundedness smoke probe, not a statistical microbenchmark."
+}

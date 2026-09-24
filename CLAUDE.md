@@ -184,6 +184,19 @@ src/entities/
 
 ## Developer Log (most recent first)
 
+### 2026-09-24 (Pickup Reliability — conserved rewards, honest buffs, safe selection)
+
+**Eleven audit rows reproduced and fixed. 308/308 tests passing across 21 suites; six real-browser scenarios and desktop/phone visual checks passed.**
+
+- **Contract:** `docs/REWARD_CONTRACT.md` defines reward ownership and invariants; `docs/PICKUP_RELIABILITY_REPORT.md` contains the audit table, screenshots, performance and measurement evidence.
+- **Single source:** `src/data/powerUps.js` owns timed reward profiles, labels, colours, strength and HUD wording. Buffs use at most three combat-time layers; weaker pickups cannot reduce or extend a stronger layer. Expiry refreshes weapon caches. +30% attack speed means cooldown divided by 1.3, including Garlic Aura.
+- **Conservation:** floor XP plus awarded base gem XP equals dropped XP. Caps merge value rather than delete it; gems do not expire or disappear near the origin. Claimed XP/gold homes until collection and cannot be a merge victim or return to the pool early. Sparse cleanup visits occupied buckets.
+- **Tactical pickups:** Vacuum claims XP and gold only, with one truthful haul callout. Magnetic Field uses max(3× effective pickup range, 360), independent of viewport. Health stays put at full HP or under `no_heals`. Rosary suppresses hostile death effects, including phased Wraiths, while preserving rewards. Guaranteed boss/event drops survive full floors.
+- **Selection and HUD:** queued picks stay paused, show progress and grant 0.4s no-flash grace after the final choice. Evolution hit-stop cannot restore a zero clock after selection. Pills show effective strength and honest timers; the narrow run timer no longer overlaps top panels.
+- **Telemetry:** `debugCommands.setRewardTelemetry(true)` starts a measurement window; `getRewardStats()` reports combat coverage, overlap, collected/expired pickups, healing waste and resource ledgers. Default off; disabling freezes a defensive snapshot. XP bonuses/direct grants are separate from conserved base gem value.
+- **Measured runs:** seeds 1729/2718/31415 each completed 600 combat seconds within one tick with zero lost XP. Unforced baseline controls exposed clock stalls; matched-horizon checkpoints preserve honest comparisons. Speed/damage/streak tuning remains unchanged because god-mode measurements do not justify the proposed nerfs.
+- **Performance:** the 130-enemy/360-drop scene remains ~60 FPS with 60 gem objects and all 1,800 XP retained (baseline retained 300). Cache-bust import graph: `20260924-pickups2`. Independent upgraded-Garlic status-effect and slow-motion-tail defects are documented follow-ups, not hidden scope additions.
+
 ### 2026-09-24 (Game-Feel & Pacing Pass — intentional shake, readable screen, a run with an arc)
 
 **Playtested with a scripted kiting bot plus god-mode economy probes, then fixed what made runs feel chaotic or unfair. 194/194 tests passing (`tests/game-feel.test.js` is new).**

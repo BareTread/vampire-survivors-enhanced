@@ -1,0 +1,19 @@
+{
+  "behaviorRevision": "37a878f",
+  "correctedCaptureRevision": "0a2983b",
+  "browserErrors": 0,
+  "method": "Actual game objects in managed Chromium. Initial six scenarios ran with normal game updates. Vacuum, origin-gem, and rosary screenshots were recaptured with stopped RAF and explicit update/render steps so image state matched measured state. CSS viewports 1280x720 and 390x844; captured device pixels may be larger.",
+  "scenarios": [
+    {"id":"S1","result":"PASS","evidence":"61 five-XP drops became 60 gem objects holding all 305 XP. Vacuum claimed XP and gold only; one +305 XP · 50 gold callout. Controlled recapture collected 305 base XP and 50 gold with no resources left.","image":"vacuum-haul.webp"},
+    {"id":"S2","result":"PASS","evidence":"A seven-XP gem at (100,0) survived with the player far away, then awarded exactly seven XP. Recapture placed the camera at the gem while the player was 2610 world units away.","image":"origin-gem.webp"},
+    {"id":"S3","result":"PASS","evidence":"6x/15s followed by 3x/10s kept 6x strength. In the longer-tail case, 6x/5s plus 3x/20s correctly fell to 3x after strong expiry. Live effective stats observed; weapon-cache transition independently covered by the adversarial regression test.","image":"strong-buff.webp"},
+    {"id":"S4","result":"PASS","evidence":"Explosive elites inside blast radius died with rosary cause, kill credit and resources preserved, zero player damage events and HP 100/100. Controlled recapture used zero-speed enemies to exclude contact damage.","image":"rosary.webp"},
+    {"id":"S5","result":"PASS","evidence":"Real boss death on a full 20-item floor retained guaranteed chest, vacuum and health orb by evicting three oldest ordinary items. Total remained 20.","image":"boss-rewards.webp"},
+    {"id":"S6","result":"PASS","evidence":"Three queued level-ups kept state levelUp, timeScale zero and gameTime frozen through every pick. Progress showed 1/3, 2/3, 3/3. Final-selection grace blocked damage, then expired.","images":["level-up-1.webp","level-up-2.webp","level-up-3.webp"]}
+  ],
+  "visuals": [
+    {"viewport":"1280x720","result":"PASS","images":["desktop-hud.webp","desktop-level-up.webp"]},
+    {"viewport":"390x844","result":"PASS","evidence":"Initial capture exposed timer overlap. Corrected capture has timer below the character panel; callout, strength/timer pills and queued cards remain legible without overlap.","images":["phone-hud.webp","phone-level-up.webp"]}
+  ],
+  "cacheNote":"Capture initially required cache-disabled reload. Commit 787617c versioned the affected import graph with 20260924-pickups2. Main then verified cold-load resource URLs for ExperienceSystem, RunTimerSystem, CanvasHUD, powerUps and Wraith, followed by an ordinary warm reload: HUD version pickups2, narrow timer layout available, real game started/rendered, zero browser errors."
+}
