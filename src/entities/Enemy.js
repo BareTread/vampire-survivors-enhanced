@@ -592,11 +592,14 @@ export class Enemy {
 
         // Recoil: the attacker bounces off after landing a bite, so a single
         // chaser can't chain hits and the player sees exactly who hit them.
-        const rx = this.x - player.x, ry = this.y - player.y;
-        const rl = Math.hypot(rx, ry) || 1;
-        this.recoilVX = (rx / rl) * 240;
-        this.recoilVY = (ry / rl) * 240;
-        this.recoilTime = Enemy.RECOIL_TIME;
+        // Bosses are too heavy to bounce.
+        if (!this.isBoss) {
+            const rx = this.x - player.x, ry = this.y - player.y;
+            const rl = Math.hypot(rx, ry) || 1;
+            this.recoilVX = (rx / rl) * 240;
+            this.recoilVY = (ry / rl) * 240;
+            this.recoilTime = Enemy.RECOIL_TIME;
+        }
 
         // Visual effect
         this.game.systems.particle.createImpactEffect(this.x, this.y, '#FF4444');

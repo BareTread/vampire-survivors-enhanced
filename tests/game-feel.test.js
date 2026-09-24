@@ -2,6 +2,7 @@ import { describe, test, expect } from '@jest/globals';
 import { Camera } from '../src/core/Camera.js';
 import { Player } from '../src/entities/Player.js';
 import { Enemy } from '../src/entities/Enemy.js';
+import { BossSystem } from '../src/systems/BossSystem.js';
 
 const step = (cam, seconds) => {
     for (let t = 0; t < seconds; t += 1 / 60) cam.updateShake(1 / 60);
@@ -90,5 +91,43 @@ describe('run pacing', () => {
         const e = Object.create(Enemy.prototype);
         e.game = { gameTime: 120, player: { maxHealth: 100 }, systems: {} };
         expect(e.contactDamage(500)).toBeLessThanOrEqual(e.hitCap());
+    });
+});
+
+describe('damage numbers', () => {
+    test('the same hit reported twice shows one number, crit styling wins', async () => {
+        const { DamageNumberPool } = await import('../src/core/DamageNumberPool.js');
+        const pool = new DamageNumberPool();
+        pool.get(100, 100, 30, '#FFFF00', false);
+        pool.get(106, 96, 29, '#FF0000', true);
+        expect(pool.activeNumbers.length).toBe(1);
+        expect(pool.activeNumbers[0].isCritical).toBe(true);
+        // A different enemy nearby still gets its own number
+        pool.get(160, 100, 30, '#FFFF00', false);
+        expect(pool.activeNumbers.length).toBe(2);
+    });
+});
+
+describe('boss fights', () => {
+    test('phases advance as the boss loses health', () => {
+        const bs = Object.create(BossSystem.prototype);
+        const def = { phases: [{ threshold: 1 }, { threshold: 0.66 }, { threshold: 0.33 }] };
+        const seen = [];
+        bs.game = { player: { x: 0, y: 0 } };
+        bs.bossEnemy = { health: 100, maxHealth: 100, x: 0, y: 0 };
+        bs.activeBoss = { def, phase: 0 };
+        bs._onPhaseTransition = (p) => { seen.push(p); bs.activeBoss.phase = p; throw new Error('stop'); };
+        for (const hp of [90, 60, 20]) {
+            bs.bossEnemy.health = hp;
+            try { bs._updateBossAI(0.016); } catch (e) { /* stop after phase check */ }
+        }
+        expect(seen).toEqual([1, 2]);
+    });
+
+    test('no single boss attack takes more than 30% of max HP', () => {
+        const bs = Object.create(BossSystem.prototype);
+        bs.game = { player: { maxHealth: 100 } };
+        expect(bs._bossHit(45)).toBe(30);
+        expect(bs._bossHit(10)).toBe(10);
     });
 });

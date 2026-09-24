@@ -136,6 +136,37 @@ export class SpriteManager {
             ctx.stroke();
         }
 
+        // Timed power-ups each get a readable signature at the hero's feet
+        const pu = player.powerUps || {};
+        if (pu.damageBoost && pu.damageBoost.active) {
+            const flick = 0.45 + 0.25 * Math.sin(now * 23) * Math.sin(now * 7.3);
+            ctx.strokeStyle = `rgba(255, 110, 30, ${flick})`;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.ellipse(player.x, feetY, size * 1.6, size * 0.6, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        if (pu.invincible && pu.invincible.active) {
+            // Blinks in its final second so the end is never a surprise
+            const ending = pu.invincible.timer < 1 && Math.sin(now * 22) < 0;
+            const a = ending ? 0.25 : 0.85;
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 216, 74, ${a})`;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([7, 5]);
+            ctx.lineDashOffset = -now * 24;
+            ctx.beginPath();
+            ctx.ellipse(player.x, feetY, size * 2.1, size * 0.8, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = `rgba(255, 230, 140, ${a * 0.4})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(player.x, feetY - size * 0.9, size * 2.0, Math.PI * 1.08, Math.PI * 1.92);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         // Ground shadow
         ctx.fillStyle = 'rgba(6, 3, 10, 0.45)';
         ctx.beginPath();
@@ -167,21 +198,25 @@ export class SpriteManager {
             ctx.drawImage(t.sprite.canvas, -t.sprite.ax, -t.sprite.ay, t.sprite.w, t.sprite.h);
             ctx.restore();
         }
-        if (player.dash && player.dash.active) {
+        const hasted = pu.speedBoost && pu.speedBoost.active;
+        if ((player.dash && player.dash.active) || hasted) {
             const last = trail[trail.length - 1];
             const dx = player.x - (last ? last.x : Infinity);
             const dy = player.y - (last ? last.y : Infinity);
-            if (dx * dx + dy * dy > 64) {
+            // Dash leaves bright ghosts; haste leaves a sparser, fainter wake
+            const spacing = player.dash && player.dash.active ? 64 : 400;
+            if (dx * dx + dy * dy > spacing) {
                 const ghost = getHunterSprite(size, color, charId, anim.frame, 'flash');
-                if (ghost) trail.push({ x: player.x, y: player.y, facing: anim.facing, sprite: ghost, alpha: 1 });
+                const alpha = player.dash && player.dash.active ? 1 : 0.55;
+                if (ghost) trail.push({ x: player.x, y: player.y, facing: anim.facing, sprite: ghost, alpha });
                 if (trail.length > 6) trail.shift();
             }
         }
 
         // Invulnerability flicker (after the white hit-flash frame)
         if (player.invulnerable && !justHit) {
-            const flash = Math.sin(player.invulnerabilityTime * 10 * Math.PI * 2);
-            if (flash < 0) ctx.globalAlpha = 0.45;
+            const flash = Math.sin(player.invulnerabilityTime * 8 * Math.PI * 2);
+            if (flash < 0) ctx.globalAlpha = 0.55;
         }
 
         // Level-up / desperation rim glow
