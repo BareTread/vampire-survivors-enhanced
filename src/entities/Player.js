@@ -1038,9 +1038,12 @@ export class Player {
         // Escalating celebrations for higher thresholds
         const intensity = Math.min(1.5, 0.5 + threshold / 200);
 
-        // Screen effects
+        // Screen effects: small milestones get a glint, big ones a zoom punch
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash('#FFD700', 0.4 * intensity);
+            if (threshold >= 50 && typeof this.game.camera.zoomPunch === 'function') {
+                this.game.camera.zoomPunch(Math.min(0.8, threshold / 250));
+            }
         }
         // Particle celebration
         if (this.game.systems.particle) {

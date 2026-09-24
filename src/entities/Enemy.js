@@ -953,13 +953,6 @@ export class Enemy {
             this.game.camera.hitStop(3, 0.5);
         }
 
-        // Zoom punch on multi-kill (every 10 combo kills)
-        if (this.game.player && this.game.player.combo.count % 10 === 0 && this.game.player.combo.count >= 10) {
-            if (this.game.camera && typeof this.game.camera.zoomPunch === 'function') {
-                const zoomIntensity = Math.min(0.8, this.game.player.combo.count / 50);
-                this.game.camera.zoomPunch(zoomIntensity);
-            }
-        }
 
         // Drop experience gem with combo bonus
         this.game.systems.experience.createGem(
