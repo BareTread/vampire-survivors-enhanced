@@ -119,7 +119,8 @@ export class Whip extends BaseWeapon {
             damage: this.getEffectiveDamage(),
             hitEnemies: new Set(),
             segments: [],
-            progress: 0
+            progress: 0,
+            flip: (this._flip = !this._flip)
         };
         
         // Generate whip segments
@@ -313,62 +314,92 @@ export class Whip extends BaseWeapon {
         }
     }
     
+    /**
+     * Sweeping crescent slash: a bright blade of air races across the arc
+     * (alternating side each crack), trailed by the leather lash with a
+     * gold spark at the tip. The hit is instant; the visual sells the arc.
+     */
     renderWhipAttack(renderer, attack) {
         const ctx = renderer.ctx;
+        const p = Math.min(1, Math.max(0, attack.progress));
+        const px = this.player.x;
+        const py = this.player.y - this.player.size * 0.4; // swing from hand height
+        const R = attack.range;
+        const half = attack.arcAngle / 2;
+        const dirSign = attack.flip ? -1 : 1;
+        const start = attack.direction - half * dirSign;
+        const span = attack.arcAngle * dirSign;
+
+        const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+        const lead = easeOut(Math.min(1, p / 0.4));
+        const trail = Math.max(0, (p - 0.08) / 0.92);
+        const a1 = start + span * lead;
+        const a0 = start + span * Math.min(lead, easeOut(trail) * 0.95);
+        const fade = Math.pow(1 - p, 0.6);
+        const evolved = this.evolved || this.isEvolved || this.level >= 8;
+        const edge = evolved ? '255, 120, 110' : '255, 238, 205';
+        const body = evolved ? '190, 30, 40' : '200, 150, 90';
+
         ctx.save();
-        
-        // Calculate opacity based on progress
-        const opacity = 1 - attack.progress;
-        ctx.globalAlpha = opacity;
-        
-        // Draw whip segments
-        if (attack.segments.length > 1) {
-            ctx.strokeStyle = this.whipColor;
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            
-            // Main whip body
+
+        // Crescent slash band
+        if (Math.abs(a1 - a0) > 0.01) {
+            const lo = Math.min(a0, a1);
+            const hi = Math.max(a0, a1);
+            const grad = ctx.createRadialGradient(px, py, R * 0.45, px, py, R * 1.02);
+            grad.addColorStop(0, `rgba(${body}, 0)`);
+            grad.addColorStop(0.6, `rgba(${body}, ${0.28 * fade})`);
+            grad.addColorStop(0.9, `rgba(${edge}, ${0.85 * fade})`);
+            grad.addColorStop(1, `rgba(${edge}, 0)`);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.moveTo(attack.segments[0].x, attack.segments[0].y);
-            
-            for (let i = 1; i < attack.segments.length; i++) {
-                ctx.lineTo(attack.segments[i].x, attack.segments[i].y);
-            }
-            ctx.stroke();
-            
-            // Whip tip
-            const tip = attack.segments[attack.segments.length - 1];
-            ctx.fillStyle = this.tipColor;
-            ctx.beginPath();
-            ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+            ctx.arc(px, py, R * 1.02, lo, hi);
+            ctx.arc(px, py, R * 0.55, hi, lo, true);
+            ctx.closePath();
             ctx.fill();
-            
-            // Add glow effect for higher levels
-            if (this.level >= 5) {
-                ctx.shadowColor = this.tipColor;
-                ctx.shadowBlur = 10;
-                ctx.fill();
-            }
+            ctx.globalCompositeOperation = 'source-over';
         }
-        
-        // Draw attack arc indicator (faint)
-        if (attack.progress < 0.3) {
-            ctx.globalAlpha = 0.2 * (1 - attack.progress / 0.3);
-            ctx.strokeStyle = this.whipColor;
-            ctx.lineWidth = 1;
-            
-            const startAngle = attack.direction - attack.arcAngle / 2;
-            const endAngle = attack.direction + attack.arcAngle / 2;
-            
+
+        // Leather lash: hand → leading tip, bowed back against the swing
+        if (p < 0.7) {
+            const lashAlpha = 1 - p / 0.7;
+            const tipX = px + Math.cos(a1) * R;
+            const tipY = py + Math.sin(a1) * R;
+            const bow = a1 - dirSign * 0.35;
+            const cxp = px + Math.cos(bow) * R * 0.6;
+            const cyp = py + Math.sin(bow) * R * 0.6;
+            ctx.globalAlpha = lashAlpha;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#1a0e08';
+            ctx.lineWidth = 4.5;
             ctx.beginPath();
-            ctx.arc(this.player.x, this.player.y, attack.range, startAngle, endAngle);
+            ctx.moveTo(px, py);
+            ctx.quadraticCurveTo(cxp, cyp, tipX, tipY);
             ctx.stroke();
+            ctx.strokeStyle = evolved ? '#a8222e' : '#8a5a32';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 220, 170, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Crack spark at the tip
+            ctx.globalCompositeOperation = 'lighter';
+            const sparkR = 4 + (1 - lead) * 6;
+            const spark = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, sparkR * 2.2);
+            spark.addColorStop(0, 'rgba(255, 245, 200, 1)');
+            spark.addColorStop(0.4, 'rgba(255, 200, 80, 0.7)');
+            spark.addColorStop(1, 'rgba(255, 140, 40, 0)');
+            ctx.fillStyle = spark;
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, sparkR * 2.2, 0, Math.PI * 2);
+            ctx.fill();
         }
-        
+
         ctx.restore();
     }
-    
+
     // Serialization
     static deserialize(game, player, data) {
         const weapon = new Whip(game, player);
@@ -490,7 +521,7 @@ export class Whip extends BaseWeapon {
         
         // Dust explosion on impact
         this.game.systems.particle.createBurst(enemy.x, enemy.y, 'dustExplosion', {
-            color: '#D2B48C',
+            color: '#F3DDB0',
             count: Math.floor(damage * 0.2),
             spread: 40
         });

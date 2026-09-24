@@ -391,6 +391,10 @@ export class StatusEffectSystem {
             target.damage = target._originalDamage * (1 + definition.damageBonus);
         }
         
+        if (effect.type === 'freeze') {
+            target._frozenVisual = true;
+        }
+
         if (definition.immobilize) {
             target._originalVelocity = { ...target.velocity };
             target.velocity = { x: 0, y: 0 };
@@ -426,6 +430,7 @@ export class StatusEffectSystem {
         
         // Special end effects
         if (effect.type === 'freeze') {
+            target._frozenVisual = false;
             this.createShatterEffect(target, effect);
         }
     }

@@ -1,5 +1,6 @@
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { EnemyRenderer } from './rendering/EnemyRenderer.js';
+import { enemyDisplayName } from '../data/enemyNames.js';
 
 export class Enemy {
     constructor(game, x, y, type = 'basic') {
@@ -175,7 +176,13 @@ export class Enemy {
             finalDamageMultiplier *= this.game.systems.flowState.adaptiveDamageMultiplier;
         }
 
-        this.damage = Math.floor(stats.damage * finalDamageMultiplier);
+        // Onboarding grace: the first minutes are a power-fantasy warm-up —
+        // contact damage ramps from 60% to full strength by 2.5 minutes so a
+        // new hunter can learn to kite before the swarm gets teeth.
+        const graceMin = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
+        const onboardingGrace = 0.6 + 0.4 * Math.min(1, graceMin / 2.5);
+
+        this.damage = Math.max(1, Math.floor(stats.damage * finalDamageMultiplier * onboardingGrace));
 
         // BALANCE SAFETY NET: Hard cap on single-hit damage for the first 5 minutes.
         // Player has 100 HP and no upgrades early — no single hit should exceed 40% of max HP
@@ -569,7 +576,7 @@ export class Enemy {
         const bloodMoon  = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
         const auraBoost  = this.auraBuffed ? 1.30 : 1.0;
         const dmgMult    = bloodMoon * auraBoost;
-        player.takeDamage(Math.round(this.damage * dmgMult), { type: this.type, name: this.variant ? `${this.variant} ${this.type}` : this.type });
+        player.takeDamage(Math.round(this.damage * dmgMult), { type: this.type, name: enemyDisplayName(this.type, this.variant) });
 
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
@@ -751,6 +758,11 @@ export class Enemy {
 
         // Death particle effect with enhanced feedback for combos - CREATE FIRST
         const comboLevel = this.game.player ? Math.min(this.game.player.combo.count / 10, 3.0) : 1.0;
+
+        // Leave a mark on the floor: blood for the living, ash for the
+        // spectral and the stone-bodied
+        const decalKind = ['wraith', 'juggernaut'].includes(this.type) ? 'ash' : 'blood';
+        this.game.systems.decals?.addSplat(this.x, this.y + this.size * 0.8, this.size, this.color, decalKind);
 
         // ── PER-TYPE DEATH ANIMATIONS ──
         const ps = this.game.systems.particle;
@@ -1091,72 +1103,32 @@ export class Enemy {
     }
 
     renderTypeDetails(ctx, detailLevel = 'high') {
-        if (this.variant && detailLevel === 'high') {
-            this.renderVariantIndicator(ctx);
+        if (this.type === 'ranged' && detailLevel !== 'low' && this.attackCooldown <= 0.5) {
+            // Charging orb flare — telegraphs the incoming shot
+            const facing = this._anim ? this._anim.facing : 1;
+            const u = this.size * 1.5;
+            const ox = this.x + facing * u * 0.95;
+            const oy = this.y + this.size - u * 1.3;
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.03);
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = `rgba(255, 120, 60, ${0.25 + pulse * 0.35})`;
+            ctx.beginPath();
+            ctx.arc(ox, oy, u * (0.45 + pulse * 0.2), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
 
-        switch (this.type) {
-            case 'fast':
-                if (detailLevel === 'low') break;
-                // Draw speed lines
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 1;
-                for (let i = 0; i < 3; i++) {
-                    const angle = this.direction + Math.PI + (i - 1) * 0.3;
-                    const startX = this.x + Math.cos(angle) * this.size * 0.5;
-                    const startY = this.y + Math.sin(angle) * this.size * 0.5;
-                    const endX = startX + Math.cos(angle) * this.size * 0.8;
-                    const endY = startY + Math.sin(angle) * this.size * 0.8;
+        if (this.type === 'elite') {
+            // Aura ring (rendered before ability indicator so it's behind)
+            if (this.auraType) {
+                this.renderAura(ctx);
+            }
 
-                    ctx.beginPath();
-                    ctx.moveTo(startX, startY);
-                    ctx.lineTo(endX, endY);
-                    ctx.stroke();
-                }
-                break;
-
-            case 'tank':
-                if (detailLevel === 'low') break;
-                // Draw armor plating
-                ctx.strokeStyle = '#333333';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2);
-                ctx.stroke();
-                break;
-
-            case 'ranged':
-                if (detailLevel === 'low') break;
-                // Draw targeting reticle
-                if (this.attackCooldown <= 0.5) {
-                    ctx.strokeStyle = '#FF0000';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(this.x - this.size, this.y);
-                    ctx.lineTo(this.x + this.size, this.y);
-                    ctx.moveTo(this.x, this.y - this.size);
-                    ctx.lineTo(this.x, this.y + this.size);
-                    ctx.stroke();
-                }
-                break;
-
-            case 'elite':
-                // Draw crown/elite marker
-                ctx.fillStyle = '#FFD700';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y - this.size - 3, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Aura ring (rendered before ability indicator so it's behind)
-                if (this.auraType) {
-                    this.renderAura(ctx);
-                }
-
-                // Elite ability visual telegraphs
-                if (this.eliteAbility) {
-                    this.renderEliteAbilityIndicator(ctx);
-                }
-                break;
+            // Elite ability visual telegraphs
+            if (this.eliteAbility) {
+                this.renderEliteAbilityIndicator(ctx);
+            }
         }
     }
 
@@ -1296,203 +1268,25 @@ export class Enemy {
     }
 
     renderVariantIndicator(ctx) {
-        // Draw variant indicators to show enemy is special
-        const time = performance.now() * 0.01;
-
-        switch (this.variant) {
-            case 'Crimson':
-                // Pulsing red aura
-                ctx.save();
-                ctx.globalAlpha = 0.3 + 0.2 * Math.sin(time * 2);
-                ctx.shadowColor = '#CC0000';
-                ctx.shadowBlur = this.size * 2;
-                ctx.fillStyle = '#CC0000';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size * 1.2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-                break;
-
-            case 'Jade':
-                // Green energy rings
-                ctx.save();
-                ctx.strokeStyle = '#00AA44';
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 3);
-                for (let i = 0; i < 2; i++) {
-                    const radius = this.size * (1.3 + i * 0.2 + Math.sin(time + i) * 0.1);
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-                ctx.restore();
-                break;
-
-            case 'Shadow':
-                // Dark wisps
-                ctx.save();
-                ctx.fillStyle = '#000000';
-                ctx.globalAlpha = 0.4 + 0.3 * Math.sin(time * 2);
-                for (let i = 0; i < 3; i++) {
-                    const angle = (i / 3) * Math.PI * 2 + time;
-                    const distance = this.size * 1.8;
-                    const wispX = this.x + Math.cos(angle) * distance;
-                    const wispY = this.y + Math.sin(angle) * distance;
-                    ctx.beginPath();
-                    ctx.arc(wispX, wispY, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.restore();
-                break;
-
-            case 'Lightning':
-                // Electric sparks
-                ctx.save();
-                ctx.strokeStyle = '#FFFF00';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.8;
-                if (Math.random() < 0.3) {
-                    for (let i = 0; i < 2; i++) {
-                        const angle = Math.random() * Math.PI * 2;
-                        const length = this.size * 1.5;
-                        const startX = this.x + Math.cos(angle) * this.size;
-                        const startY = this.y + Math.sin(angle) * this.size;
-                        const endX = startX + Math.cos(angle) * length;
-                        const endY = startY + Math.sin(angle) * length;
-
-                        ctx.beginPath();
-                        ctx.moveTo(startX, startY);
-                        ctx.lineTo(endX, endY);
-                        ctx.stroke();
-                    }
-                }
-                ctx.restore();
-                break;
-
-            case 'Frost':
-                // Ice crystals
-                ctx.save();
-                ctx.fillStyle = '#88DDFF';
-                ctx.globalAlpha = 0.7;
-                for (let i = 0; i < 4; i++) {
-                    const angle = (i / 4) * Math.PI * 2;
-                    const distance = this.size * 1.4;
-                    const crystalX = this.x + Math.cos(angle) * distance;
-                    const crystalY = this.y + Math.sin(angle) * distance;
-
-                    // Draw small diamond
-                    ctx.beginPath();
-                    ctx.moveTo(crystalX, crystalY - 3);
-                    ctx.lineTo(crystalX + 2, crystalY);
-                    ctx.lineTo(crystalX, crystalY + 3);
-                    ctx.lineTo(crystalX - 2, crystalY);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-                ctx.restore();
-                break;
-
-            case 'Iron':
-                // Metallic shine
-                ctx.save();
-                ctx.strokeStyle = '#CCCCCC';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 1.5);
-                ctx.beginPath();
-                ctx.arc(this.x - this.size * 0.3, this.y - this.size * 0.3, this.size * 0.8, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.restore();
-                break;
-
-            case 'Molten':
-                // Lava bubbles
-                ctx.save();
-                ctx.fillStyle = '#FF6600';
-                ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 2.5);
-                if (Math.random() < 0.2) {
-                    const bubbleX = this.x + (Math.random() - 0.5) * this.size * 2;
-                    const bubbleY = this.y + (Math.random() - 0.5) * this.size * 2;
-                    ctx.beginPath();
-                    ctx.arc(bubbleX, bubbleY, 1 + Math.random() * 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.restore();
-                break;
-
-            case 'Sniper':
-                // Scope glint
-                ctx.save();
-                ctx.fillStyle = '#FFFFFF';
-                ctx.globalAlpha = 0.9;
-                if (this.attackCooldown <= 1.0) {
-                    ctx.beginPath();
-                    ctx.arc(this.x + this.size * 0.5, this.y - this.size * 0.5, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.restore();
-                break;
-
-            case 'Poison':
-                // Toxic bubbles
-                ctx.save();
-                ctx.fillStyle = '#9932CC';
-                ctx.globalAlpha = 0.5 + 0.3 * Math.sin(time * 2);
-                for (let i = 0; i < 2; i++) {
-                    const angle = time + i * Math.PI;
-                    const distance = this.size * 1.2;
-                    const bubbleX = this.x + Math.cos(angle) * distance;
-                    const bubbleY = this.y + Math.sin(angle) * distance;
-                    ctx.beginPath();
-                    ctx.arc(bubbleX, bubbleY, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.restore();
-                break;
-        }
+        // Champion variants: a pulsing sigil on the ground in the variant's
+        // color (the sprite itself is already tinted by the variant color).
+        const t = performance.now() * 0.004;
+        const feetY = this.y + this.size;
+        ctx.save();
+        ctx.globalAlpha *= 0.5 + 0.25 * Math.sin(t + this.x * 0.01);
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(this.x, feetY, this.size * 1.3, this.size * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha *= 0.35;
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.restore();
     }
 
     renderHealthBar(ctx, detailLevel = 'high') {
-        const barWidth = Math.max(24, this.size * 2.5);
-        const barHeight = detailLevel === 'low' ? 3 : 4;
-        const barX = this.x - barWidth / 2;
-        const barY = this.y - this.size - 10;
-        const healthRatio = this.health / this.maxHealth;
-        const alwaysShow = detailLevel === 'high' || this.type === 'elite';
-
-        if (healthRatio >= 1.0) {
-            if (!alwaysShow) {
-                return;
-            }
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.25)';
-            ctx.fillRect(barX, barY, barWidth, 2);
-            return;
-        }
-
-        // Background with border
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
-
-        // Dark background
-        ctx.fillStyle = '#222222';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-        let healthColor;
-        if (healthRatio > 0.6) {
-            healthColor = '#00FF00'; // Green
-        } else if (healthRatio > 0.3) {
-            healthColor = '#FFAA00'; // Orange
-        } else {
-            healthColor = '#FF0000'; // Red
-        }
-
-        ctx.fillStyle = healthColor;
-        ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-
-        if (detailLevel !== 'low' && healthRatio < 0.5) {
-            ctx.shadowColor = healthColor;
-            ctx.shadowBlur = 4;
-            ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-            ctx.shadowBlur = 0;
-        }
+        EnemyRenderer.drawHealthBar(ctx, this, detailLevel);
     }
 
     // renderDamageNumbers removed - now handled by globalDamageNumberPool
@@ -1525,6 +1319,7 @@ export class Enemy {
         this.attackCooldown = 0;
         this.flashTime = 0;
         this.freezeTimer = 0;
+        this._frozenVisual = false;
         this.dying = false;
         this.deathScaleTimer = 0;
         this.currentSpawnTime = this.spawnTime;
@@ -1738,7 +1533,7 @@ export class Enemy {
         // Damage player if in range
         if (distance <= 80) {
             const damage = this.damage * 0.8; // 80% of normal damage
-            player.takeDamage(damage, { type: this.type, name: this.variant ? `${this.variant} ${this.type}` : this.type });
+            player.takeDamage(damage, { type: this.type, name: enemyDisplayName(this.type, this.variant) });
 
             // Knockback effect
             const knockbackForce = 200;

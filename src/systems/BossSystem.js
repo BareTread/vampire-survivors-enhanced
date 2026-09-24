@@ -1,3 +1,4 @@
+import { enemyVisualTop } from '../entities/rendering/CharacterArt.js';
 import { Enemy } from '../entities/Enemy.js';
 import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { managedSetTimeout } from '../core/TimerManager.js';
@@ -1012,17 +1013,8 @@ export class BossSystem {
         const boss = this.bossEnemy;
         const def = this.activeBoss.def;
 
-        // Pulsing glow aura
-        const glowPulse = 0.5 + 0.5 * Math.sin(boss.bossGlowPhase || 0);
-        ctx.save();
-        ctx.globalAlpha = 0.15 + glowPulse * 0.15;
-        ctx.fillStyle = def.glowColor;
-        ctx.shadowColor = def.glowColor;
-        ctx.shadowBlur = 20 + glowPulse * 10;
-        ctx.beginPath();
-        ctx.arc(boss.x, boss.y, boss.size * 1.8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        // (Ground sigil aura is drawn under the body by EnemyRenderer.)
+        boss.bossGlowColor = def.glowColor;
 
         // Phase indicator — orbiting runes
         const phaseCount = this.activeBoss.phase + 1;
@@ -1041,13 +1033,17 @@ export class BossSystem {
         }
         ctx.restore();
 
-        // Boss name above head
+        // Boss name above the head
         ctx.save();
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 10px monospace';
+        ctx.font = "bold 11px 'Cinzel', Georgia, serif";
         ctx.textAlign = 'center';
-        ctx.globalAlpha = 0.8;
-        ctx.fillText(def.name, boss.x, boss.y - boss.size - 12);
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(8, 4, 8, 0.9)';
+        const nameY = enemyVisualTop(boss) - 14;
+        ctx.strokeText(def.name, boss.x, nameY);
+        ctx.fillStyle = '#f0e2bc';
+        ctx.fillText(def.name, boss.x, nameY);
         ctx.restore();
     }
 

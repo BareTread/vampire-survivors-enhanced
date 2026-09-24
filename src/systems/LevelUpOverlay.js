@@ -10,6 +10,19 @@ const PREVIEW_STATS = [
     ['range', 'Reach'], ['freezeDuration', 'Freeze', 's'], ['piercing', 'Pierce']
 ];
 
+// Icon tints for weapons that are offered before an instance exists
+const WEAPON_TINTS = {
+    whip: '#d09058', magic_missile: '#b070e0', throwing_knife: '#d0d4dc',
+    lightning_chain: '#7DF9FF', garlic_aura: '#c8e6a0', holy_bible: '#ffe08a',
+    fire_wand: '#ff7a30', bone_boomerang: '#e8dcc0', ice_shard: '#88DDFF',
+    shadow_dagger: '#9b6bff'
+};
+
+const easeOutBack = (t) => {
+    const c = 1.4;
+    return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
+};
+
 /** One layout owns drawing and pointer selection, including after a resize. */
 export class LevelUpOverlay {
     constructor(game) {
@@ -107,16 +120,146 @@ export class LevelUpOverlay {
         ctx.fillText(line, x, y + row * lineHeight, width);
     }
 
+    /** Strip a leading emoji/symbol (passive names carry their icon). */
+    cleanName(name) {
+        return String(name || '').replace(/^[^\p{L}\p{N}]+/u, '').trim() || String(name || '');
+    }
+
+    leadingIcon(name) {
+        const m = /^([^\p{L}\p{N}\s]+)\s/u.exec(String(name || ''));
+        return m ? m[1] : null;
+    }
+
+    /**
+     * Round medallion in the card corner showing what the choice *is*:
+     * weapon glyph (shared with the HUD), passive emblem, or stat sigil.
+     */
+    drawIcon(ctx, option, cx, cy, r, accent) {
+        ctx.save();
+        const bg = ctx.createRadialGradient(cx, cy - r * 0.4, 0, cx, cy, r);
+        bg.addColorStop(0, '#2a2433');
+        bg.addColorStop(1, '#0e0b13');
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        const hud = this.game.systems.canvasHUD;
+        const weaponId = option.weaponId || option.weaponType;
+        if (option.type === 'evolution') {
+            // Radiant burst behind the evolved weapon
+            ctx.fillStyle = 'rgba(255, 210, 90, 0.35)';
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2 + performance.now() * 0.0008;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, r * 0.95, a - 0.12, a + 0.12);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        if (weaponId && hud && typeof hud._renderWeaponIcon === 'function') {
+            const inst = this.game.player?.weapons?.get(weaponId);
+            const color = inst?.color && inst.color !== '#8B4513' ? inst.color : (WEAPON_TINTS[weaponId] || '#d8c8a0');
+            hud._renderWeaponIcon(ctx, { id: weaponId, color, evolved: option.type === 'evolution' }, cx, cy, r * 0.55);
+        } else if (option.type === 'new_passive' || option.type === 'passive_upgrade') {
+            const glyph = this.leadingIcon(option.name);
+            if (glyph) {
+                ctx.font = `${Math.round(r * 1.05)}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(glyph, cx, cy + 1);
+            } else {
+                ctx.fillStyle = option.color || accent;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx + r * 0.4, cy);
+                ctx.lineTo(cx, cy + r * 0.5); ctx.lineTo(cx - r * 0.4, cy);
+                ctx.closePath();
+                ctx.fill();
+            }
+        } else {
+            this.drawStatSigil(ctx, option.stat, cx, cy, r * 0.5);
+        }
+        ctx.restore();
+    }
+
+    drawStatSigil(ctx, stat, cx, cy, s) {
+        ctx.fillStyle = '#e8d6a8';
+        ctx.strokeStyle = '#e8d6a8';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        switch (stat) {
+            case 'damage': // sword
+                ctx.moveTo(cx - s * 0.8, cy + s * 0.8); ctx.lineTo(cx + s * 0.8, cy - s * 0.8);
+                ctx.moveTo(cx - s * 0.75, cy + s * 0.15); ctx.lineTo(cx - s * 0.15, cy + s * 0.75);
+                ctx.stroke();
+                break;
+            case 'speed': // double chevron
+                for (const dx of [-0.45, 0.25]) {
+                    ctx.moveTo(cx + s * dx, cy - s * 0.6); ctx.lineTo(cx + s * (dx + 0.5), cy); ctx.lineTo(cx + s * dx, cy + s * 0.6);
+                }
+                ctx.stroke();
+                break;
+            case 'health': // heart
+                ctx.fillStyle = '#e0484a';
+                ctx.moveTo(cx, cy + s * 0.8);
+                ctx.bezierCurveTo(cx - s * 1.2, cy - s * 0.1, cx - s * 0.5, cy - s * 1.0, cx, cy - s * 0.35);
+                ctx.bezierCurveTo(cx + s * 0.5, cy - s * 1.0, cx + s * 1.2, cy - s * 0.1, cx, cy + s * 0.8);
+                ctx.fill();
+                break;
+            case 'luck': // four-leaf
+                ctx.fillStyle = '#6cd08a';
+                for (let i = 0; i < 4; i++) {
+                    const a = i * Math.PI / 2 + Math.PI / 4;
+                    ctx.moveTo(cx, cy);
+                    ctx.arc(cx + Math.cos(a) * s * 0.42, cy + Math.sin(a) * s * 0.42, s * 0.38, 0, Math.PI * 2);
+                }
+                ctx.fill();
+                break;
+            case 'area': // ripples
+                ctx.arc(cx, cy, s * 0.35, 0, Math.PI * 2);
+                ctx.moveTo(cx + s * 0.8, cy);
+                ctx.arc(cx, cy, s * 0.8, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            case 'cooldown': // hourglass
+                ctx.moveTo(cx - s * 0.6, cy - s * 0.8); ctx.lineTo(cx + s * 0.6, cy - s * 0.8);
+                ctx.lineTo(cx - s * 0.6, cy + s * 0.8); ctx.lineTo(cx + s * 0.6, cy + s * 0.8);
+                ctx.closePath();
+                ctx.stroke();
+                break;
+            default:
+                ctx.arc(cx, cy, s * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+        }
+    }
+
     render(ctx) {
         const { width: w, height: h } = this.game.canvas;
         const rects = this.layout();
         const compact = this.compact;
+        // Entrance timing restarts whenever a fresh set of options appears
+        if (this._shownOptions !== this.game.levelUpOptions) {
+            this._shownOptions = this.game.levelUpOptions;
+            this._openedAt = performance.now();
+        }
+        const since = performance.now() - this._openedAt;
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(7, 10, 13, 0.94)';
+        ctx.fillStyle = 'rgba(7, 6, 11, 0.95)';
         ctx.fillRect(0, 0, w, h);
+        // Warm light pooled behind the title
+        const halo = ctx.createRadialGradient(w / 2, compact ? 34 : 66, 0, w / 2, compact ? 34 : 66, Math.min(w, 700) * 0.5);
+        halo.addColorStop(0, 'rgba(216, 170, 90, 0.16)');
+        halo.addColorStop(1, 'rgba(216, 170, 90, 0)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, w, h * 0.4);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#eee4cf';
@@ -127,13 +270,36 @@ export class LevelUpOverlay {
         ctx.fillText(`Level ${this.game.player.level}  ·  The hunt waits for your decision`, w / 2, compact ? 66 : 108, w - 24);
 
         this.game.levelUpOptions.forEach((option, i) => {
-            const r = rects[i];
+            const base = rects[i];
             const selected = this.game._levelUpHoveredIndex === i;
             const pad = compact ? 14 : 22;
-            const tight = compact && r.h < 106;
-            ctx.fillStyle = selected ? '#2b302f' : '#171d20';
+            const tight = compact && base.h < 106;
+            const rarityColor = option.rarity?.color || '#8a8272';
+
+            // Staggered rise-in, then a gentle lift on hover
+            const t = Math.max(0, Math.min(1, (since - i * 60) / 260));
+            const e = easeOutBack(t);
+            const lift = selected ? 4 : 0;
+            const r = { x: base.x, y: base.y + (1 - e) * 28 - lift, w: base.w, h: base.h };
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, t * 1.6);
+
+            if (selected) {
+                ctx.shadowColor = rarityColor;
+                ctx.shadowBlur = 18;
+            }
+            const cardGrad = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+            cardGrad.addColorStop(0, selected ? '#2d2833' : '#1c1920');
+            cardGrad.addColorStop(1, selected ? '#1d1a22' : '#121015');
+            ctx.fillStyle = cardGrad;
             ctx.fillRect(r.x, r.y, r.w, r.h);
-            ctx.strokeStyle = selected ? '#dbb76e' : '#525653';
+            ctx.shadowBlur = 0;
+            // Rarity band across the top edge
+            ctx.fillStyle = rarityColor;
+            ctx.globalAlpha *= selected ? 1 : 0.75;
+            ctx.fillRect(r.x, r.y, r.w, 3);
+            ctx.globalAlpha = Math.min(1, t * 1.6);
+            ctx.strokeStyle = selected ? '#dbb76e' : 'rgba(150, 128, 92, 0.5)';
             ctx.lineWidth = selected ? 2 : 1;
             ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
             // Small corner cuts frame a stone tablet without noisy ornament.
@@ -143,7 +309,7 @@ export class LevelUpOverlay {
             ctx.moveTo(r.x + r.w - 12, r.y + r.h); ctx.lineTo(r.x + r.w, r.y + r.h); ctx.lineTo(r.x + r.w, r.y + r.h - 8);
             ctx.stroke();
             ctx.textAlign = 'center';
-            ctx.fillStyle = selected ? '#dbb76e' : '#323a3b';
+            ctx.fillStyle = selected ? '#dbb76e' : '#2e2934';
             ctx.fillRect(r.x + pad, r.y + pad, 25, 25);
             ctx.fillStyle = selected ? '#101719' : '#e9d7ac';
             ctx.font = 'bold 15px Georgia, serif';
@@ -154,10 +320,15 @@ export class LevelUpOverlay {
             if (!tight) ctx.fillText(TYPES[option.type] || 'UPGRADE', r.x + pad + 36, r.y + pad + 13);
             const textX = r.x + pad + (compact ? 38 : 0);
             const textWidth = r.w - pad * 2 - (compact ? 38 : 0);
+            // Icon medallion, top-right
+            const iconR = compact ? 16 : 26;
+            this.drawIcon(ctx, option, r.x + r.w - pad - iconR, r.y + pad + iconR - (compact ? 2 : 0), iconR, rarityColor);
+            const nameWidth = textWidth - iconR * 2 - 8;
+
             ctx.fillStyle = '#f0e8d6';
             ctx.font = `bold ${compact ? 17 : 23}px Georgia, serif`;
             const nameY = compact ? r.y + (tight ? 23 : 49) : r.y + 68;
-            this.text(ctx, option.name, textX, nameY, textWidth, 25, compact ? 1 : 2);
+            this.text(ctx, this.cleanName(option.name), textX, nameY, nameWidth, 25, compact ? 1 : 2);
             ctx.fillStyle = '#d0c9bb';
             ctx.font = `${tight ? 12 : 14}px Georgia, serif`;
             const descY = compact ? nameY + 22 : r.y + 122;
@@ -173,6 +344,7 @@ export class LevelUpOverlay {
             } else {
                 ctx.fillText(fit, textX, r.y + r.h - 14);
             }
+            ctx.restore();
         });
         ctx.textAlign = 'center';
         ctx.fillStyle = '#c7bda8';

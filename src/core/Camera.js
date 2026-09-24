@@ -4,10 +4,11 @@ export class Camera {
         this.height = height;
         this.x = 0;
         this.y = 0;
-        this.zoom = 1;
+        this.baseZoom = Camera.computeBaseZoom(width, height);
+        this.zoom = this.baseZoom;
         this.targetX = 0;
         this.targetY = 0;
-        this.targetZoom = 1;
+        this.targetZoom = this.baseZoom;
         this.smoothing = 0.1;
         this.bounds = null;
 
@@ -17,8 +18,7 @@ export class Camera {
         this.leadY = 0;
         this.leadSmoothing = 0.04; // Slower than main smoothing for gentle drift
         this.dynamicZoomEnabled = true;
-        this.baseZoom = 1;
-        this.dynamicZoomTarget = 1;
+        this.dynamicZoomTarget = this.baseZoom;
         this.dynamicZoomSmoothing = 0.02; // Very slow zoom transitions
         this.shakeEffect = {
             intensity: 0,
@@ -132,8 +132,8 @@ export class Camera {
                 const nearbyCount = enemies.getEnemiesInRange
                     ? enemies.getEnemiesInRange(x, y, 350).length : 0;
                 if (nearbyCount >= 30) {
-                    // Zoom out proportionally, cap at 0.85x
-                    this.dynamicZoomTarget = Math.max(0.85, 1.0 - (nearbyCount - 30) * 0.003);
+                    // Zoom out proportionally, cap at 0.85x of the base framing
+                    this.dynamicZoomTarget = this.baseZoom * Math.max(0.85, 1.0 - (nearbyCount - 30) * 0.003);
                 } else {
                     this.dynamicZoomTarget = this.baseZoom;
                 }
@@ -609,6 +609,25 @@ export class Camera {
     resize(width, height) {
         this.width = width;
         this.height = height;
+        // Keep the visible world area consistent across screen sizes
+        const prevBase = this.baseZoom;
+        this.baseZoom = Camera.computeBaseZoom(width, height);
+        if (prevBase > 0) {
+            const k = this.baseZoom / prevBase;
+            this.zoom *= k;
+            this.targetZoom *= k;
+            this.dynamicZoomTarget *= k;
+        }
+    }
+
+    /**
+     * Framing: show roughly 540 world units along the short screen axis so
+     * characters read at a consistent size on laptops and big monitors.
+     */
+    static computeBaseZoom(width, height) {
+        const shortSide = Math.min(width || 0, height || 0);
+        if (!shortSide) return 1;
+        return Math.max(0.9, Math.min(2.0, shortSide / 540));
     }
     
     // Enhanced effect methods for different game states

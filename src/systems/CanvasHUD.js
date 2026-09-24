@@ -76,7 +76,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260923-gothic1';
+        this.version = '20260924-bestiary1';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;
@@ -454,14 +454,15 @@ export class CanvasHUD {
         ctx.fillText(`${Math.floor(this.displayGold)}`, PX + PW - 8, goldY);
         ctx.restore();
 
-        // Bank sub-text (tiny)
+        // Bank sub-text — inline after the GOLD label so it never collides
+        // with the divider or the kills row
         const bank = this.game.systems.persistence?.getGold?.() || 0;
         if (bank > 0) {
             ctx.font        = `9px "Courier New", monospace`;
             ctx.fillStyle   = C.bank;
-            ctx.textAlign   = 'right';
-            ctx.textBaseline = 'top';
-            ctx.fillText(`Bank ${bank}`, PX + PW - 8, goldY + 10);
+            ctx.textAlign   = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`· bank ${bank}`, PX + 62, goldY + 1);
         }
 
         // ── Kills row ────────────────────────────────────────

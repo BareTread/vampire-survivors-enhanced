@@ -106,9 +106,9 @@ export class TerrainRenderer {
         ctx.fillStyle = gradient;
         ctx.fillRect(view.left, view.top, view.right - view.left, view.bottom - view.top);
 
-        if (this.qualityLevel !== 'low') {
-            this.renderFloorDetail(camera, view);
-        }
+        // The flagstone pattern is a single fill — always worth drawing.
+        // Only the landmark sprites are dropped under load.
+        this.renderFloorDetail(camera, view);
 
         if (this.qualityLevel === 'high') {
             this.renderZoneTransitions(camera);
@@ -134,6 +134,7 @@ export class TerrainRenderer {
 
         // Landmarks: baked sprites, frustum-culled, deliberately muted so
         // they orient the player without competing with enemies/XP.
+        if (this.qualityLevel === 'low') return;
         for (const lm of this._landmarks) {
             if (lm.x < view.left - lm.w || lm.x > view.right + lm.w ||
                 lm.y < view.top - lm.h || lm.y > view.bottom + lm.h) continue;

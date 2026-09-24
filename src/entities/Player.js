@@ -475,27 +475,9 @@ export class Player {
             this.game.camera.addVignette(0.4);
         }
 
-        // Pulsing heart particles
-        if (this.game.systems.particle) {
-            for (let i = 0; i < 3; i++) {
-                const angle = (i / 3) * Math.PI * 2;
-                const distance = 25;
-                this.game.systems.particle.create(
-                    this.x + Math.cos(angle) * distance,
-                    this.y + Math.sin(angle) * distance,
-                    {
-                        vx: 0,
-                        vy: -30,
-                        life: 1.0,
-                        size: 4,
-                        color: '#FF0000',
-                        glow: true,
-                        fadeOut: true,
-                        pulse: true
-                    }
-                );
-            }
-        }
+        // The heartbeat pulse ring is drawn at the hunter's feet by
+        // SpriteManager.drawPlayer whenever health is low — no particles
+        // stacked on top of the hero.
 
         // Play heartbeat sound
         if (this.game.audioManager && this.game.audioManager.playVampireSound) {
@@ -831,25 +813,29 @@ export class Player {
     }
 
     renderHealthBar(ctx) {
-        const barWidth = 40;
-        const barHeight = 6;
+        // Slim bar tucked under the hunter's feet (clear of the sprite and
+        // of enemies swarming above). Trails a pale "recent damage" chunk.
+        const barWidth = 30;
+        const barHeight = 4;
         const barX = this.x - barWidth / 2;
-        const barY = this.y - this.size - 15;
+        const barY = this.y + this.size * 0.9 + 5;
+        const healthRatio = Math.max(0, Math.min(1, this.health / this.maxHealth));
 
-        // Background
-        ctx.fillStyle = '#333333';
+        if (this._hpTrail === undefined || this._hpTrail < healthRatio) this._hpTrail = healthRatio;
+        this._hpTrail += (healthRatio - this._hpTrail) * 0.06;
+
+        ctx.fillStyle = 'rgba(6, 3, 8, 0.85)';
+        ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
+        ctx.fillStyle = '#2a0c10';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Health
-        const healthRatio = this.health / this.maxHealth;
-        const healthColor = healthRatio > 0.6 ? '#44FF44' : healthRatio > 0.3 ? '#FFAA44' : '#FF4444';
-        ctx.fillStyle = healthColor;
+        ctx.fillStyle = 'rgba(255, 220, 200, 0.55)';
+        ctx.fillRect(barX, barY, barWidth * this._hpTrail, barHeight);
+        const low = healthRatio <= 0.3;
+        const pulse = low ? 0.75 + 0.25 * Math.sin(performance.now() * 0.012) : 1;
+        ctx.fillStyle = low ? `rgba(255, 60, 50, ${pulse})` : '#d93a3a';
         ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-
-        // Border
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(barX, barY, barWidth * healthRatio, 1);
     }
 
     // renderDamageNumbers removed - now handled by globalDamageNumberPool
@@ -1210,7 +1196,7 @@ export class Player {
         }
 
         // Dramatic 'desperation mode' effect with larger text
-        this.addDamageNumber('DESPERATION MODE!', '#FF0000', 'LAST STAND');
+        this.addDamageNumber('LAST STAND!', '#FF4A3A', '');
 
         // ENHANCED Visual drama - dramatic screen shake
         if (this.game && this.game.camera) {
@@ -1356,7 +1342,11 @@ export class Player {
         // Near-death damage reduction for dramatic survivability
         if (this.nearDeath.bonusActive) {
             finalDamage *= 1 - this.nearDeath.damageReduction;
-            this.addDamageNumber('REDUCED!', '#FFAA00', 'LAST STAND');
+            const nowMs = performance.now();
+            if (!this._wardTextAt || nowMs - this._wardTextAt > 1500) {
+                this._wardTextAt = nowMs;
+                this.addDamageNumber('WARDED', '#FFAA00', '');
+            }
         }
 
         const holyBible = this.weapons.get('holy_bible');
@@ -1455,9 +1445,10 @@ export class Player {
         // Enhanced visual feedback based on multipliers
         const color = finalMultiplier > 2.0 ? '#FFD700' : finalMultiplier > 1.5 ? '#FFAA00' : '#44AAFF';
 
-        const prefix = finalMultiplier > 1.0 ? `x${finalMultiplier.toFixed(1)}` : 'EXP';
-
-        this.addDamageNumber(expGain, color, prefix);
+        // Only call out genuinely boosted gains; routine XP reads via the bar.
+        if (finalMultiplier >= 1.5 && expGain >= 10) {
+            this.addDamageNumber(expGain, color, `x${finalMultiplier.toFixed(1)}`);
+        }
 
         // FIXED: Process level-ups ONE AT A TIME with proper queuing
         // Initialize level-up queue if it doesn't exist

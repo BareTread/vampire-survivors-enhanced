@@ -20,107 +20,99 @@ export class VisualEffectsSystem {
 
     initializeTemplates() {
         return {
-            // High-impact hit effect with minimal particles
+            // Critical hit: a four-point star flash that spins open, plus a
+            // thin shockwave ring. Additive, no shadow blur, ~0.35s.
             criticalHit: {
-                duration: 0.8,
-                particles: 1, // Just one impactful particle
-                render: (effect, ctx) => {
-                    const progress = 1 - effect.life / effect.duration;
-                    const size = 8 + progress * 12; // Expanding
-                    const alpha = 1 - progress * progress; // Fade out with curve
-
-                    // Bright flash
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.shadowColor = '#FF0000';
-                    ctx.shadowBlur = size * 2;
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-
-                    // Ring shockwave
-                    if (progress < 0.5) {
-                        ctx.save();
-                        ctx.globalAlpha = (0.5 - progress) * 2;
-                        ctx.strokeStyle = '#FF0000';
-                        ctx.lineWidth = 3;
-                        ctx.beginPath();
-                        ctx.arc(effect.x, effect.y, progress * 40, 0, Math.PI * 2);
-                        ctx.stroke();
-                        ctx.restore();
-                    }
-                }
-            },
-
-            // Elegant level up effect
-            levelUp: {
-                duration: 2.0,
+                duration: 0.35,
                 particles: 1,
                 render: (effect, ctx) => {
-                    const progress = 1 - effect.life / effect.duration;
-
-                    // Expanding golden ring
-                    const ringRadius = progress * 60;
-                    const ringAlpha = Math.sin(progress * Math.PI) * 0.8;
-
+                    const p = 1 - effect.life / effect.duration;
+                    const e = 1 - Math.pow(1 - p, 3);
+                    const alpha = 1 - p;
+                    const len = 6 + e * 18;
                     ctx.save();
-                    ctx.globalAlpha = ringAlpha;
-                    ctx.strokeStyle = '#FFD700';
-                    ctx.lineWidth = 4;
-                    ctx.shadowColor = '#FFD700';
-                    ctx.shadowBlur = 10;
-                    ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.restore();
-
-                    // Central glow
-                    if (progress < 0.6) {
-                        const glowSize = (20 * (0.6 - progress)) / 0.6;
-                        ctx.save();
-                        ctx.globalAlpha = (0.6 - progress) / 0.6;
-                        ctx.shadowColor = '#FFD700';
-                        ctx.shadowBlur = glowSize;
-                        ctx.fillStyle = '#FFFFFF';
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = alpha;
+                    ctx.translate(effect.x, effect.y);
+                    ctx.rotate(p * 0.8);
+                    ctx.fillStyle = '#fff2c0';
+                    for (let i = 0; i < 4; i++) {
+                        ctx.rotate(Math.PI / 2);
                         ctx.beginPath();
-                        ctx.arc(effect.x, effect.y, 8, 0, Math.PI * 2);
+                        ctx.moveTo(0, -len);
+                        ctx.lineTo(2.2, 0);
+                        ctx.lineTo(0, len * 0.18);
+                        ctx.lineTo(-2.2, 0);
+                        ctx.closePath();
                         ctx.fill();
-                        ctx.restore();
                     }
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 3 * (1 - p), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.rotate(-p * 0.8);
+                    ctx.strokeStyle = effect.color && effect.color !== '#FF0000' ? effect.color : '#ffc040';
+                    ctx.lineWidth = 2 * (1 - p);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 6 + e * 26, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
                 }
             },
 
-            // Elegant death effect
-            enemyDeath: {
-                duration: 1.2,
+            // Level up: golden ring + rising light column
+            levelUp: {
+                duration: 1.4,
                 particles: 1,
                 render: (effect, ctx) => {
-                    const progress = 1 - effect.life / effect.duration;
-
-                    // Implosion effect
-                    const size = (1 - progress) * 15;
-                    const alpha = 1 - progress * progress;
-
+                    const p = 1 - effect.life / effect.duration;
+                    const ringAlpha = Math.sin(p * Math.PI) * 0.85;
                     ctx.save();
-                    ctx.globalAlpha = alpha;
-
-                    // Main death flash
-                    ctx.shadowColor = effect.color || '#FF4444';
-                    ctx.shadowBlur = size * 1.5;
-                    ctx.fillStyle = '#FFFFFF';
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = ringAlpha;
+                    ctx.strokeStyle = '#FFD24A';
+                    ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, size, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    // Fading outline
-                    ctx.strokeStyle = effect.color || '#FF4444';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(effect.x, effect.y, size * 1.5, 0, Math.PI * 2);
+                    ctx.ellipse(effect.x, effect.y + 10, p * 70, p * 26, 0, 0, Math.PI * 2);
                     ctx.stroke();
+                    const h = 40 + p * 140;
+                    const col = ctx.createLinearGradient(0, effect.y - h, 0, effect.y + 10);
+                    col.addColorStop(0, 'rgba(255, 220, 120, 0)');
+                    col.addColorStop(1, 'rgba(255, 220, 120, 0.45)');
+                    ctx.fillStyle = col;
+                    ctx.fillRect(effect.x - 12, effect.y - h, 24, h + 10);
+                    ctx.restore();
+                }
+            },
 
+            // Enemy death: a small soul wisp escapes upward and a thin ring
+            // in the creature's color flares out. Short and light.
+            enemyDeath: {
+                duration: 0.5,
+                particles: 1,
+                render: (effect, ctx) => {
+                    const p = 1 - effect.life / effect.duration;
+                    const e = 1 - Math.pow(1 - p, 2);
+                    const alpha = 1 - p;
+                    const color = effect.color || '#FF4444';
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = alpha * 0.9;
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.ellipse(effect.x, effect.y + 4, 4 + e * 16, 2 + e * 6, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    // Wisp
+                    const wy = effect.y - e * 26;
+                    const r = 4 * (1 - p * 0.6);
+                    const g = ctx.createRadialGradient(effect.x, wy, 0, effect.x, wy, r * 2.5);
+                    g.addColorStop(0, 'rgba(235, 240, 255, 0.9)');
+                    g.addColorStop(1, 'rgba(160, 180, 255, 0)');
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.ellipse(effect.x + Math.sin(p * 9) * 2, wy, r * 1.6, r * 2.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
                     ctx.restore();
                 }
             },

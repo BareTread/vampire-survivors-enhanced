@@ -508,7 +508,7 @@ export class Projectile {
 
     hitPlayer(player) {
         // Apply damage to player
-        player.takeDamage(this.damage, { type: 'projectile', name: 'Enemy Projectile' });
+        player.takeDamage(this.damage, { type: 'projectile', name: 'Cultist Bolt' });
 
         // Create hit effect
         this.game.systems.particle.createHitEffect(this.x, this.y, '#FF4444');
@@ -594,9 +594,21 @@ export class Projectile {
         const ctx = renderer.ctx;
         ctx.save();
 
+        // Fade out near end of lifetime
+        const fadeThreshold = 0.5;
+        if (this.lifetime < fadeThreshold) {
+            ctx.globalAlpha = Math.max(0, this.lifetime / fadeThreshold);
+        }
+
         // Render trail
         if (this.trail && this.trailPoints.length > 1) {
             this.renderTrail(ctx);
+        }
+
+        if (this.source === 'enemy') {
+            this.renderEnemyBolt(ctx);
+            ctx.restore();
+            return;
         }
 
         // Render projectile based on type
@@ -613,18 +625,115 @@ export class Projectile {
             case 'fireball':
                 this.renderFireballProjectile(ctx);
                 break;
+            case 'ice_shard':
+                this.renderIceShardProjectile(ctx);
+                break;
             default:
                 this.renderBasicProjectile(ctx);
                 break;
         }
 
-        // Fade out near end of lifetime
-        const fadeThreshold = 0.5;
-        if (this.lifetime < fadeThreshold) {
-            ctx.globalAlpha = this.lifetime / fadeThreshold;
-        }
-
         ctx.restore();
+    }
+
+    /**
+     * Ice shard: a spinning-free elongated crystal pointing along its flight,
+     * pale cyan facets with a white core and a cold halo.
+     */
+    renderIceShardProjectile(ctx) {
+        const r = this.size;
+        const dir = Math.atan2(this.velocity.y, this.velocity.x);
+        ctx.translate(this.x, this.y);
+        ctx.rotate(dir);
+
+        ctx.fillStyle = 'rgba(136, 221, 255, 0.18)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 2.2, r * 1.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crystal body
+        ctx.fillStyle = '#7fd4ff';
+        ctx.beginPath();
+        ctx.moveTo(r * 1.9, 0);
+        ctx.lineTo(r * 0.2, -r * 0.7);
+        ctx.lineTo(-r * 1.3, 0);
+        ctx.lineTo(r * 0.2, r * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        // Lit facet
+        ctx.fillStyle = '#e6f8ff';
+        ctx.beginPath();
+        ctx.moveTo(r * 1.9, 0);
+        ctx.lineTo(r * 0.2, -r * 0.7);
+        ctx.lineTo(-r * 0.2, 0);
+        ctx.closePath();
+        ctx.fill();
+        // Dark edge for readability
+        ctx.strokeStyle = 'rgba(20, 60, 90, 0.9)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(r * 1.9, 0);
+        ctx.lineTo(r * 0.2, -r * 0.7);
+        ctx.lineTo(-r * 1.3, 0);
+        ctx.lineTo(r * 0.2, r * 0.7);
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    /**
+     * Hostile cursed bolt: dark blood-red shell, hot core, short smear
+     * behind it. Distinct from every player projectile palette so danger
+     * reads instantly in a crowded fight.
+     */
+    renderEnemyBolt(ctx) {
+        const t = performance.now() * 0.001;
+        const r = this.size;
+        const dir = Math.atan2(this.velocity.y, this.velocity.x);
+        ctx.translate(this.x, this.y);
+        ctx.rotate(dir);
+
+        // Smear tail
+        const tail = ctx.createLinearGradient(-r * 4, 0, 0, 0);
+        tail.addColorStop(0, 'rgba(120, 10, 30, 0)');
+        tail.addColorStop(1, 'rgba(200, 30, 50, 0.55)');
+        ctx.fillStyle = tail;
+        ctx.beginPath();
+        ctx.moveTo(-r * 4, 0);
+        ctx.quadraticCurveTo(-r, -r * 0.9, 0, -r * 0.7);
+        ctx.lineTo(0, r * 0.7);
+        ctx.quadraticCurveTo(-r, r * 0.9, -r * 4, 0);
+        ctx.fill();
+
+        // Outer halo
+        ctx.fillStyle = 'rgba(255, 40, 70, 0.22)';
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.7 + Math.sin(t * 14) * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dark shell + hot core
+        ctx.fillStyle = '#5a0716';
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ff3a4a';
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffe0d0';
+        ctx.beginPath();
+        ctx.arc(r * 0.15, 0, r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Spinning spikes
+        ctx.strokeStyle = 'rgba(255, 120, 130, 0.8)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+            const a = t * 8 + (i * Math.PI) / 2;
+            ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+            ctx.lineTo(Math.cos(a) * r * 1.5, Math.sin(a) * r * 1.5);
+        }
+        ctx.stroke();
     }
 
     renderBasicProjectile(ctx) {

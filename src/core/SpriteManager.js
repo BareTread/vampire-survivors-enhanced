@@ -1,3 +1,5 @@
+import { paintHunter, getHunterSprite, rgba } from '../entities/rendering/CharacterArt.js';
+
 // Smart Sprite Manager - Combines procedural and sprite-based rendering
 export class SpriteManager {
     constructor(renderer) {
@@ -6,10 +8,9 @@ export class SpriteManager {
         this.spriteSheets = new Map();
         this.proceduralCache = new Map();
 
-        // Player sprite cache (keyed by character color + state) and the
-        // dash afterimage trail buffer
-        this._playerSprites = new Map();
+        // Dash afterimage trail buffer + walk-cycle state
         this._dashTrail = [];
+        this._playerAnim = null;
 
         // Canvas-based sprite generation for consistency
         this.spriteCanvas = document.createElement('canvas');
@@ -36,214 +37,189 @@ export class SpriteManager {
     }
     
     generatePlayerSprites() {
-        // Legacy 24px sprites — now painted with the same hunter art used by
+        // Legacy 24px sprites — painted with the same hunter art used by
         // drawPlayer so every player render path shares one identity.
-        this.createSprite('player_base', 24, 24, (ctx) => {
-            ctx.save();
-            ctx.translate(12, 12);
-            ctx.scale(24 / 48, 24 / 48);
-            this._paintHunter(ctx, 12, '#4A90E2', false);
-            ctx.restore();
-        });
-
-        this.createSprite('player_damaged', 24, 24, (ctx) => {
-            ctx.save();
-            ctx.translate(12, 12);
-            ctx.scale(24 / 48, 24 / 48);
-            this._paintHunter(ctx, 12, '#4A90E2', true);
-            ctx.restore();
-        });
+        for (const [name, wounded] of [['player_base', false], ['player_damaged', true]]) {
+            this.createSprite(name, 24, 24, (ctx) => {
+                ctx.save();
+                ctx.translate(12, 22);
+                ctx.scale(0.5, 0.5);
+                paintHunter(ctx, 12, '#4A90E2', 'antonio', 0, wounded);
+                ctx.restore();
+            });
+        }
     }
 
     /**
-     * Draw the player as a vampire hunter: hooded silhouette with a clear
-     * facing direction, character-color accents, soft ground shadow, and a
-     * short dash afterimage trail when player.dash is active.
+     * Draw the player as an upright, animated vampire hunter:
+     *   - stride cycle driven by distance travelled (feet never skate)
+     *   - facing flip from horizontal movement, idle breathing
+     *   - white hit-flash on damage, invulnerability flicker
+     *   - character-colored light pool at the feet + dash afterimages
      *
-     * Drop-in for Player.renderProcedural: reads x, y, size, color,
-     * direction, invulnerable, invulnerabilityTime, levelUpEffect,
-     * levelUpEffectTime, desperationMode, health, maxHealth and dash.
-     * Does NOT draw the health bar or aim indicator (player-owned).
+     * Reads x, y, size, color, characterId, velocity, invulnerable,
+     * invulnerabilityTime, levelUpEffect(Time), desperationMode, health,
+     * maxHealth and dash. Does NOT draw the health bar or aim indicator.
      */
     drawPlayer(player, ctx) {
         if (!ctx || !player) return;
 
         const size = player.size || 12;
-        const wounded = player.health < player.maxHealth * 0.5;
-        const sprite = this._playerSprite(player.color || '#4A90E2', size, wounded);
+        const color = player.color || '#4A90E2';
+        const charId = player.characterId || 'antonio';
+        const now = performance.now() * 0.001;
+        const anim = this._stepPlayerAnim(player, size);
+
+        const justHit = player.invulnerable &&
+            player.invulnerabilityTime > (player.maxInvulnerabilityTime || 1) - 0.12;
+        const wounded = player.health < player.maxHealth * 0.35;
+        const variant = justHit ? 'flash' : wounded ? 'wounded' : 'normal';
+        const sprite = getHunterSprite(size, color, charId, anim.frame, variant);
+        const feetY = player.y + size * 0.9;
 
         ctx.save();
 
-        // Invulnerability flicker
-        if (player.invulnerable) {
-            const flash = Math.sin(player.invulnerabilityTime * 10 * Math.PI * 2);
-            if (flash < 0) ctx.globalAlpha = 0.5;
+        // Light pool — the hunter carries a faint lantern glow
+        const glowR = size * 3.2;
+        const glow = ctx.createRadialGradient(player.x, feetY, 0, player.x, feetY, glowR);
+        glow.addColorStop(0, rgba(color, 0.3));
+        glow.addColorStop(0.5, rgba(color, 0.1));
+        glow.addColorStop(1, rgba(color, 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.ellipse(player.x, feetY, glowR, glowR * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hero ring — a thin character-colored sigil so the hunter never
+        // gets lost inside a crowd of silhouettes
+        const ringPulse = 0.55 + 0.15 * Math.sin(now * 3);
+        ctx.strokeStyle = rgba(color, ringPulse);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(player.x, feetY, size * 1.25, size * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Low-health heartbeat: a red ring thumping out from the feet
+        if (player.health > 0 && player.health <= player.maxHealth * 0.25) {
+            const beat = (now * 1.4) % 1;
+            ctx.strokeStyle = `rgba(255, 50, 60, ${0.7 * (1 - beat)})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(player.x, feetY, size * (1.2 + beat * 1.6), size * (0.45 + beat * 0.6), 0, 0, Math.PI * 2);
+            ctx.stroke();
         }
 
-        // Level-up glow (restrained — gold rim, not a flare)
-        if (player.levelUpEffect) {
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 14 * player.levelUpEffectTime;
+        // Ground shadow
+        ctx.fillStyle = 'rgba(6, 3, 10, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(player.x, feetY, size * (0.8 - anim.hop * 0.01), size * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (!sprite) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            return;
         }
 
-        // Desperation mode: blood-red aura
-        if (player.desperationMode && player.desperationMode.active) {
-            ctx.shadowColor = '#FF3030';
-            ctx.shadowBlur = 10;
-        }
-
-        // Dash afterimage trail — fed only while dash.active, decays fast.
-        // Frame-rate decay is fine here: purely cosmetic, ~4 ghost frames.
+        // Dash afterimage trail — tinted ghosts, decays fast
         const trail = this._dashTrail;
         for (let i = trail.length - 1; i >= 0; i--) {
             const t = trail[i];
-            t.alpha -= 0.09;
+            t.alpha -= 0.08;
             if (t.alpha <= 0) {
                 trail.splice(i, 1);
                 continue;
             }
             ctx.save();
-            ctx.globalAlpha = t.alpha * 0.45;
-            ctx.translate(t.x, t.y);
-            ctx.rotate(t.dir);
-            ctx.drawImage(sprite.canvas, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+            ctx.globalAlpha = t.alpha * 0.4;
+            ctx.translate(t.x, t.y + size * 0.9);
+            ctx.scale(t.facing, 1);
+            ctx.drawImage(t.sprite.canvas, -t.sprite.ax, -t.sprite.ay, t.sprite.w, t.sprite.h);
             ctx.restore();
         }
         if (player.dash && player.dash.active) {
             const last = trail[trail.length - 1];
             const dx = player.x - (last ? last.x : Infinity);
             const dy = player.y - (last ? last.y : Infinity);
-            if (dx * dx + dy * dy > 9) {
-                trail.push({ x: player.x, y: player.y, dir: player.direction || 0, alpha: 1 });
+            if (dx * dx + dy * dy > 64) {
+                const ghost = getHunterSprite(size, color, charId, anim.frame, 'flash');
+                if (ghost) trail.push({ x: player.x, y: player.y, facing: anim.facing, sprite: ghost, alpha: 1 });
                 if (trail.length > 6) trail.shift();
             }
-        } else if (trail.length > 6) {
-            trail.length = 6;
         }
 
-        // Ground shadow
-        ctx.fillStyle = 'rgba(8, 5, 10, 0.35)';
-        ctx.beginPath();
-        ctx.ellipse(player.x, player.y + size * 0.55, size * 0.85, size * 0.38, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Invulnerability flicker (after the white hit-flash frame)
+        if (player.invulnerable && !justHit) {
+            const flash = Math.sin(player.invulnerabilityTime * 10 * Math.PI * 2);
+            if (flash < 0) ctx.globalAlpha = 0.45;
+        }
 
-        // Hunter body, rotated to facing
-        ctx.save();
-        ctx.translate(player.x, player.y);
-        ctx.rotate(player.direction || 0);
-        ctx.drawImage(sprite.canvas, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
-        ctx.restore();
+        // Level-up / desperation rim glow
+        if (player.levelUpEffect) {
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = 16 * (player.levelUpEffectTime || 0);
+        } else if (player.desperationMode && player.desperationMode.active) {
+            ctx.shadowColor = '#FF3030';
+            ctx.shadowBlur = 8 + Math.sin(now * 8) * 4;
+        }
+
+        ctx.translate(player.x, feetY - anim.hop);
+        ctx.rotate(anim.lean);
+        ctx.scale(anim.facing * anim.sx, anim.sy);
+        ctx.drawImage(sprite.canvas, -sprite.ax, -sprite.ay, sprite.w, sprite.h);
 
         ctx.restore();
     }
 
     /**
-     * Baked hunter sprite per (color, size, wounded). Supersampled 2x.
+     * Advance the hunter's walk cycle from actual displacement so the
+     * stride matches ground speed at any framerate or speed buff.
      */
-    _playerSprite(color, size, wounded) {
-        const key = `${color}|${Math.round(size)}|${wounded ? 1 : 0}`;
-        let sprite = this._playerSprites.get(key);
-        if (sprite) return sprite;
+    _stepPlayerAnim(player, size) {
+        const a = this._playerAnim || (this._playerAnim = {
+            x: player.x, y: player.y, dist: 0, facing: 1, moving: 0
+        });
+        const dx = player.x - a.x;
+        const dy = player.y - a.y;
+        a.x = player.x;
+        a.y = player.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        // Teleports (new run, revive) should not spin the cycle
+        if (d < size * 4) a.dist += d;
 
-        const SS = 2;
-        const pad = Math.ceil(size * 0.9) + 4;
-        const logical = size * 2 + pad * 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = logical * SS;
-        canvas.height = logical * SS;
-        const c = canvas.getContext('2d');
-        c.scale(SS, SS);
-        c.translate(logical / 2, logical / 2);
-        this._paintHunter(c, size, color, wounded);
+        const vx = player.velocity ? player.velocity.x : dx;
+        if (vx > 1) a.facing = 1;
+        else if (vx < -1) a.facing = -1;
 
-        sprite = { canvas, w: logical, h: logical };
-        this._playerSprites.set(key, sprite);
-        return sprite;
-    }
+        // Smooth moving factor so starting/stopping eases in
+        const target = d > 0.2 ? 1 : 0;
+        a.moving += (target - a.moving) * 0.25;
 
-    /**
-     * Hunter silhouette facing +X: charcoal cloak, character-color lining,
-     * hood shadow, slim silver stake-blade forward. Wounded variant dims the
-     * accent and adds a blood streak.
-     */
-    _paintHunter(ctx, s, color, wounded) {
-        const cloak = '#2e2a38';
-        const cloakDark = '#1a1720';
-        const accent = wounded ? '#8a3a3a' : color;
+        const stepLen = size * 1.15;
+        const phase = (a.dist / stepLen) * Math.PI;
+        let frame = 0;
+        let hop = 0;
+        let sx = 1;
+        let sy = 1;
+        let lean = 0;
 
-        // Cloak — broad shoulders sweeping to a tapered hem behind
-        ctx.fillStyle = cloak;
-        ctx.beginPath();
-        ctx.moveTo(s * 0.85, 0);
-        ctx.quadraticCurveTo(s * 0.55, -s * 0.8, -s * 0.1, -s * 0.85);
-        ctx.quadraticCurveTo(-s * 0.85, -s * 0.8, -s * 0.95, -s * 0.15);
-        ctx.quadraticCurveTo(-s * 1.05, s * 0.45, -s * 0.5, s * 0.85);
-        ctx.quadraticCurveTo(s * 0.2, s * 0.95, s * 0.85, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Cloak lining — character color flash along the hem
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = Math.max(1, s * 0.14);
-        ctx.globalAlpha = 0.85;
-        ctx.beginPath();
-        ctx.moveTo(-s * 0.85, -s * 0.35);
-        ctx.quadraticCurveTo(-s * 1.0, s * 0.35, -s * 0.45, s * 0.8);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        // Shoulder rim light
-        ctx.strokeStyle = '#6a6478';
-        ctx.lineWidth = Math.max(1, s * 0.1);
-        ctx.globalAlpha = 0.6;
-        ctx.beginPath();
-        ctx.moveTo(-s * 0.5, -s * 0.62);
-        ctx.quadraticCurveTo(s * 0.1, -s * 0.8, s * 0.6, -s * 0.35);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        // Hood shadow over the face
-        ctx.fillStyle = cloakDark;
-        ctx.beginPath();
-        ctx.moveTo(s * 0.85, 0);
-        ctx.quadraticCurveTo(s * 0.45, -s * 0.5, s * 0.1, -s * 0.5);
-        ctx.quadraticCurveTo(s * 0.1, s * 0.5, s * 0.45, s * 0.5);
-        ctx.quadraticCurveTo(s * 0.7, s * 0.25, s * 0.85, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Pale face slit inside the hood
-        ctx.fillStyle = wounded ? '#c9a0a0' : '#d8cfc0';
-        ctx.beginPath();
-        ctx.moveTo(s * 0.55, -s * 0.16);
-        ctx.lineTo(s * 0.78, 0);
-        ctx.lineTo(s * 0.55, s * 0.16);
-        ctx.lineTo(s * 0.42, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Stake-blade held forward — silver with a brass hilt
-        ctx.strokeStyle = '#c8c8d0';
-        ctx.lineWidth = Math.max(1.2, s * 0.12);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(s * 0.5, s * 0.3);
-        ctx.lineTo(s * 1.15, s * 0.12);
-        ctx.stroke();
-        ctx.fillStyle = '#a8842e';
-        ctx.beginPath();
-        ctx.arc(s * 0.55, s * 0.28, Math.max(1.2, s * 0.12), 0, Math.PI * 2);
-        ctx.fill();
-
-        // Wounded: blood streak across the cloak
-        if (wounded) {
-            ctx.strokeStyle = 'rgba(140, 30, 30, 0.8)';
-            ctx.lineWidth = Math.max(1, s * 0.1);
-            ctx.beginPath();
-            ctx.moveTo(-s * 0.3, -s * 0.3);
-            ctx.lineTo(s * 0.1, s * 0.35);
-            ctx.stroke();
+        if (a.moving > 0.3) {
+            frame = Math.floor(a.dist / stepLen) % 2 === 0 ? 1 : 2;
+            hop = Math.abs(Math.sin(phase)) * size * 0.16 * a.moving;
+            const c = Math.cos(phase * 2);
+            sx = 1 + c * 0.03;
+            sy = 1 - c * 0.03;
+            lean = a.facing * 0.06 * a.moving;
+        } else {
+            const b = Math.sin(performance.now() * 0.0025);
+            sx = 1 - b * 0.02;
+            sy = 1 + b * 0.025;
         }
+
+        return { frame, hop, sx, sy, lean, facing: a.facing };
     }
 
     generateEnemySprites() {

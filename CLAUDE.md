@@ -39,7 +39,7 @@ src/core/
 ├── VampireSurvivorsGame.js  # Main game engine
 ├── ECS.js                   # Entity-Component-System framework
 ├── InputManager.js          # Keyboard/mouse input handling
-├── Camera.js                # 2D camera with following and effects
+├── Camera.js                # 2D camera with following, effects, viewport-relative base zoom
 ├── Renderer.js              # Canvas rendering engine
 ├── AudioManager.js          # Split-bus anti-fatigue synth engine (16 voices, ducking, tone shaping, procedural SFX)
 └── WeaponFactory.js         # Weapon creation and management
@@ -62,6 +62,7 @@ src/systems/
 ├── PassiveItemSystem.js     # 6 passive items with 5 upgrade levels each
 ├── KillMilestoneSystem.js   # Kill milestones celebrations
 ├── ScreenEffectsSystem.js   # Low-health vignette, boss desaturation, slow-mo
+├── GroundDecalSystem.js     # Fading blood/ash kill splats on the floor
 ├── RunTimerSystem.js        # Run timer + Death at 30 minutes
 ├── PersistenceSystem.js     # LocalStorage schema + migrations + records + character unlocks
 ├── GoldSystem.js            # Gold drops + HUD + persistence
@@ -82,7 +83,8 @@ src/systems/
 
 ```
 src/data/
-└── characters.js            # Character definitions (id, name, color, startingWeapon, statModifiers, unlockCondition)
+├── characters.js            # Character definitions (id, name, color, startingWeapon, statModifiers, unlockCondition)
+└── enemyNames.js            # Player-facing creature names (death screen, codex)
 ```
 
 ### Entities Structure
@@ -93,6 +95,9 @@ src/entities/
 ├── Enemy.js                 # Enemy base class and behaviors
 ├── ExperienceGem.js         # Collectible XP gems
 ├── Projectile.js            # Weapon projectiles
+├── rendering/
+│   ├── CharacterArt.js      # Shared outlined sprite baking + hunter/enemy/boss painters
+│   └── EnemyRenderer.js     # Animated enemy rendering (walk, flip, hit, spawn, death)
 └── weapons/                 # Weapon implementations
     ├── BaseWeapon.js        # Abstract weapon base class
     ├── MagicMissile.js      # Auto-targeting missile weapon
@@ -178,6 +183,23 @@ src/entities/
 3. Call update/render methods in game loop
 
 ## Developer Log (most recent first)
+
+### 2026-09-24 (Bestiary & Game-Feel Pass — upright animated art, living menus, juice)
+
+**Replaced every "blob" in the game with a cohesive, outlined, animated art style and fixed the bugs that were painting grey circles everywhere. 182/182 tests passing.**
+
+- **`src/entities/rendering/CharacterArt.js` (new)**: single procedural art pipeline. `bakeSprite(box, paint, {outline, flash, tint})` bakes a supersampled sprite with a dark 8-direction outline (+ optional white-flash / tint variants). Painters for the hunter (`paintHunter`, per-character headgear keyed by `player.characterId`), 10 enemy archetypes (ghoul, bat, shield knight, cultist, dreadlord, werebeast, necromancer, golem, wraith, demon) and 3 bosses (`boss_vampire_lord`, `boss_lich`, `boss_werewolf`). Sprites are upright, face +X, feet at the origin. `ENEMY_LAYOUT` holds per-archetype scale/feet/fly/box; `artKind(enemy)` picks boss painters; `enemyVisualTop(enemy)` places bars/name plates.
+- **`EnemyRenderer.js` rewritten**: 2-frame walk + hop/squash/lean, facing flip toward the player (4px hysteresis), hit recoil + white flash, rise-from-the-grave spawn (clipped), squash death, frost tint (`StatusEffectSystem` sets `enemy._frozenVisual`), boss ground sigil. Health bars hidden at full HP (elites always), none for bosses (HUD bar). Wraith/Demon now route through it too.
+- **Player (`SpriteManager.drawPlayer`)**: stride cycle driven by distance travelled, facing flip, idle breathing, hero ring + lantern glow, dash afterimages, low-HP heartbeat ring. HP bar moved under the feet.
+- **Camera**: `Camera.computeBaseZoom()` frames ~540 world units on the short screen axis (1280×720 → 1.33×); dynamic zoom-out is now relative to `baseZoom`.
+- **Atmosphere**: `renderTorchlight()` screen-space falloff around the hunter; `AmbientParticleSystem` now world-anchored soft fog sprites + additive embers; new **`GroundDecalSystem`** leaves fading blood/ash splats on kills.
+- **Combat readability**: whip = sweeping crescent slash (alternating), ice-shard crystals, distinct hostile "cursed bolt" for enemy projectiles, outlined pop-in damage numbers, crits gold. Removed routine "+EXP" floating text, whip dust blobs, muzzle-flash rings, heartbeat blobs.
+- **Bug fixes**: `Renderer` fill/stroke "last used" cache went stale after `save/restore` and direct ctx writes → particles painted in leftover colors (grey blobs); now always applied. `createEnhancedMuzzleFlash` received the weapon *type* as a color. Gem spawn scale-in scaled around the world origin. Toasts moved from over the gold panel to top-center; bank text no longer overlaps KILLS.
+- **VisualEffectsSystem** (used when FPS ≥ 52, i.e. real hardware): crit = star flash + ring, death = soul wisp + colored ring, level-up = ring + light column — no white shadowBlur discs.
+- **Items & chests**: floor items are outlined sprites (chest, blood heart, magnet, rosary); chests beam when dropped and open with lid swing, light column, coin fountain and a reward banner (`FloorItemSystem.renderOverlay`).
+- **Gems**: baked outlined crystals (blue / emerald / crimson — distinct from gold coins) with additive glow + glint; no per-gem shadowBlur.
+- **UI**: character select shows bust medallions + a striding full-size showcase, locked heroes as silhouettes; main menu has the chosen hunter, lurching ghouls and bats; title outlined so it reads over the moon, cathedral lowered. Level-up cards have icons (HUD weapon glyphs, passive emblems, stat sigils), rarity bands, staggered rise-in. Codex bestiary shows creature sprites; `src/data/enemyNames.js` gives display names used by the death screen and codex.
+- **Balance**: onboarding grace — enemy contact damage ramps 60%→100% over the first 2.5 min; elite promotion capped at 15%, not before wave 3, max `1 + wave/4` elites alive.
 
 ### 2026-03-21 (Silence-First Audio Telemetry + Settings Path Fix)
 

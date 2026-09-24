@@ -252,7 +252,7 @@ export class EnemySystem {
 
             if (flowMetrics.stressLevel < 0.4) {
                 // Player dominating - increase elite pressure significantly
-                baseRate *= 2.5;
+                baseRate *= 1.6;
             } else if (flowMetrics.stressLevel > 0.8) {
                 // Player struggling - reduce slightly for breathing room
                 baseRate *= 0.7;
@@ -266,7 +266,8 @@ export class EnemySystem {
         }
 
         baseRate += this.surgeEliteBonus;
-        this.eliteSpawnChance = Math.min(baseRate, 0.25);
+        // Elites should feel like events, not the rank and file
+        this.eliteSpawnChance = Math.min(baseRate, 0.15);
     }
 
     updatePerformanceTracking(dt) {
@@ -478,15 +479,30 @@ export class EnemySystem {
         for (const [type, config] of availableTypes) {
             random -= config.weight;
             if (random <= 0) {
-                // Check for elite upgrade
-                if (type !== 'elite' && Math.random() < this.eliteSpawnChance) {
-                    return 'elite';
+                // Elite promotion: not in the opening waves, and only a few
+                // dreadlords on the field at once so each one is a moment.
+                const wantsElite = type === 'elite' ||
+                    (this.currentWave >= 3 && Math.random() < this.eliteSpawnChance);
+                if (wantsElite) {
+                    return this.countActiveOfType('elite') < this.getMaxConcurrentElites() ? 'elite' : (type === 'elite' ? 'basic' : type);
                 }
                 return type;
             }
         }
 
         return 'basic'; // Fallback
+    }
+
+    getMaxConcurrentElites() {
+        return 1 + Math.floor(this.currentWave / 4);
+    }
+
+    countActiveOfType(type) {
+        let n = 0;
+        for (const e of this.activeEnemies) {
+            if (e.active && e.type === type) n++;
+        }
+        return n;
     }
 
     chooseSpawnPattern() {

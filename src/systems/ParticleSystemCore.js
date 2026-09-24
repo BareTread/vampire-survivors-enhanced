@@ -324,8 +324,8 @@ export class ParticleSystemCore {
             });
         }
 
-        // Add blood splatter
-        this.createBloodSplatter(x, y);
+        // Floor stains are owned by GroundDecalSystem (textured, fading
+        // splats); the old flat purple discs are no longer spawned here.
     }
 
     createBloodSplatter(x, y) {
@@ -538,14 +538,21 @@ export class ParticleSystemCore {
     }
 
     createWhipCrackEffect(x, y, color = '#8B4513') {
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: color,
-            life: 0.3,
-            size: 12,
-            glow: true
-        });
+        // A few hot sparks flicking off the tip (the weapon draws its own
+        // crack flash) — no big static blob
+        for (let i = 0; i < 4; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const sp = 60 + Math.random() * 90;
+            this.createEffectParticle(x, y, {
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp,
+                color: i % 2 ? '#FFD27A' : '#FFF1C8',
+                life: 0.25,
+                size: 1.5,
+                glow: false,
+                priority: 'cosmetic'
+            });
+        }
     }
 
     createMeleeHitEffect(x, y, color = '#FFD700') {
@@ -561,16 +568,20 @@ export class ParticleSystemCore {
     }
 
     createCriticalEffect(x, y, color = '#FF4444') {
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
+        // Quick radial spark burst — gold/white with a touch of the weapon
+        // color. Crits are frequent; the gold damage number carries the
+        // message, so these stay small and short-lived.
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.4;
+            const sp = 110 + Math.random() * 60;
             this.createEffectParticle(x, y, {
-                vx: Math.cos(angle) * 80,
-                vy: Math.sin(angle) * 80,
-                color: color,
-                life: 1.0,
-                size: 6,
-                glow: true,
-                priority: 'critical'
+                vx: Math.cos(angle) * sp,
+                vy: Math.sin(angle) * sp,
+                color: i % 3 === 0 ? color : (i % 2 ? '#FFF2C0' : '#FFC94A'),
+                life: 0.3,
+                size: 2,
+                glow: false,
+                priority: 'combat'
             });
         }
     }
@@ -843,14 +854,9 @@ export class ParticleSystemCore {
     }
 
     createHeartbeatEffect(x, y) {
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: '#FF0000',
-            life: 1.0,
-            size: 20,
-            glow: true
-        });
+        // Low-health heartbeat is visualized as a pulse ring under the
+        // player sprite (SpriteManager.drawPlayer); a 20px glowing disc here
+        // used to cover the hero exactly when they most need to be seen.
     }
 
     createImpactEffect(x, y, color = '#FFFF00') {
@@ -897,8 +903,30 @@ export class ParticleSystemCore {
         this.createBurst(x, y, 'enhanced', { ...options, intensity: 2.0 });
     }
 
-    createEnhancedMuzzleFlash(x, y, color = '#FFAA00') {
-        this.createBurst(x, y, 'muzzle', { color, count: 8, spread: 90, intensity: 1.5 });
+    /**
+     * Tiny directional spark on weapon fire. Accepts both call shapes:
+     * (x, y, color) and BaseWeapon's (x, y, weaponType, level, { color, angle }).
+     * Kept deliberately small — the weapon's own visuals carry the shot, and
+     * a ring of blobs around the hero on every fire just hides the hero.
+     */
+    createEnhancedMuzzleFlash(x, y, colorOrType = '#FFAA00', level = 1, options = {}) {
+        const isColor = typeof colorOrType === 'string' && /^(#|rgb|hsl)/i.test(colorOrType);
+        const color = options.color || (isColor ? colorOrType : '#FFD9A0');
+        const angle = typeof options.angle === 'number' ? options.angle : null;
+        const count = 3;
+        for (let i = 0; i < count; i++) {
+            const a = angle !== null ? angle + (Math.random() - 0.5) * 0.9 : Math.random() * Math.PI * 2;
+            const sp = 70 + Math.random() * 60;
+            this.createEffectParticle(x + Math.cos(a) * 10, y + Math.sin(a) * 10, {
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp,
+                color,
+                life: 0.18,
+                size: 1.5,
+                glow: false,
+                priority: 'cosmetic'
+            });
+        }
     }
 
     createLastStandEffect(x, y) {
@@ -1014,8 +1042,9 @@ export class ParticleSystemCore {
                 vx: Math.cos(angle) * spread * intensity,
                 vy: Math.sin(angle) * spread * intensity,
                 color: options.color || '#FFFFFF',
-                life: Math.min((options.life || 1.0) * intensity, 0.8), // Shorter life
-                size: Math.min((options.size || 4) * intensity, 6), // Smaller size
+                // Crisp, short sparks rather than lingering blobs
+                life: Math.min((options.life || 0.7) * intensity, 0.6),
+                size: Math.min((options.size || 2.5) * intensity, 5),
                 glow: options.glow !== false,
                 priority
             });
