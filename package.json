@@ -61,6 +61,7 @@
     ],
     "author": "Enhanced by Claude",
     "license": "MIT",
+    "homepage": "https://vampire-survivors-enhanced.vercel.app/",
     "repository": {
         "type": "git",
         "url": "https://github.com/BareTread/vampire-survivors-enhanced.git"
