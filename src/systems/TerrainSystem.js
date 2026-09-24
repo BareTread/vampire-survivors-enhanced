@@ -465,11 +465,6 @@ export class TerrainSystem {
                 player.velocity.y *= 0.3; // More noticeable slowdown
             }
 
-            // Add screen shake when hitting boundary
-            if (hitBoundary && this.game.camera) {
-                this.game.camera.shake(5, 0.2);
-            }
-
             // Create particle effect when hitting boundary
             if (hitBoundary && this.game.systems.particles) {
                 this.game.systems.particles.createImpactEffect(
@@ -487,11 +482,6 @@ export class TerrainSystem {
 
             player.x = result.position.x;
             player.y = result.position.y;
-
-            // Strong camera shake for hard boundary hit
-            if (this.game.camera) {
-                this.game.camera.shake(12, 0.4);
-            }
 
             // Create bigger particle effect for hard boundary hit
             if (this.game.systems.particles) {

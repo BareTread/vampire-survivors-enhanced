@@ -76,7 +76,7 @@ export class CanvasHUD {
 
     constructor(game) {
         this.game = game;
-        this.version = '20260924-perf1';
+        this.version = '20260924-feel1';
 
         if (typeof window !== 'undefined') {
             window.__HUD_VERSION = this.version;
@@ -139,6 +139,15 @@ export class CanvasHUD {
         this.healthFlash = Math.max(0, this.healthFlash - dt * 3.0);
         this.healPulse   = Math.max(0, this.healPulse   - dt * 2.0);
 
+        // Combo meter: pop when it ticks up, linger briefly after it breaks
+        const combo = player.combo?.count || 0;
+        if (combo > (this._comboLast || 0)) this._comboPop = 1;
+        if (combo >= 5) this._comboHold = combo;
+        this._comboLast = combo;
+        this._comboPop = Math.max(0, (this._comboPop || 0) - dt * 5);
+        this._comboFade = combo >= 5 ? Math.min(1, (this._comboFade || 0) + dt * 6)
+            : Math.max(0, (this._comboFade || 0) - dt * 2.5);
+
         // Kills
         const kills = this.game.systems.killMilestone?.totalKills || 0;
         if (kills !== this.displayKills && kills % 50 === 0 && kills > 0) this.killFlash = 1.0;
@@ -191,7 +200,78 @@ export class CanvasHUD {
         this._renderMinimap(ctx, W, H);
         this._renderDashChip(ctx, player, W, H);
         this._renderFirstRunHints(ctx, W, H);
+        this._renderWaveBanner(ctx, W);
 
+        ctx.restore();
+    }
+
+    /** Announce a wave: title + an omen line saying what changed. */
+    showWaveBanner(title, subtitle = '', color = '#E8C96A') {
+        this.waveBanner = { title: String(title).toUpperCase(), subtitle, color, start: performance.now() };
+    }
+
+    _renderWaveBanner(ctx, W) {
+        const b = this.waveBanner;
+        if (!b) return;
+        const t = (performance.now() - b.start) / 1000;
+        const LIFE = 3.0;
+        if (t >= LIFE) {
+            this.waveBanner = null;
+            return;
+        }
+        const easeOut = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+        const inK = easeOut(t / 0.45);
+        const alpha = Math.min(1, t / 0.2) * Math.min(1, (LIFE - t) / 0.6);
+        const cx = W / 2;
+        const y = 104;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Title settles from wide tracking to tight
+        const spacing = 2 + (1 - inK) * 10;
+        ctx.font = "700 24px 'Cinzel', Georgia, serif";
+        const chars = [...b.title];
+        const widths = chars.map((ch) => ctx.measureText(ch).width);
+        const total = widths.reduce((a, w) => a + w, 0) + spacing * (chars.length - 1);
+        let x = cx - total / 2;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(10, 5, 14, 0.85)';
+        ctx.fillStyle = b.color;
+        ctx.textAlign = 'left';
+        for (let i = 0; i < chars.length; i++) {
+            ctx.strokeText(chars[i], x, y);
+            ctx.fillText(chars[i], x, y);
+            x += widths[i] + spacing;
+        }
+
+        // Hairline rules grow outward from the title
+        const ruleLen = 70 * inK;
+        const gap = total / 2 + 14;
+        ctx.strokeStyle = b.color;
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - gap, y + 0.5);
+        ctx.lineTo(cx - gap - ruleLen, y + 0.5);
+        ctx.moveTo(cx + gap, y + 0.5);
+        ctx.lineTo(cx + gap + ruleLen, y + 0.5);
+        ctx.stroke();
+
+        if (b.subtitle) {
+            const subA = Math.min(1, Math.max(0, (t - 0.3) / 0.4));
+            ctx.globalAlpha = alpha * subA;
+            ctx.textAlign = 'center';
+            ctx.font = "italic 14px Georgia, serif";
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = 'rgba(10, 5, 14, 0.85)';
+            ctx.strokeText(b.subtitle, cx, y + 22);
+            ctx.fillStyle = 'rgba(236, 226, 206, 0.92)';
+            ctx.fillText(b.subtitle, cx, y + 22);
+        }
         ctx.restore();
     }
 
@@ -492,8 +572,46 @@ export class CanvasHUD {
         ctx.restore();
         ctx.restore();
 
-        // ── Power-up pills (right-anchored, below economy panel) ──
-        this._renderPowerUpPills(ctx, player, W, PY + PH + 6);
+        // ── Combo meter, then power-up pills (right-anchored, below panel) ──
+        const comboH = this._renderComboMeter(ctx, player, PX, PY + PH + 6, PW);
+        this._renderPowerUpPills(ctx, player, W, PY + PH + 6 + comboH);
+    }
+
+    /** Draining combo meter; returns the vertical space it used. */
+    _renderComboMeter(ctx, player, x, y, w) {
+        const fade = this._comboFade || 0;
+        if (fade <= 0.01 || !this._comboHold) return 0;
+        const live = (player.combo?.count || 0) >= 5;
+        const n = live ? player.combo.count : this._comboHold;
+        const color = n < 25 ? '#E8B04A' : n < 50 ? '#FF7A2A' : '#FF3A5A';
+        const H = 22;
+
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = 'rgba(6, 4, 16, 0.82)';
+        this._roundRect(ctx, x, y, w, H, 4);
+        ctx.fill();
+
+        // Time left before the chain breaks
+        const left = live ? Math.max(0, player.combo.timer / (player.combo.timeWindow || 3)) : 0;
+        ctx.fillStyle = `rgba(${this._hexToRgb(color)}, 0.28)`;
+        ctx.fillRect(x + 2, y + H - 4, (w - 4) * left, 2);
+
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 9px "Georgia", serif';
+        ctx.fillStyle = live ? 'rgba(232, 215, 180, 0.75)' : 'rgba(180, 120, 120, 0.8)';
+        ctx.textAlign = 'left';
+        ctx.fillText(live ? 'COMBO' : 'COMBO BROKEN', x + 10, y + H / 2 - 1);
+
+        const pop = 1 + 0.25 * (this._comboPop || 0);
+        ctx.translate(x + w - 10, y + H / 2 - 1);
+        ctx.scale(pop, pop);
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.fillStyle = color;
+        ctx.fillText(`×${n}`, 0, 0);
+        ctx.restore();
+        return H + 4;
     }
 
     // ─── Power-up pills ─────────────────────────────────────────────────
@@ -1387,6 +1505,9 @@ export class CanvasHUD {
         this.displayXP = 0;
         this.xpFlash   = 0;
         this.lastXP    = 0;
+        this.waveBanner = null;
+        this._comboHold = 0;
+        this._comboFade = 0;
 
         const maxHP = this.game.player?.maxHealth || 100;
         this.displayHealth = maxHP;

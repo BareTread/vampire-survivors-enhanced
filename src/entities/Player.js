@@ -2,6 +2,17 @@ import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 
 export class Player {
+    /**
+     * XP needed to go from `level` to `level + 1`. Linear steps (like the
+     * genre's classics) so upgrades arrive every ~10-20s early and settle
+     * into a steady rhythm instead of a burst of eight in the first minute.
+     * Roughly Lv5 @1min, Lv10 @2.5-3min, Lv15 @5min for a player who gathers gems.
+     */
+    static xpForLevel(level) {
+        const l = Math.max(1, level);
+        return 180 + 150 * (l - 1) + 80 * Math.max(0, l - 15);
+    }
+
     constructor(game, x, y) {
         this.game = game;
         this.x = x;
@@ -11,7 +22,7 @@ export class Player {
         this.targetX = x;
         this.targetY = y;
         this.velocity = { x: 0, y: 0 };
-        this.maxSpeed = 100; // pixels per second
+        this.maxSpeed = 118; // pixels per second — a touch faster than a blood bat
         this.acceleration = 500;
         this.deceleration = 800;
         this.dash = {
@@ -29,7 +40,7 @@ export class Player {
         this.health = this.maxHealth;
         this.level = 1;
         this.experience = 0;
-        this.experienceToNext = 100;
+        this.experienceToNext = Player.xpForLevel(1);
         this.levelUpHealRatio = 0.35; // Level-ups should stabilize a run, not fully reset all danger
 
         // Player stats (upgradeable)
@@ -52,7 +63,7 @@ export class Player {
         // Combat properties
         this.invulnerable = false;
         this.invulnerabilityTime = 0;
-        this.maxInvulnerabilityTime = 0.5; // Halved from 1.0s — lets swarm density translate to real pressure
+        this.maxInvulnerabilityTime = 0.6; // Enough to step out of a pinch; swarms still pressure
 
         // Equipment
         this.weapons = new Map();
@@ -416,18 +427,22 @@ export class Player {
         return this.takeDamageEnhanced(amount, source);
     }
 
-    createDamageEffects(damage) {
+    createDamageEffects(damage, source = null) {
         // Show enhanced damage number
         this.addDamageNumber(-damage, '#FF4444');
 
         // Screen effects based on damage severity
         const damagePercent = damage / this.maxHealth;
-        const shakeIntensity = Math.min(12, 5 + damage * 0.5);
         const flashIntensity = Math.min(0.4, 0.1 + damagePercent * 0.3); // Reduced flash intensity
 
-        // Screen shake (with safety check)
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(shakeIntensity, 0.4);
+        // Getting hit is the one routine event that moves the camera: a jolt
+        // away from the attacker plus trauma scaled by the share of HP lost.
+        const cam = this.game && this.game.camera;
+        if (cam && typeof cam.addTrauma === 'function') {
+            cam.addTrauma(0.22 + Math.min(0.4, damagePercent * 1.6), 0.5);
+            if (source && Number.isFinite(source.x) && Number.isFinite(source.y)) {
+                cam.kick(this.x - source.x, this.y - source.y, 4 + damagePercent * 20);
+            }
         }
 
         // Reduced red screen flash to prevent overlay bug (with safety check)
@@ -504,10 +519,7 @@ export class Player {
         this.experience -= this.experienceToNext;
         this.level++;
 
-        // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
-        // Old: 1.15^level growth was too steep with reduced XP income
-        // New: 1.12^level growth for more reasonable progression
-        this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
+        this.experienceToNext = Player.xpForLevel(this.level);
 
         // Partial recovery on level up — strong enough to matter, not a full reset
         this.heal(Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio)));
@@ -524,42 +536,11 @@ export class Player {
         this.levelUpEffect = true;
         this.levelUpEffectTime = 2.0; // Extended duration
 
-        // XP MAGNET EFFECT - Magnetize all XP gems on level up!
+        // Level-up pulls in nearby gems (the ring shows the reach). Not the
+        // whole map — that chained level-ups into bursts and made routing moot.
         if (this.game.systems.experience) {
-            this.game.systems.experience.magnetizeAllGems();
-
-            // Create visual effect for the magnet effect
-            if (this.game.systems.particle) {
-                // Magnetic wave effect
-                this.game.systems.particle.createMagnetWave(this.x, this.y, 300); // 300 pixel radius
-
-                // Show "+XP MAGNET!" text
-                managedSetTimeout(
-                    () => {
-                        this.game.systems.particle.createEnhancedDamageNumber(
-                            this.x,
-                            this.y - 60,
-                            '+XP MAGNET!',
-                            false,
-                            '#00FFFF',
-                            24,
-                            2.5
-                        );
-                    },
-                    200,
-                    this
-                );
-            }
-        }
-
-        // Single gold flash to prevent overlapping effects that cause red overlay bug
-        if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
-            this.game.camera.flash('#FFD700', 1.0);
-        }
-
-        // Dramatic screen shake
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(15, 0.6);
+            this.game.systems.experience.magnetizeGemsInRadius?.(300, 1.2);
+            this.game.systems.particle?.createMagnetWave?.(this.x, this.y, 300);
         }
 
         // Massive particle explosion
@@ -650,10 +631,6 @@ export class Player {
             }
         }
 
-        // Level-up feedback (partial heal, not full reset)
-        const partialHeal = Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio));
-        this.addDamageNumber(`+${partialHeal} HP`, '#00FF88', 'LEVEL UP');
-        this.addDamageNumber(`LEVEL ${this.level}`, '#FFD700', '');
     }
 
     addWeapon(weaponClass, config = {}) {
@@ -692,6 +669,48 @@ export class Player {
             color,
             isCritical
         );
+    }
+
+    /**
+     * Headline text above the hero ("5 KILL STREAK", "LAST STAND"). One slot:
+     * a new callout replaces the current one unless the current one is more
+     * important and still fresh, so announcements never pile up on the hero.
+     */
+    callout(text, color = '#FFD700', priority = 1) {
+        const now = performance.now();
+        const c = this._callout;
+        if (c && now - c.start < 900 && c.priority > priority) return;
+        this._callout = { text: String(text), color, priority, start: now };
+    }
+
+    renderCallout(ctx) {
+        const c = this._callout;
+        if (!c) return;
+        const age = (performance.now() - c.start) / 1000;
+        const life = 1.5;
+        if (age >= life) {
+            this._callout = null;
+            return;
+        }
+        const inT = Math.min(1, age / 0.18);
+        const rise = (1 - Math.pow(1 - inT, 3)) * 10 + age * 6;
+        const pop = age < 0.18 ? 1.25 - 0.25 * inT : 1;
+        const alpha = Math.min(1, age / 0.08) * Math.min(1, (life - age) / 0.4);
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(this.x, this.y - 44 - rise);
+        ctx.scale(pop, pop);
+        ctx.font = "700 13px 'Cinzel', 'Times New Roman', serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(12, 6, 16, 0.9)';
+        ctx.strokeText(c.text, 0, 0);
+        ctx.fillStyle = c.color;
+        ctx.fillText(c.text, 0, 0);
+        ctx.restore();
     }
 
     die() {
@@ -921,7 +940,6 @@ export class Player {
         if (timeSinceLastDamage < 3.0) {
             // Reset kill streak if damaged recently
             if (this.streaks.killStreak > 0) {
-                this.addDamageNumber('KILL STREAK BROKEN!', '#FF6666', '');
                 this.streaks.killStreak = 0;
             }
             return;
@@ -945,12 +963,7 @@ export class Player {
         // Show streak progress every 5 kills
         if (streak % 5 === 0 && streak >= 5) {
             const color = streak < 15 ? '#FFAA00' : streak < 30 ? '#FF6600' : '#FF0066';
-            this.addDamageNumber(`${streak} KILL STREAK!`, color, 'STREAK');
-
-            // Enhanced camera shake for kill streaks
-            if (this.game.camera) {
-                this.game.camera.shakeKillStreak(streak);
-            }
+            this.callout(`${streak} KILL STREAK`, color, 1);
 
             // Particle celebration
             if (this.game.systems.particle) {
@@ -995,7 +1008,6 @@ export class Player {
         // Visual celebration
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.6 * intensity);
-            this.game.camera.shake(8 * intensity, 0.8);
         }
 
         // Massive particle explosion
@@ -1009,7 +1021,7 @@ export class Player {
         }
 
         // Big celebration text
-        this.addDamageNumber(`${streak} KILL MILESTONE!`, '#FFD700', 'LEGENDARY');
+        this.callout(`${streak} KILLS — LEGENDARY`, '#FFD700', 3);
 
         // Audio fanfare
         if (this.game.audioManager) {
@@ -1026,14 +1038,13 @@ export class Player {
         // Escalating celebrations for higher thresholds
         const intensity = Math.min(1.5, 0.5 + threshold / 200);
 
-        // Screen effects
+        // Screen effects: small milestones get a glint, big ones a zoom punch
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash('#FFD700', 0.4 * intensity);
+            if (threshold >= 50 && typeof this.game.camera.zoomPunch === 'function') {
+                this.game.camera.zoomPunch(Math.min(0.8, threshold / 250));
+            }
         }
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(4 * intensity, 0.4);
-        }
-
         // Particle celebration
         if (this.game.systems.particle) {
             this.game.systems.particle.createComboExplosion(this.x, this.y, threshold, intensity);
@@ -1056,7 +1067,7 @@ export class Player {
         // Bonus rewards for psychological reinforcement
         const bonusExp = threshold * 2;
         this.gainExperience(bonusExp);
-        this.addDamageNumber(`COMBO x${threshold}!`, '#FFD700', 'MILESTONE');
+        this.callout(`COMBO ×${threshold}`, '#FFD700', 2);
 
         // Temporary power boost for immediate gratification
         this.activatePowerUp('damageBoost', 5.0, 2.0 + intensity * 0.5);
@@ -1067,16 +1078,11 @@ export class Player {
         if (this.game.systems.particle) {
             this.game.systems.particle.createComboSparks(this.x, this.y, this.combo.count);
         }
-
-        // Escalating visual feedback
-        const sparkColor = this.combo.count < 25 ? '#FFAA00' : this.combo.count < 50 ? '#FF6600' : '#FF0066';
-        this.addDamageNumber(`x${this.combo.count}`, sparkColor, 'COMBO');
     }
 
     breakCombo() {
         if (this.combo.count >= 10) {
             // Only show loss for meaningful combos
-            this.addDamageNumber('COMBO LOST', '#FF4444', '');
 
             // Mild punishment to create loss aversion
             if (this.game.systems.particle) {
@@ -1127,10 +1133,6 @@ export class Player {
 
         // Update weapon stats
         this.updateWeaponStats();
-
-        if (type === 'invincible') {
-            this.addDamageNumber('INVINCIBLE ENDED', '#888888', '');
-        }
     }
 
     createPowerUpEffect(type, intensity) {
@@ -1148,15 +1150,11 @@ export class Player {
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash(color, 0.3 * intensity);
         }
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(3 * intensity, 0.2);
-        }
-
         if (this.game.systems.particle) {
             this.game.systems.particle.createPowerUpEffect(this.x, this.y, color, intensity);
         }
 
-        this.addDamageNumber(type.toUpperCase(), color, 'POWER UP!');
+        this.callout(this.game.getPowerUpName?.(type)?.toUpperCase() || type.toUpperCase(), color, 2);
     }
 
     updateNearDeathEffects(dt) {
@@ -1196,7 +1194,7 @@ export class Player {
         }
 
         // Dramatic 'desperation mode' effect with larger text
-        this.addDamageNumber('LAST STAND!', '#FF4A3A', '');
+        this.callout('LAST STAND', '#FF4A3A', 3);
 
         // ENHANCED Visual drama - dramatic screen shake
         if (this.game && this.game.camera) {
@@ -1243,7 +1241,7 @@ export class Player {
         this.desperationMode.active = false;
 
         // Triumphant recovery
-        this.addDamageNumber('RECOVERED!', '#00FF88', 'TRIUMPH');
+        this.callout('RECOVERED', '#00FF88', 2);
 
         // Massive XP reward for surviving desperation mode
         const bonusXP = 25;
@@ -1253,9 +1251,6 @@ export class Player {
         if (this.game && this.game.camera) {
             if (typeof this.game.camera.flash === 'function') {
                 this.game.camera.flash('#00FF88', 0.6);
-            }
-            if (typeof this.game.camera.shake === 'function') {
-                this.game.camera.shake(4, 0.3); // Celebratory shake
             }
         }
 
@@ -1312,7 +1307,7 @@ export class Player {
         // Temporary invincibility as reward
         this.activatePowerUp('invincible', 3.0, 1.0);
 
-        this.addDamageNumber(`PERFECT ${streakMinutes}min!`, '#FFD700', 'STREAK');
+        this.callout(`UNTOUCHED ${streakMinutes} MIN`, '#FFD700', 2);
 
         // Celebration
         if (this.game.systems.particle) {
@@ -1342,11 +1337,6 @@ export class Player {
         // Near-death damage reduction for dramatic survivability
         if (this.nearDeath.bonusActive) {
             finalDamage *= 1 - this.nearDeath.damageReduction;
-            const nowMs = performance.now();
-            if (!this._wardTextAt || nowMs - this._wardTextAt > 1500) {
-                this._wardTextAt = nowMs;
-                this.addDamageNumber('WARDED', '#FFAA00', '');
-            }
         }
 
         const holyBible = this.weapons.get('holy_bible');
@@ -1380,7 +1370,7 @@ export class Player {
         }
 
         // Enhanced damage feedback
-        this.createDamageEffects(damage);
+        this.createDamageEffects(damage, source);
 
         // Hit-stop on boss damage for weighty impact
         if (source && source.type === 'boss' && this.game.camera) {
@@ -1442,14 +1432,6 @@ export class Player {
         const expGain = Math.floor(finalExp);
         this.experience += expGain;
 
-        // Enhanced visual feedback based on multipliers
-        const color = finalMultiplier > 2.0 ? '#FFD700' : finalMultiplier > 1.5 ? '#FFAA00' : '#44AAFF';
-
-        // Only call out genuinely boosted gains; routine XP reads via the bar.
-        if (finalMultiplier >= 1.5 && expGain >= 10) {
-            this.addDamageNumber(expGain, color, `x${finalMultiplier.toFixed(1)}`);
-        }
-
         // FIXED: Process level-ups ONE AT A TIME with proper queuing
         // Initialize level-up queue if it doesn't exist
         if (!this.levelUpQueue) {
@@ -1467,8 +1449,7 @@ export class Player {
                 oldLevel: this.level - 1
             });
 
-            // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
-            this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
+            this.experienceToNext = Player.xpForLevel(this.level);
 
             // Level-ups still recover health, but no longer erase all danger.
             if (!this.game.systems?.challenge?.hasModifier('no_heals')) {
@@ -1493,7 +1474,6 @@ export class Player {
         this.createLevelUpEffects();
 
         // Show level-up message
-        this.addDamageNumber(`LEVEL ${levelUpData.level}!`, '#FFD700', 'LEVEL UP');
 
         // Show the level-up UI for this specific level
         this.game.showLevelUpUI();
@@ -1533,7 +1513,7 @@ export class Player {
         this.invulnerable = true;
         this.invulnerabilityTime = this.reviveInvulnerabilityDuration;
         this.activatePowerUp('invincible', this.reviveInvulnerabilityDuration, 1.0);
-        this.addDamageNumber('REVIVED!', '#FFD700', 'SECOND WIND');
+        this.callout('SECOND WIND', '#FFD700', 4);
 
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.6);
@@ -1622,7 +1602,7 @@ export class Player {
         // Visual feedback for mode toggle
         const modeText = this.manualAiming.enabled ? 'MANUAL AIM ON' : 'AUTO AIM ON';
         const color = this.manualAiming.enabled ? '#00FFFF' : '#FFAA00';
-        this.addDamageNumber(modeText, color, 'MODE');
+        this.callout(modeText, color, 2);
 
         // Audio feedback
         if (this.game.audioManager && typeof this.game.audioManager.playVampireSound === 'function') {
@@ -1762,7 +1742,7 @@ export class Player {
 
     triggerPerfectShotBonus() {
         // Visual celebration for perfect aim
-        this.addDamageNumber('PERFECT AIM!', '#00FFFF', 'SKILL');
+        this.callout('PERFECT AIM', '#00FFFF', 1);
 
         // Enhanced visual effects
         if (this.game.systems.particle) {
@@ -1798,7 +1778,7 @@ export class Player {
             const damage = 200 * this.manualAiming.accuracyBonus;
             nearestEnemy.takeDamage(damage, this, true); // Force critical
 
-            this.addDamageNumber('PRECISION STRIKE!', '#FF0066', 'SPECIAL');
+            this.callout('PRECISION STRIKE', '#FF0066', 1);
 
             // Cooldown visual feedback
             if (this.game.systems.particle) {

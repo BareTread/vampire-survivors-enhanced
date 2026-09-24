@@ -30,7 +30,7 @@ const createWeaponGame = () => ({
         particle: {},
         statusEffect: { applyEffect: jest.fn() }
     },
-    camera: { shakeWeaponFire: jest.fn() },
+    camera: { addTrauma: jest.fn(), kick: jest.fn() },
     audioManager: null
 });
 

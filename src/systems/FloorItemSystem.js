@@ -173,7 +173,7 @@ export class FloorItemSystem {
                     exp.magnetizeAllGems();
                     if (exp.activateGlobalMagnet) exp.activateGlobalMagnet(3.0);
                 }
-                player.addDamageNumber('VACUUM!', '#FFD700', '');
+                player.callout?.('VACUUM', '#FFD700', 2);
                 break;
             }
 
@@ -191,7 +191,7 @@ export class FloorItemSystem {
                     enemy.takeDamage(999999, this, false);
                     killed++;
                 }
-                player.addDamageNumber('HOLY SMITE!', '#F0F0FF', '');
+                player.callout?.('HOLY SMITE', '#F0F0FF', 3);
                 if (this.game.camera) this.game.camera.shake(10, 0.5);
                 // White screen flash
                 if (this.game.camera && this.game.camera.flash)

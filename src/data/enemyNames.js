@@ -26,3 +26,15 @@ export function enemyDisplayName(type, variant = null) {
         String(type || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return variant ? `${variant} ${base}` : base;
 }
+
+/** One-line omen shown in the wave banner when a creature first appears. */
+export const ENEMY_ARRIVALS = {
+    ranged: 'Cultists join the hunt',
+    tank: 'Shield knights march',
+    wraith: 'Wraiths drift through the walls',
+    elite: 'A dreadlord rises',
+    demon: 'Demons break through',
+    berserker: 'Werebeasts howl',
+    summoner: 'Necromancers gather',
+    juggernaut: 'The stone golems wake'
+};

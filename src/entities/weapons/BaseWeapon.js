@@ -101,9 +101,6 @@ export class BaseWeapon {
     }
 
     createFireEffects() {
-        // Enhanced screen shake based on weapon type and level
-        this.game.camera.shakeWeaponFire(this.type, this.level);
-
         // Enhanced audio feedback with layering
         this.playEnhancedFireSound();
 
@@ -687,20 +684,6 @@ export class BaseWeapon {
     }
 
     createCriticalHitEffects(enemy, damage, critical, wasManualAim = false) {
-        // Enhanced camera effects
-        if (critical) {
-            this.game.camera.onCriticalHit(damage);
-        } else {
-            this.game.camera.shakeHit(damage, false);
-        }
-
-        // Screen flash for different hit types
-        if (critical) {
-            this.game.camera.flash('#FFD700', 0.15); // Gold for critical
-        } else if (wasManualAim) {
-            this.game.camera.flash('#00FFFF', 0.12); // Cyan for skill shot
-        }
-
         // Ring explosion for high damage
         if (damage > 75) {
             if (this.game.systems.particle.createExplosionEffect) {
@@ -813,7 +796,6 @@ export class BaseWeapon {
 
         // Enhanced screen effects
         this.game.camera.flash('#00FFFF', 0.3);
-        this.game.camera.shake(8, 0.4, 'normal');
 
         // Camera distortion for dramatic effect
         if (this.game.camera.activateDistortion) {

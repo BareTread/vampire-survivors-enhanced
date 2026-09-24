@@ -8,6 +8,9 @@ import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 const byDepth = (a, b) => a.y + a.size - (b.y + b.size);
 
 export class EnemySystem {
+    // First pressure surge at ~3:25, clear of the wave-5 formation (~2:40)
+    static FIRST_SURGE_TIME = 205;
+
     constructor(game) {
         this.game = game;
 
@@ -47,23 +50,26 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeTimer = 0;
         this.pressureSurgeActive = false;
-        this.nextSurgeTime = 150; // First surge at 2.5 minutes so the run does not stay sleepy for too long
+        this.nextSurgeTime = EnemySystem.FIRST_SURGE_TIME;
 
         // Elite aura tracking (max 1 aura elite per wave, unlocked after wave 8)
         this.auraEliteThisWave = false;
 
         // Enemy type configurations - EARLIER INTRODUCTION
+        // Roster unfolds over the first ~10 minutes (waves are ~40s) so each
+        // new creature is an event; a type fades in over three waves instead
+        // of arriving as a wall (see chooseEnemyType).
         this.enemyTypes = {
             basic: { weight: 30, minWave: 1 },
-            fast: { weight: 25, minWave: 1 }, // Available from start (was wave 2)
-            tank: { weight: 20, minWave: 2 }, // Earlier (was wave 3)
-            ranged: { weight: 15, minWave: 2 }, // Earlier (was wave 4)
-            wraith: { weight: 10, minWave: 3 }, // Earlier (was wave 5)
-            demon: { weight: 12, minWave: 4 }, // Earlier (was wave 6)
-            elite: { weight: 8, minWave: 5 }, // Earlier (was wave 7)
-            berserker: { weight: 5, minWave: 6 },
-            summoner: { weight: 3, minWave: 7 },
-            juggernaut: { weight: 2, minWave: 8 }
+            fast: { weight: 22, minWave: 1 },
+            ranged: { weight: 15, minWave: 3 },
+            tank: { weight: 18, minWave: 4 },
+            wraith: { weight: 10, minWave: 6 },
+            elite: { weight: 8, minWave: 7 },
+            demon: { weight: 10, minWave: 8 },
+            berserker: { weight: 5, minWave: 10 },
+            summoner: { weight: 3, minWave: 12 },
+            juggernaut: { weight: 2, minWave: 15 }
         };
 
         // Dynamic difficulty adjustment - NEW
@@ -473,27 +479,36 @@ export class EnemySystem {
             ([type, config]) => this.currentWave >= config.minWave
         );
 
-        // Calculate total weight
-        const totalWeight = availableTypes.reduce((sum, [type, config]) => sum + config.weight, 0);
+        // Newly unlocked types ramp from 1/3 to full weight over three waves
+        const weightOf = (config) => config.weight * Math.min(1, (this.currentWave - config.minWave + 1) / 3);
+        const totalWeight = availableTypes.reduce((sum, [type, config]) => sum + weightOf(config), 0);
 
         // Random selection based on weights
         let random = Math.random() * totalWeight;
 
         for (const [type, config] of availableTypes) {
-            random -= config.weight;
+            random -= weightOf(config);
             if (random <= 0) {
                 // Elite promotion: not in the opening waves, and only a few
                 // dreadlords on the field at once so each one is a moment.
                 const wantsElite = type === 'elite' ||
-                    (this.currentWave >= 3 && Math.random() < this.eliteSpawnChance);
+                    (this.currentWave >= 5 && Math.random() < this.eliteSpawnChance);
                 if (wantsElite) {
                     return this.countActiveOfType('elite') < this.getMaxConcurrentElites() ? 'elite' : (type === 'elite' ? 'basic' : type);
+                }
+                // Cultists keep their distance, so they pile up unless capped
+                if (type === 'ranged' && this.countActiveOfType('ranged') >= this.getMaxConcurrentRanged()) {
+                    return 'basic';
                 }
                 return type;
             }
         }
 
         return 'basic'; // Fallback
+    }
+
+    getMaxConcurrentRanged() {
+        return 3 + Math.floor(this.currentWave / 3);
     }
 
     getMaxConcurrentElites() {
@@ -1197,7 +1212,7 @@ export class EnemySystem {
         this.surgeEliteBonus = 0;
         this.pressureSurgeActive = false;
         this.pressureSurgeTimer = 0;
-        this.nextSurgeTime = 150;
+        this.nextSurgeTime = EnemySystem.FIRST_SURGE_TIME;
         this.currentPattern = 'random';
         this.performanceTracking.playerHealthAverage = 1.0;
         this.performanceTracking.timeSinceLastDamage = 0;

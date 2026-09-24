@@ -466,11 +466,10 @@ export class BoneBoomerang extends BaseWeapon {
     }
 
     /**
-     * Override fire effects — boomerangs have a subtle whoosh, not heavy shake.
+     * Override fire effects — boomerangs have a subtle whoosh, no camera motion.
      */
     createFireEffects() {
         this.playEnhancedFireSound();
-        this.game.camera.shake(1.5, 0.08, 'subtle');
     }
 
     getInfo() {

@@ -204,16 +204,14 @@ export class FireWand extends BaseWeapon {
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             const knockbackStrength = 60 * (1 - dist / radius);
             if (knockbackStrength > 0) {
-                enemy.x += (dx / dist) * knockbackStrength * 0.15;
-                enemy.y += (dy / dist) * knockbackStrength * 0.15;
+                if (typeof enemy.applyKnockback === 'function') {
+                    enemy.applyKnockback((dx / dist) * knockbackStrength * 3, (dy / dist) * knockbackStrength * 3);
+                }
             }
         }
 
         // Explosion particles
         this.createExplosionParticles(x, y, radius);
-
-        // Camera shake for explosion
-        this.game.camera.shake(4 + this.level * 0.5, 0.15, 'normal');
 
         // Create burn zone
         this.createBurnZone(x, y, radius);

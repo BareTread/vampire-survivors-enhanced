@@ -100,7 +100,6 @@ export class ScreenEffectsSystem {
         // ── Level-Up Flash ───────────────────────────────────
         if (player.level > this._lastPlayerLevel && this._lastPlayerLevel > 0) {
             camera.flash('#FFD700', 0.35);
-            camera.shakeLevelUp();
         }
         this._lastPlayerLevel = player.level;
 

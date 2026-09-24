@@ -270,7 +270,7 @@ export class ParticleSystemCore {
         particle.vy = options.vy || (Math.random() - 0.5) * 200;
         particle.ax = options.ax || 0;
         particle.ay = options.ay || 50; // Slight gravity
-        particle.life = options.life || 1.0;
+        particle.life = options.life || options.lifetime || 1.0; // several callers say "lifetime"
         particle.maxLife = particle.life;
         particle.size = options.size || 3;
         particle.color = options.color || '#FFFFFF';
@@ -669,19 +669,6 @@ export class ParticleSystemCore {
                 fadeOut: true
             });
         }
-
-        // Small central burst particle for impact
-        this.createEffectParticle(x, y, {
-            vx: 0,
-            vy: 0,
-            color: color,
-            life: 0.3,
-            size: 8 * size,
-            glow: true,
-            fadeOut: true,
-            expand: true,
-            priority: 'combat'
-        });
     }
 
     // Additional missing methods for compatibility

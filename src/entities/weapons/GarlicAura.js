@@ -93,9 +93,9 @@ export class GarlicAura extends BaseWeapon {
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const nx = dx / dist;
                 const ny = dy / dist;
-                const pushStrength = this.knockbackForce * 0.3;
-                enemy.x += nx * pushStrength;
-                enemy.y += ny * pushStrength;
+                // Same distance as the old instant shove, but as a slide
+                const push = this.knockbackForce * 3;
+                if (typeof enemy.applyKnockback === 'function') enemy.applyKnockback(nx * push, ny * push);
             }
 
             // Slow effect (via StatusEffectSystem if available)

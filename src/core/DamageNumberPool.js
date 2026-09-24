@@ -150,6 +150,21 @@ export class DamageNumberPool {
     get(x, y, value, color = '#ffffff', isCritical = false) {
         let damageNumber;
 
+        // One hit, one number: weapon hit feedback and Enemy.takeDamage both
+        // report the same blow. Merge a near-identical number spawned at the
+        // same spot a moment ago (keeping crit styling) instead of doubling.
+        const num = typeof value === 'number' ? value : Number(value);
+        if (isFinite(num)) {
+            for (let i = this.activeNumbers.length - 1, n = 0; i >= 0 && n < 8; i--, n++) {
+                const d = this.activeNumbers[i];
+                if (d.elapsed > 0.1 || !/^-?\d+$/.test(d.text)) continue;
+                if (Math.abs(d.value - num) <= 1 && Math.abs(d.x - x) < 22 && Math.abs(d.y - y) < 22) {
+                    if (isCritical && !d.isCritical) d.init(d.x, d.y, Math.max(d.value, num), color, true);
+                    return d;
+                }
+            }
+        }
+
         if (this.activeNumbers.length >= 30) {
             const oldest = this.activeNumbers.shift();
             if (oldest) {

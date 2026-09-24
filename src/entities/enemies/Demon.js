@@ -66,8 +66,8 @@ export class Demon extends Enemy {
 
         this.maxHealth = Math.floor(80 * difficultyMultiplier);
         this.health = this.maxHealth;
-        this.damage = Math.floor(35 * difficultyMultiplier);
-        this.expReward = Math.floor(20 * difficultyMultiplier);
+        this.damage = this.contactDamage(35, 0.28);
+        this.expReward = Math.floor(20 * Math.min(2.0, 1.0 + Math.log10(difficultyMultiplier) * 0.3));
 
         // Store original stats for rage mode calculations
         this.originalStats = {
@@ -76,27 +76,12 @@ export class Demon extends Enemy {
             attackCooldown: this.baseAttackCooldown
         };
 
-        // Apply adaptive damage from flow state
-        if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
-            this.damage = Math.floor(this.damage * this.game.systems.flowState.adaptiveDamageMultiplier);
-        }
-
-        // Damage cap safety net (mirrors Enemy.initializeType)
-        if (this.game && typeof this.game.gameTime === 'number') {
-            const gameTimeMin = this.game.gameTime / 60;
-            const playerMaxHP = this.game.player?.maxHealth || 100;
-            if (gameTimeMin < 10) {
-                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
-                const damageCap = Math.floor(playerMaxHP * capPercent);
-                this.damage = Math.min(this.damage, damageCap);
-            }
-        }
-
         this.originalStats.damage = this.damage;
     }
 
     update(dt) {
         if (!this.active) return;
+        if (this.updateDeath(dt)) return;
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
@@ -161,15 +146,7 @@ export class Demon extends Enemy {
 
         // Boost stats
         this.damage = Math.floor(this.originalStats.damage * this.rageMultiplier);
-        // Cap rage damage the same way as initializeType
-        if (this.game && typeof this.game.gameTime === 'number') {
-            const gameTimeMin = this.game.gameTime / 60;
-            const playerMaxHP = this.game.player?.maxHealth || 100;
-            if (gameTimeMin < 10) {
-                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
-                this.damage = Math.min(this.damage, Math.floor(playerMaxHP * capPercent));
-            }
-        }
+        this.damage = Math.min(this.damage, this.hitCap(0.33));
         this.speed = Math.floor(this.originalStats.speed * this.rageMultiplier);
         this.baseAttackCooldown = this.originalStats.attackCooldown / this.rageMultiplier;
 
@@ -342,15 +319,9 @@ export class Demon extends Enemy {
             );
 
             if (playerDistance <= this.areaAttackRange) {
-                // Area attack is 1.5x melee damage but capped at 50% of player max HP
-                // for the first 5 min (ramps to 70% cap by 10 min) to prevent one-shots.
-                let areaDmg = Math.floor(this.damage * 1.5);
-                const gameTimeMin = (this.game.gameTime || 0) / 60;
-                if (gameTimeMin < 10) {
-                    const capPercent = 0.50 + Math.min(gameTimeMin / 5, 1.0) * 0.20; // 0.50→0.70
-                    areaDmg = Math.min(areaDmg, Math.floor(player.maxHealth * capPercent));
-                }
-                player.takeDamage(Math.max(10, areaDmg), { type: 'demon', name: 'Demon AoE' });
+                // Area attack is 1.5x melee damage, capped so it never one-shots.
+                const areaDmg = Math.min(Math.floor(this.damage * 1.5), this.hitCap(0.35));
+                player.takeDamage(Math.max(10, areaDmg), { type: 'demon', name: 'Demon AoE', x: this.x, y: this.y });
             }
         }
 
@@ -359,7 +330,7 @@ export class Demon extends Enemy {
         this.playDemonSound('demon_area_explode');
 
         // Screen shake
-        this.game.camera.shake(8, 0.6);
+        this.game.camera.shakeAt(this.x, this.y, 0.4);
     }
 
     fireballAttack() {
@@ -413,7 +384,7 @@ export class Demon extends Enemy {
         if (!player || !player.isAlive()) return;
 
         // Claw attack with knockback
-        player.takeDamage(this.damage, { type: 'demon', name: 'Demon' });
+        player.takeDamage(this.damage, { type: 'demon', name: 'Demon', x: this.x, y: this.y });
 
         // Apply knockback
         const dx = player.x - this.x;

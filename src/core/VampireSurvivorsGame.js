@@ -1,3 +1,5 @@
+import { ENEMY_ARRIVALS } from '../data/enemyNames.js';
+import { getPowerUpSprite, getPowerUpGlow, POWER_UP_COLORS } from '../entities/rendering/PickupArt.js';
 import { Player } from '../entities/Player.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
@@ -169,7 +171,8 @@ export class VampireSurvivorsGame {
 
         // Power-up drops management
         this.powerUpDrops = [];
-        this.maxPowerUpDrops = 8; // Cap to reduce clutter
+        this._lastRelicTime = -Infinity;
+        this.maxPowerUpDrops = 3; // Relics on the floor at once
 
         // Game loop
         this.lastTime = 0;
@@ -487,8 +490,8 @@ export class VampireSurvivorsGame {
         notifications.id = 'notifications';
         notifications.style.cssText = `
             position: absolute;
-            top: 60px; /* fallback */
-            top: max(60px, calc(env(safe-area-inset-top) + 52px));
+            top: 112px; /* below the timer and the achievement card */
+            top: max(112px, calc(env(safe-area-inset-top) + 104px));
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -955,6 +958,7 @@ export class VampireSurvivorsGame {
         this.systems.rarity.reset(); // clear stat pick counts for new run
         // Note: persistence not reset (cross-run data)
         this.powerUpDrops = [];
+        this._lastRelicTime = -Infinity;
 
         // Set up camera to follow player
         this.camera.x = this.camera.targetX = this.player.x;
@@ -1041,6 +1045,7 @@ export class VampireSurvivorsGame {
             console.warn('Minor cleanup issue on returnToMenu:', e);
         }
         this.powerUpDrops = [];
+        this._lastRelicTime = -Infinity;
         this.disposePlayer();
 
         this.updateUIVisibility();
@@ -1284,8 +1289,6 @@ export class VampireSurvivorsGame {
 
         // Enhanced visual effects - reduced intensity to prevent overlay
         this.systems.particle.createEvolutionEffect(this.player.x, this.player.y);
-        // Small camera shake for feedback
-        this.camera.shake(3, 0.2);
 
         this.hideLevelUpUI();
     }
@@ -1904,6 +1907,7 @@ export class VampireSurvivorsGame {
         // 7. Damage numbers (rendered after particles for proper layering)
         if (this.gameState !== 'paused') {
             globalDamageNumberPool.render(this.ctx, this.camera);
+            this.player?.renderCallout?.(this.ctx);
         }
 
         // 7b. Death entity (world-space, renders within camera transform)
@@ -1958,7 +1962,7 @@ export class VampireSurvivorsGame {
 
         // Achievement & micro-challenge overlays (screen space, above debug)
         if (this.gameState !== 'paused' && this.gameState !== 'levelUp' && hudVisible) {
-            this.systems.achievement.render(this.ctx, this.camera);
+            this.systems.achievement.render(this.ctx);
             this.systems.microChallenge.render(this.ctx, this.camera);
             this.systems.killMilestone.render(this.ctx);
         }
@@ -2561,101 +2565,46 @@ export class VampireSurvivorsGame {
 
     // Wave notification
     showWaveNotification(waveNumber) {
-        // Enhanced wave announcements with different types
         const isSpecialWave = waveNumber % 5 === 0;
         const isBossWave = waveNumber % 10 === 0;
         const isMilestoneWave = [25, 50, 75, 100].includes(waveNumber);
 
-        // Determine wave type and styling
-        let waveText, color, size, intensity;
+        let title, color, intensity;
         if (isMilestoneWave) {
-            waveText = `🔥 MILESTONE WAVE ${waveNumber} 🔥`;
-            color = '#FF0066';
-            size = 48;
+            title = `Milestone Wave ${waveNumber}`;
+            color = '#FF4A7A';
             intensity = 3.0;
         } else if (isBossWave) {
-            waveText = `💀 BOSS WAVE ${waveNumber} 💀`;
-            color = '#FF4444';
-            size = 42;
+            title = `Wave ${waveNumber}`;
+            color = '#FF5A4A';
             intensity = 2.5;
         } else if (isSpecialWave) {
-            waveText = `⚡ ELITE WAVE ${waveNumber} ⚡`;
-            color = '#FF6600';
-            size = 38;
+            title = `Wave ${waveNumber}`;
+            color = '#FF8A3A';
             intensity = 2.0;
         } else {
-            waveText = `WAVE ${waveNumber}`;
-            color = '#FFD700';
-            size = 36;
+            title = `Wave ${waveNumber}`;
+            color = '#E8C96A';
             intensity = 1.5;
         }
 
-        // Create enhanced notification with animation
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: absolute;
-            top: 25%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: ${color};
-            font-size: ${size}px;
-            font-weight: bold;
-            text-shadow: 4px 4px 8px rgba(0,0,0,0.9);
-            z-index: 150;
-            pointer-events: none;
-            text-align: center;
-            animation: waveAnnouncement 3s ease-out forwards;
-            white-space: nowrap;
-        `;
-        notification.textContent = waveText;
-
-        // Add CSS animation if not exists
-        if (!document.getElementById('wave-animation-style')) {
-            const style = document.createElement('style');
-            style.id = 'wave-animation-style';
-            style.textContent = `
-                @keyframes waveAnnouncement {
-                    0% { 
-                        opacity: 0; 
-                        transform: translate(-50%, -50%) scale(0.5); 
-                    }
-                    20% { 
-                        opacity: 1; 
-                        transform: translate(-50%, -50%) scale(1.2); 
-                    }
-                    60% { 
-                        opacity: 1; 
-                        transform: translate(-50%, -50%) scale(1.0); 
-                    }
-                    100% { 
-                        opacity: 0; 
-                        transform: translate(-50%, -50%) scale(0.8); 
-                    }
-                }
-            `;
-            document.head.appendChild(style);
+        // The subtitle tells the player what changed, so the banner means something
+        const es = this.systems.enemy;
+        const arrivals = es?.enemyTypes
+            ? Object.entries(es.enemyTypes).filter(([, cfg]) => cfg.minWave === waveNumber).map(([t]) => ENEMY_ARRIVALS[t]).filter(Boolean)
+            : [];
+        let subtitle = arrivals[0] || '';
+        if (!subtitle) {
+            if (isMilestoneWave) subtitle = 'Prepare for chaos';
+            else if (isBossWave) subtitle = 'Danger incoming';
+            else if (isSpecialWave) subtitle = 'Elites lead the horde';
+            else if (es?.waveType === 'rest') subtitle = 'A breath of calm';
+            else if (es?.waveType === 'rush') subtitle = 'They grow restless';
         }
+        this.systems.canvasHUD?.showWaveBanner?.(title, subtitle, color);
 
-        // Add to UI container instead of body to prevent artifacts
-        const uiContainer = document.getElementById('game-ui');
-        if (uiContainer) {
-            uiContainer.appendChild(notification);
-        } else {
-            document.body.appendChild(notification);
-        }
-
-        // Remove after animation
-        managedSetTimeout(
-            () => {
-                notification.remove();
-            },
-            3000,
-            this
-        );
-
-        // Enhanced visual effects based on wave type
         if (this.camera) {
-            this.camera.flash(color, 0.8 * intensity);
+            if (isSpecialWave) this.camera.flash(color, 0.5);
             this.camera.shakeWaveStart();
         }
 
@@ -2699,14 +2648,6 @@ export class VampireSurvivorsGame {
                     spread: 60,
                     intensity: intensity
                 });
-            } else {
-                // Standard wave effect
-                this.systems.particle.createBurst(this.player.x, this.player.y, 'collect', {
-                    color: color,
-                    count: 15,
-                    spread: 50,
-                    intensity: intensity
-                });
             }
         }
 
@@ -2743,67 +2684,19 @@ export class VampireSurvivorsGame {
             this.player.gainExperience(waveNumber * 10);
             this.player.activatePowerUp('invincible', 5.0, 1.0);
             this.player.activatePowerUp('damageBoost', 15.0, 2.0);
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         } else if (isBossWave && this.player) {
             // Health restoration for boss waves
             this.player.heal(this.player.maxHealth * 0.5);
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         } else if (isSpecialWave && this.player) {
             // XP magnet effect for elite waves
             if (this.systems.experience) {
                 this.systems.experience.magnetizeAllGems();
             }
-            this.spawnPowerUpDrop(this.player.x, this.player.y);
+            this.spawnPowerUpDrop(this.player.x, this.player.y, true);
         }
 
-        // Warning text for dangerous waves
-        if (isBossWave || isMilestoneWave) {
-            managedSetTimeout(
-                () => {
-                    const warningText = document.createElement('div');
-                    warningText.style.cssText = `
-                    position: absolute;
-                    top: 35%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    color: #FF4444;
-                    font-size: 24px;
-                    font-weight: bold;
-                    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-                    z-index: 149;
-                    pointer-events: none;
-                    text-align: center;
-                    animation: waveWarning 2s ease-out forwards;
-                `;
-                    warningText.textContent = isMilestoneWave ? 'PREPARE FOR CHAOS!' : 'DANGER INCOMING!';
-
-                    // Add warning animation if not exists
-                    if (!document.getElementById('wave-warning-style')) {
-                        const warnStyle = document.createElement('style');
-                        warnStyle.id = 'wave-warning-style';
-                        warnStyle.textContent = `
-                        @keyframes waveWarning {
-                            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-                            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-                            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
-                        }
-                    `;
-                        document.head.appendChild(warnStyle);
-                    }
-
-                    // Add to UI container instead of body
-                    const uiContainer = document.getElementById('game-ui');
-                    if (uiContainer) {
-                        uiContainer.appendChild(warningText);
-                    } else {
-                        document.body.appendChild(warningText);
-                    }
-                    managedSetTimeout(() => warningText.remove(), 2000, this);
-                },
-                1000,
-                this
-            );
-        }
     }
 
     // ADDICTION MECHANICS - UI Updates and Power-up System
@@ -2836,13 +2729,17 @@ export class VampireSurvivorsGame {
         }
     }
 
-    spawnPowerUpDrop(x, y) {
+    spawnPowerUpDrop(x, y, force = false) {
         // Ensure storage and respect cap to reduce clutter
         if (!this.powerUpDrops) this.powerUpDrops = [];
-        const cap = this.maxPowerUpDrops || 8;
+        const cap = this.maxPowerUpDrops || 3;
         if (this.powerUpDrops.length >= cap) {
             return; // Skip spawning when at cap
         }
+        // Global cooldown so relics stay special (wave rewards bypass it)
+        const now = this.gameTime || 0;
+        if (!force && now - (this._lastRelicTime ?? -Infinity) < 25) return;
+        this._lastRelicTime = now;
 
         // Random power-up type
         const powerUpTypes = ['health', 'invincible', 'speedBoost', 'damageBoost', 'magnetBoost', 'fireRate'];
@@ -2888,6 +2785,13 @@ export class VampireSurvivorsGame {
                 const dx = powerUp.x - this.player.x;
                 const dy = powerUp.y - this.player.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Relics drift to a hunter who comes close, so a near-miss still counts
+                if (distance < 90 && distance > 0.001) {
+                    const pull = (60 + 220 * (1 - distance / 90)) * dt;
+                    powerUp.x -= (dx / distance) * Math.min(pull, distance);
+                    powerUp.y -= (dy / distance) * Math.min(pull, distance);
+                }
 
                 if (distance < 30) {
                     this.collectPowerUp(powerUp);
@@ -2944,12 +2848,11 @@ export class VampireSurvivorsGame {
                 break;
         }
 
-        // Subtle pickup toast for clarity
-        try {
-            const name = this.getPowerUpName(powerUp.type);
-            const hint = this.getPowerUpPickupHint(powerUp.type);
-            this.showPickupToast(`${name} — ${hint}`, this.getPowerUpColor(powerUp.type));
-        } catch (_) {}
+        // Health has no timer pill, so it gets its own callout; timed relics
+        // announce themselves via Player.activatePowerUp and the HUD pills.
+        if (powerUp.type === 'health') {
+            this.player.callout?.(this.getPowerUpPickupHint('health').toUpperCase(), this.getPowerUpColor('health'), 2);
+        }
 
         // Collection effects
         this.systems.particle.createPowerUpCollectEffect(powerUp.x, powerUp.y, this.getPowerUpColor(powerUp.type));
@@ -2960,66 +2863,57 @@ export class VampireSurvivorsGame {
     }
 
     renderPowerUpDrops(renderer) {
-        if (!this.powerUpDrops) return;
+        if (!this.powerUpDrops || this.powerUpDrops.length === 0) return;
 
         const ctx = renderer.ctx;
+        const now = performance.now() * 0.001;
 
         for (const powerUp of this.powerUpDrops) {
             if (!powerUp.active || powerUp.collected) continue;
 
+            const phase = powerUp.pulsePhase;
+            // Pop in with a little overshoot
+            const t = Math.min(1, powerUp.timer / 0.3);
+            const pop = t < 1 ? 1 + Math.sin(t * Math.PI) * 0.35 - (1 - t) * 0.6 : 1;
+            const bob = Math.sin(phase * 0.55) * 2.5;
+            // Last three seconds: blink faster and faster so expiry is readable
+            const left = powerUp.lifetime - powerUp.timer;
+            let alpha = 1;
+            if (left < 3) {
+                const rate = 6 + (3 - left) * 6;
+                alpha = Math.sin(now * rate) > -0.2 ? 1 : 0.3;
+            }
+
             ctx.save();
+            ctx.globalAlpha = alpha;
 
-            // Pulsing effect
-            const pulse = 1.0 + Math.sin(powerUp.pulsePhase) * 0.3;
-            const size = powerUp.size * pulse;
-
-            // Glow effect
-            ctx.shadowColor = this.getPowerUpColor(powerUp.type);
-            ctx.shadowBlur = 15;
-
-            // Draw power-up
-            ctx.fillStyle = this.getPowerUpColor(powerUp.type);
+            // Contact shadow stays on the floor while the relic hovers
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
             ctx.beginPath();
-            ctx.arc(powerUp.x, powerUp.y, size, 0, Math.PI * 2);
+            ctx.ellipse(powerUp.x, powerUp.y + 1, 8 - bob * 0.4, 3, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw icon/symbol
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = `${size}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(this.getPowerUpSymbol(powerUp.type), powerUp.x, powerUp.y);
+            const glow = getPowerUpGlow(powerUp.type);
+            if (glow) {
+                const gr = 26 + Math.sin(phase) * 3;
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = alpha * (0.7 + Math.sin(phase) * 0.2);
+                ctx.drawImage(glow, powerUp.x - gr, powerUp.y - 12 - gr, gr * 2, gr * 2);
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = alpha;
+            }
 
-            // Nearby hint label to explain the drop
-            if (this.player) {
-                const dx = powerUp.x - this.player.x;
-                const dy = powerUp.y - this.player.y;
-                const dist = Math.hypot(dx, dy);
-                if (dist < 240) {
-                    const label = this.getPowerUpPickupHint(powerUp.type);
-                    const alpha = Math.max(0.35, 1 - dist / 240);
-                    ctx.globalAlpha = alpha;
-                    ctx.font = '12px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    const textWidth = ctx.measureText(label).width;
-                    const padX = 6,
-                        padY = 3;
-                    // Background box above the drop
-                    ctx.fillStyle = 'rgba(10, 10, 20, 0.6)';
-                    ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-                    ctx.lineWidth = 1;
-                    const bx = powerUp.x,
-                        by = powerUp.y - size - 8;
-                    ctx.beginPath();
-                    ctx.rect(bx - textWidth / 2 - padX, by - 14, textWidth + padX * 2, 16 + padY);
-                    ctx.fill();
-                    ctx.stroke();
-                    // Text
-                    ctx.fillStyle = '#E6E6FA';
-                    ctx.fillText(label, bx, by - 2);
-                    ctx.globalAlpha = 1;
-                }
+            const spr = getPowerUpSprite(powerUp.type);
+            const scale = Math.max(0, pop);
+            if (spr && scale > 0) {
+                ctx.translate(powerUp.x, powerUp.y - 3 + bob);
+                ctx.scale(scale, scale);
+                ctx.drawImage(spr.canvas, -spr.ax, -spr.ay, spr.w, spr.h);
+            } else if (!spr) {
+                ctx.fillStyle = this.getPowerUpColor(powerUp.type);
+                ctx.beginPath();
+                ctx.arc(powerUp.x, powerUp.y - 10 + bob, 9, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             ctx.restore();
@@ -3027,27 +2921,7 @@ export class VampireSurvivorsGame {
     }
 
     getPowerUpColor(type) {
-        const colors = {
-            health: '#FF4444',
-            invincible: '#FFD700',
-            speedBoost: '#00FFFF',
-            damageBoost: '#FF6600',
-            magnetBoost: '#44FF44',
-            fireRate: '#FF44FF'
-        };
-        return colors[type] || '#FFFFFF';
-    }
-
-    getPowerUpSymbol(type) {
-        const symbols = {
-            health: '+',
-            invincible: '◊',
-            speedBoost: '»',
-            damageBoost: '!',
-            magnetBoost: '○',
-            fireRate: '‹›'
-        };
-        return symbols[type] || '?';
+        return POWER_UP_COLORS[type] || '#FFFFFF';
     }
 
     stop() {

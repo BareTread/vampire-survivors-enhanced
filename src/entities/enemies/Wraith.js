@@ -56,27 +56,13 @@ export class Wraith extends Enemy {
 
         this.maxHealth = Math.floor(35 * difficultyMultiplier);
         this.health = this.maxHealth;
-        this.damage = Math.floor(15 * difficultyMultiplier);
-        this.expReward = Math.floor(12 * difficultyMultiplier);
-
-        // Apply adaptive damage from flow state
-        if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
-            this.damage = Math.floor(this.damage * this.game.systems.flowState.adaptiveDamageMultiplier);
-        }
-
-        // Damage cap safety net (mirrors Enemy.initializeType)
-        if (this.game && typeof this.game.gameTime === 'number') {
-            const gameTimeMin = this.game.gameTime / 60;
-            const playerMaxHP = this.game.player?.maxHealth || 100;
-            if (gameTimeMin < 10) {
-                const capPercent = 0.40 + Math.min(gameTimeMin / 5, 1.0) * 0.20;
-                this.damage = Math.min(this.damage, Math.floor(playerMaxHP * capPercent));
-            }
-        }
+        this.damage = this.contactDamage(15);
+        this.expReward = Math.floor(12 * Math.min(2.0, 1.0 + Math.log10(difficultyMultiplier) * 0.3));
     }
 
     update(dt) {
         if (!this.active) return;
+        if (this.updateDeath(dt)) return;
 
         // Update spawn animation
         if (this.currentSpawnTime > 0) {
@@ -286,7 +272,7 @@ export class Wraith extends Enemy {
         // Only attack if player is within actual attack range
         if (distance <= this.attackRange) {
             // Spectral touch attack - phases through defenses
-            player.takeDamage(this.damage, { type: 'wraith', name: 'Wraith' });
+            player.takeDamage(this.damage, { type: 'wraith', name: 'Wraith', x: this.x, y: this.y });
 
             // Create spectral attack effect
             this.createSpectralAttackEffect();
@@ -396,9 +382,6 @@ export class Wraith extends Enemy {
             intensity: 1.0,
             spread: 20
         });
-
-        // Show "IMMUNE" text
-        this.addDamageNumber('IMMUNE', '#FFFFFF');
     }
 
     playWraithSound(soundName) {

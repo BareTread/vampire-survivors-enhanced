@@ -146,8 +146,6 @@ export class ShadowDagger extends BaseWeapon {
         if (isCrit && this.game.systems.particle) {
             this.game.systems.particle.createCriticalEffect(enemy.x, enemy.y, '#8B5CF6');
         }
-
-        if (this.game.camera) this.game.camera.shake(isCrit ? 5 : 3, 0.15);
     }
 
     _showTelegraph(x, y) {

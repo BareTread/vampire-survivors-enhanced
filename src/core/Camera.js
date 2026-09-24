@@ -20,15 +20,18 @@ export class Camera {
         this.dynamicZoomEnabled = true;
         this.dynamicZoomTarget = this.baseZoom;
         this.dynamicZoomSmoothing = 0.02; // Very slow zoom transitions
-        this.shakeEffect = {
-            intensity: 0,
-            duration: 0,
-            offsetX: 0,
-            offsetY: 0,
-            frequency: 30, // Enhanced shake frequency
-            decay: 0.95
-        };
-        
+        // Screen shake is trauma-based (0..1): events add trauma, the visible
+        // shake is trauma² so small bumps stay subtle and only real impacts
+        // read. Motion uses smooth layered noise (not a buzzing sine) and a
+        // separate damped spring "kick" pushes the view away from a hit.
+        this.trauma = 0;
+        this.traumaDecay = 1.5;      // trauma lost per second
+        this.maxShakeOffset = 16;    // screen px at full trauma
+        this.shakeScale = 1;         // Settings > Screen Shake slider
+        this._shakeTime = Math.random() * 100;
+        this._kick = { x: 0, y: 0, vx: 0, vy: 0 };
+        this.shakeEffect = { intensity: 0, duration: 0, offsetX: 0, offsetY: 0 };
+
         this.flashEffect = {
             color: '#FFFFFF',
             intensity: 0,
@@ -45,16 +48,6 @@ export class Camera {
             zoom: 0,
             rotation: 0,
             desaturation: 0
-        };
-        
-        // Enhanced shake system
-        this.shakeProfiles = {
-            subtle: { intensity: 2, frequency: 20, decay: 0.92 },
-            normal: { intensity: 5, frequency: 25, decay: 0.94 },
-            heavy: { intensity: 10, frequency: 30, decay: 0.95 },
-            massive: { intensity: 20, frequency: 35, decay: 0.96 },
-            critical: { intensity: 15, frequency: 40, decay: 0.93 },
-            explosion: { intensity: 25, frequency: 20, decay: 0.90 }
         };
         
         // Screen distortion effects
@@ -156,32 +149,8 @@ export class Camera {
                      Math.min(this.bounds.maxY - this.height / 2, this.y));
         }
         
-        // Update enhanced shake with frequency and decay
-        if (this.shakeEffect.duration > 0) {
-            this.shakeEffect.duration -= dt;
-            const time = performance.now() * 0.001;
-            
-            // High-frequency shake with smooth decay
-            this.shakeEffect.offsetX = Math.sin(time * this.shakeEffect.frequency) * this.shakeEffect.intensity;
-            this.shakeEffect.offsetY = Math.cos(time * this.shakeEffect.frequency * 1.3) * this.shakeEffect.intensity;
-            
-            // Apply decay
-            this.shakeEffect.intensity *= this.shakeEffect.decay;
-            
-            if (this.shakeEffect.duration <= 0 || this.shakeEffect.intensity < 0.1) {
-                // Smooth recovery: lerp offsets to zero instead of snapping
-                this.shakeEffect.offsetX *= 0.7;
-                this.shakeEffect.offsetY *= 0.7;
-                this.shakeEffect.intensity *= 0.7;
-                if (Math.abs(this.shakeEffect.offsetX) < 0.05 && Math.abs(this.shakeEffect.offsetY) < 0.05) {
-                    this.shakeEffect.intensity = 0;
-                    this.shakeEffect.offsetX = 0;
-                    this.shakeEffect.offsetY = 0;
-                    this.shakeEffect.duration = 0;
-                }
-            }
-        }
-        
+        this.updateShake(dt);
+
         // Update flash with improved cleanup
         if (this.flashEffect.duration > 0) {
             this.flashEffect.duration = Math.max(0, this.flashEffect.duration - dt);
@@ -250,82 +219,95 @@ export class Camera {
         this.bounds = { minX, minY, maxX, maxY };
     }
     
-    shake(intensity, duration, profile = 'normal') {
-        if (!this.effectsEnabled || !this.screenShakeEnabled) return;
-        
-        // Use predefined shake profiles for consistent feel
-        const shakeProfile = this.shakeProfiles[profile] || this.shakeProfiles.normal;
-        
-        // Reduce intensity based on performance mode
-        let adjustedIntensity = Math.min(intensity, shakeProfile.intensity);
-        switch (this.performanceMode) {
-            case 'low':
-                adjustedIntensity *= 0.5;
-                break;
-            case 'medium':
-                adjustedIntensity *= 0.75;
-                break;
-        }
-        
-        // FIX: Only replace current shake if incoming is stronger.
-        // Cap duration to prevent infinite stacking from rapid calls.
-        if (adjustedIntensity > this.shakeEffect.intensity) {
-            this.shakeEffect.intensity = adjustedIntensity;
-            this.shakeEffect.frequency = shakeProfile.frequency;
-            this.shakeEffect.decay = shakeProfile.decay;
-        }
-        this.shakeEffect.duration = Math.min(
-            Math.max(this.shakeEffect.duration, duration),
-            1.5 // Hard cap: no shake lasts longer than 1.5 seconds
-        );
+    /** Smooth pseudo-noise in [-1, 1]: three incommensurate sines per axis. */
+    static shakeNoise(t, seed) {
+        return (Math.sin(t * 1.0 + seed) + Math.sin(t * 2.31 + seed * 1.7) * 0.5 +
+                Math.sin(t * 4.13 + seed * 2.9) * 0.25) / 1.75;
     }
-    
+
+    updateShake(dt) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        this.trauma = Math.max(0, this.trauma - this.traumaDecay * step);
+
+        // Kick: stiff, well-damped spring back to rest (one clean jolt, no wobble)
+        const k = this._kick;
+        k.vx += (-260 * k.x - 30 * k.vx) * step;
+        k.vy += (-260 * k.y - 30 * k.vy) * step;
+        k.x += k.vx * step;
+        k.y += k.vy * step;
+        if (Math.abs(k.x) + Math.abs(k.y) + Math.abs(k.vx) + Math.abs(k.vy) < 0.02) {
+            k.x = k.y = k.vx = k.vy = 0;
+        }
+
+        // Noise speed rises a little with trauma: rumble at low, jolt at high
+        this._shakeTime += step * (9 + 9 * this.trauma);
+        const amount = this.trauma * this.trauma * this.maxShakeOffset;
+        const toWorld = 1 / (this.zoom || 1);
+        this.shakeEffect.intensity = amount;
+        this.shakeEffect.offsetX = (Camera.shakeNoise(this._shakeTime, 0.0) * amount + k.x) * toWorld;
+        this.shakeEffect.offsetY = (Camera.shakeNoise(this._shakeTime, 5.3) * amount + k.y) * toWorld;
+    }
+
+    /**
+     * Add trauma (0..1). `ceiling` bounds what this source can build up to, so
+     * frequent events (getting hit in a swarm) stay readable while rare set
+     * pieces (boss, evolution, Death) still get the full range.
+     */
+    addTrauma(amount, ceiling = 1) {
+        if (!this.effectsEnabled || !this.screenShakeEnabled || !(amount > 0)) return;
+        if (this.trauma >= ceiling) return;
+        const scale = (this.performanceMode === 'low' ? 0.6 : 1) * this.shakeScale;
+        this.trauma = Math.min(ceiling, this.trauma + amount * scale);
+    }
+
+    /**
+     * World-space impact (explosion, slam): trauma falls off with distance
+     * from the view centre, so a blast across the screen is felt faintly and
+     * one at your feet is felt fully.
+     */
+    shakeAt(wx, wy, amount, reach = 420, ceiling = 0.6) {
+        const d = Math.hypot(wx - this.x, wy - this.y);
+        const falloff = 1 - d / reach;
+        if (falloff <= 0) return;
+        this.addTrauma(amount * falloff * falloff, ceiling);
+    }
+
+    /**
+     * Directional jolt in screen px, e.g. away from whatever hit the player.
+     * (dx, dy) is the direction the view should be shoved.
+     */
+    kick(dx, dy, strength = 6) {
+        if (!this.effectsEnabled || !this.screenShakeEnabled) return;
+        const len = Math.hypot(dx, dy);
+        if (!len) return;
+        const v = Math.min(strength, 14) * 28 * this.shakeScale;
+        this._kick.vx += (dx / len) * v;
+        this._kick.vy += (dy / len) * v;
+    }
+
+    /**
+     * Legacy entry point: (intensity ~1-30, duration s). Mapped to trauma so
+     * weak or short calls barely register and only big, long events shake.
+     */
+    shake(intensity, duration = 0.3) {
+        const i = Math.max(0, Number(intensity) || 0);
+        const d = Math.max(0.05, Number(duration) || 0.3);
+        this.addTrauma(Math.min(0.75, (i / 36) * Math.min(1.5, d / 0.45)));
+    }
+
     setScreenShakeEnabled(enabled) {
         this.screenShakeEnabled = enabled;
         if (!enabled) {
             // Immediately stop any active shake
+            this.trauma = 0;
+            this._kick.x = this._kick.y = this._kick.vx = this._kick.vy = 0;
             this.shakeEffect.intensity = 0;
             this.shakeEffect.offsetX = 0;
             this.shakeEffect.offsetY = 0;
-            this.shakeEffect.duration = 0;
         }
     }
     
-    // Enhanced shake methods for different game events
-    shakeWeaponFire(weaponType, level = 1) {
-        const profiles = {
-            'magicMissile': { profile: 'subtle', intensity: 2 + level * 0.5, duration: 0.1 },
-            'whip': { profile: 'normal', intensity: 4 + level * 0.8, duration: 0.15 },
-            'throwingKnife': { profile: 'subtle', intensity: 1.5 + level * 0.3, duration: 0.08 },
-            'firearm': { profile: 'heavy', intensity: 6 + level * 1.0, duration: 0.12 },
-            'explosion': { profile: 'explosion', intensity: 15 + level * 2, duration: 0.3 }
-        };
-        
-        const config = profiles[weaponType] || profiles['magicMissile'];
-        this.shake(config.intensity, config.duration, config.profile);
-    }
     
-    shakeHit(damage, critical = false) {
-        const baseIntensity = Math.min(15, damage * 0.1);
-        const duration = critical ? 0.25 : 0.15;
-        const profile = critical ? 'critical' : damage > 50 ? 'heavy' : 'normal';
-        
-        this.shake(baseIntensity, duration, profile);
-    }
-    
-    shakeExplosion(radius) {
-        const intensity = Math.min(30, radius * 0.3);
-        const duration = 0.4;
-        this.shake(intensity, duration, 'explosion');
-    }
-    
-    shakeLevelUp() {
-        this.shake(8, 0.6, 'normal');
-    }
-    
-    shakeGameOver() {
-        this.shake(25, 1.0, 'massive');
-    }
     
     flash(color, duration) {
         if (!this.effectsEnabled) return;
@@ -684,26 +666,11 @@ export class Camera {
         }
     }
     
-    onLevelUp() {
-        this.flash('#00FFFF', 0.5);
-        this.shakeLevelUp();
-        this.activateDistortion('zoom', 5, 0.3);
+    
+    onCriticalHit() {
+        // Crits are routine; they read through their own spark, not the camera.
     }
     
-    onCriticalHit(damage) {
-        const intensity = Math.min(10, damage * 0.1);
-        this.flash('#FFD700', 0.2);
-        this.shakeHit(damage, true);
-        if (damage > 100) {
-            this.activateDistortion('wave', intensity, 0.4);
-        }
-    }
-    
-    onExplosion(x, y, radius) {
-        this.flash('#FF6600', 0.3);
-        this.shakeExplosion(radius);
-        this.activateDistortion('spiral', radius * 0.2, 0.5);
-    }
     
     onBossDefeat() {
         this.flash('#FFD700', 1.0);
@@ -716,46 +683,11 @@ export class Camera {
         this.effects.chromaticAberration = 0;
     }
     
-    onGameOver() {
-        this.flash('#FF0000', 2.0);
-        this.shakeGameOver();
-        this.effects.vignette = 0.8;
-        this.effects.desaturation = 1.0;
-        this.activateDistortion('spiral', 20, 2.0);
-    }
     
-    onPowerUpCollect(type) {
-        const colors = {
-            'health': '#FF4444',
-            'damage': '#FF6600',
-            'speed': '#00FFFF',
-            'invincible': '#FFD700'
-        };
-        
-        const color = colors[type] || '#FFFFFF';
-        this.flash(color, 0.3);
-        this.shake(6, 0.2, 'normal');
-    }
-    
-    // New shake methods for weekend project features
-    shakePickupGem() {
-        this.shake(1, 0.1, 'subtle');
-    }
-    
-    shakeLuckyGem() {
-        this.shake(4, 0.3, 'normal');
-        this.flash('#FFD700', 0.2);
-    }
-    
-    shakeKillStreak(streakCount) {
-        const intensity = Math.min(10, 2 + streakCount * 0.5);
-        const duration = 0.2 + streakCount * 0.05;
-        this.shake(intensity, duration, 'normal');
-    }
     
     shakeWaveStart() {
-        this.shake(6, 0.5, 'heavy');
-        this.flash('#FF4444', 0.4);
+        // A low rumble as the next wave rolls in; the banner does the talking.
+        this.addTrauma(0.3);
     }
     
     /**

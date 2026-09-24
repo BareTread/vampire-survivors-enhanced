@@ -135,10 +135,10 @@ describe('Enemy swarm pacing', () => {
 
         enemySystem.reset();
         expect(enemySystem.chooseSpawnPattern()).toBe('circle');
-        game.gameTime = 149;
+        game.gameTime = EnemySystem.FIRST_SURGE_TIME - 1;
         enemySystem.updatePressureSurge(0.016);
         expect(enemySystem.pressureSurgeActive).toBe(false);
-        game.gameTime = 150;
+        game.gameTime = EnemySystem.FIRST_SURGE_TIME;
         enemySystem.updatePressureSurge(0.016);
         expect(enemySystem.pressureSurgeActive).toBe(true);
     });

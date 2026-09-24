@@ -2928,7 +2928,7 @@ export class TitleScreenSystem {
             { key: 'musicVolume', label: 'Music Volume', type: 'slider', icon: 'note' },
             { key: 'sfxVolume', label: 'SFX Volume', type: 'slider', icon: 'note' },
             { key: 'particleEffects', label: 'Particle Effects', type: 'toggle', icon: 'spark' },
-            { key: 'screenShake', label: 'Screen Shake', type: 'toggle', icon: 'shake' },
+            { key: 'shakeIntensity', label: 'Screen Shake', type: 'slider', icon: 'shake' },
             { key: 'damageNumbers', label: 'Damage Numbers', type: 'toggle', icon: 'burst' },
             { key: 'lowFXMode', label: 'Low Effects Mode', type: 'toggle', icon: 'gauge' },
             { key: 'autoQuality', label: 'Auto Quality', type: 'toggle', icon: 'gear' },
