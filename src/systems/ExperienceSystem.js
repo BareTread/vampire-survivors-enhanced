@@ -206,11 +206,6 @@ export class ExperienceSystem {
             if (this.game.systems.particle) {
                 this.game.systems.particle.createLuckyGemSparkles(x, y);
             }
-
-            // Enhanced camera shake
-            if (this.game.camera) {
-                this.game.camera.shakeLuckyGem();
-            }
         }
 
         this.activeGems.push(gem);

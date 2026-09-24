@@ -197,10 +197,6 @@ export class VisualEffectsSystem {
     createCriticalHitEffect(x, y, color = '#FF0000') {
         this.createEffect('criticalHit', { x, y, color });
 
-        // Add screen shake for emphasis
-        if (this.game.camera) {
-            this.game.camera.shake(8, 0.3);
-        }
     }
 
     createLevelUpEffect(x, y) {
@@ -209,9 +205,6 @@ export class VisualEffectsSystem {
         // Screen flash for dramatic effect
         this.createScreenFlash('#FFD700', 0.4);
 
-        if (this.game.camera) {
-            this.game.camera.shake(12, 0.6);
-        }
     }
 
     createEnemyDeathEffect(x, y, color = '#FF4444') {

@@ -36,7 +36,7 @@ const createWeaponGame = () => ({
         enemy: { getEnemiesInRange: () => [] },
         particle: {}
     },
-    camera: { shakeWeaponFire: jest.fn() },
+    camera: { addTrauma: jest.fn(), kick: jest.fn() },
     audioManager: null
 });
 

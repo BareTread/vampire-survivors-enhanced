@@ -212,9 +212,6 @@ export class FireWand extends BaseWeapon {
         // Explosion particles
         this.createExplosionParticles(x, y, radius);
 
-        // Camera shake for explosion
-        this.game.camera.shake(4 + this.level * 0.5, 0.15, 'normal');
-
         // Create burn zone
         this.createBurnZone(x, y, radius);
 

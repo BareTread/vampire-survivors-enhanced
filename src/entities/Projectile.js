@@ -337,16 +337,6 @@ export class Projectile {
                 this.game.systems.particle.createHitEffect(this.x, this.y, this.color);
             }
 
-            // Basic screen shake
-            const shakeIntensity = damageInfo.isCritical ? 5 : 3;
-            if (
-                damageInfo.damage > 25 &&
-                this.game &&
-                this.game.camera &&
-                typeof this.game.camera.shake === 'function'
-            ) {
-                this.game.camera.shake(shakeIntensity, damageInfo.isCritical ? 0.3 : 0.2);
-            }
         }
 
         // Projectile-specific impact effects
@@ -508,7 +498,7 @@ export class Projectile {
 
     hitPlayer(player) {
         // Apply damage to player
-        player.takeDamage(this.damage, { type: 'projectile', name: 'Cultist Bolt' });
+        player.takeDamage(this.damage, { type: 'projectile', name: 'Cultist Bolt', x: this.x - this.velocity.x * 0.1, y: this.y - this.velocity.y * 0.1 });
 
         // Create hit effect
         this.game.systems.particle.createHitEffect(this.x, this.y, '#FF4444');
@@ -539,7 +529,7 @@ export class Projectile {
 
         // Screen shake (with safety check)
         if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(8, 0.5);
+            this.game.camera.shakeAt(this.x, this.y, 0.3, 360, 0.45);
         }
 
         this.destroy();

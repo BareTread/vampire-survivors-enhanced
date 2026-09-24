@@ -1284,8 +1284,6 @@ export class VampireSurvivorsGame {
 
         // Enhanced visual effects - reduced intensity to prevent overlay
         this.systems.particle.createEvolutionEffect(this.player.x, this.player.y);
-        // Small camera shake for feedback
-        this.camera.shake(3, 0.2);
 
         this.hideLevelUpUI();
     }

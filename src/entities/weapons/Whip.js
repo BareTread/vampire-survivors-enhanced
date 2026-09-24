@@ -254,11 +254,7 @@ export class Whip extends BaseWeapon {
         
         // Create hit effect
         this.game.systems.particle.createMeleeHitEffect(enemy.x, enemy.y, this.whipColor);
-        
-        // Screen shake for powerful hits (with safety check)
-        if (attack.damage > 60 && this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(2, 0.1);
-        }
+
     }
     
     normalizeAngle(angle) {

@@ -3,6 +3,8 @@ import { EnemyRenderer } from './rendering/EnemyRenderer.js';
 import { enemyDisplayName } from '../data/enemyNames.js';
 
 export class Enemy {
+    static RECOIL_TIME = 0.28;
+
     constructor(game, x, y, type = 'basic') {
         this.game = game;
         this.x = x;
@@ -160,7 +162,11 @@ export class Enemy {
         // Apply difficulty scaling based on game time
         const difficultyMultiplier = this.getDifficultyMultiplier();
 
-        this.maxHealth = Math.floor(stats.maxHealth * difficultyMultiplier);
+        // Early-game HP grace (55% → 100% over the first 3 minutes): starter
+        // weapons should drop the first bats and ghouls in one or two hits.
+        const hpGraceMin = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
+        const hpGrace = 0.55 + 0.45 * Math.min(1, hpGraceMin / 3);
+        this.maxHealth = Math.max(1, Math.floor(stats.maxHealth * difficultyMultiplier * hpGrace));
 
         // Mild speed scaling with time: enemies close the gap more credibly by mid-game.
         // Summoner/juggernaut are excluded — their slow speed is intentional to their role.
@@ -170,34 +176,7 @@ export class Enemy {
             : Math.min(1.3, 1 + gameTimeMinForSpeed * 0.012);
         this.speed = stats.speed * speedFactor;
 
-        // Apply adaptive damage from flow state
-        let finalDamageMultiplier = difficultyMultiplier;
-        if (this.game.systems && this.game.systems.flowState && this.game.systems.flowState.adaptiveDamageMultiplier) {
-            finalDamageMultiplier *= this.game.systems.flowState.adaptiveDamageMultiplier;
-        }
-
-        // Onboarding grace: the first minutes are a power-fantasy warm-up —
-        // contact damage ramps from 60% to full strength by 2.5 minutes so a
-        // new hunter can learn to kite before the swarm gets teeth.
-        const graceMin = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
-        const onboardingGrace = 0.6 + 0.4 * Math.min(1, graceMin / 2.5);
-
-        this.damage = Math.max(1, Math.floor(stats.damage * finalDamageMultiplier * onboardingGrace));
-
-        // BALANCE SAFETY NET: Hard cap on single-hit damage for the first 5 minutes.
-        // Player has 100 HP and no upgrades early — no single hit should exceed 40% of max HP
-        // before 5 min, scaling to 60% cap by 10 min. This prevents one-shots from scaled
-        // elites, Demons, and their area/explosion attacks before the player can adapt.
-        if (this.game && typeof this.game.gameTime === 'number') {
-            const gameTimeMin = this.game.gameTime / 60;
-            const playerMaxHP = this.game.player?.maxHealth || 100;
-            // Linear ramp: 40% cap at 0 min → 60% cap at 5 min → uncapped after 10 min
-            if (gameTimeMin < 10) {
-                const capPercent = 0.4 + Math.min(gameTimeMin / 5, 1.0) * 0.2; // 0.40 → 0.60
-                const damageCap = Math.floor(playerMaxHP * capPercent);
-                this.damage = Math.min(this.damage, damageCap);
-            }
-        }
+        this.damage = this.contactDamage(stats.damage);
 
         this.size = stats.size;
         this.color = stats.color;
@@ -313,6 +292,28 @@ export class Enemy {
         return selectedVariant;
     }
 
+    /**
+     * Contact damage for a base value. Enemy HP carries the difficulty curve;
+     * damage only grows gently with time (1.0x → 1.7x at 10 min → 2.7x at
+     * 30 min) so every hit costs a readable slice of health instead of
+     * scaling with the player's level. Early minutes get an onboarding grace.
+     */
+    contactDamage(base, capFrac = 0.22) {
+        const minutes = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
+        const timeScale = 1 + Math.min(minutes, 10) * 0.07 + Math.max(0, minutes - 10) * 0.05;
+        const grace = 0.6 + 0.4 * Math.min(1, minutes / 2.5);
+        const flowRaw = this.game?.systems?.flowState?.adaptiveDamageMultiplier || 1;
+        const flow = Math.max(0.8, Math.min(1.2, flowRaw));
+        return Math.max(1, Math.min(Math.floor(base * timeScale * grace * flow), this.hitCap(capFrac)));
+    }
+
+    /** Largest single hit allowed: capFrac of max HP, loosening to 1.5x by 20 min. */
+    hitCap(capFrac = 0.22) {
+        const minutes = this.game && typeof this.game.gameTime === 'number' ? this.game.gameTime / 60 : 0;
+        const playerMaxHP = this.game?.player?.maxHealth || 100;
+        return Math.floor(playerMaxHP * capFrac * (1 + Math.min(minutes, 20) / 40));
+    }
+
     getDifficultyMultiplier() {
         // REBALANCED: Softer exponential enemy scaling with player-power tracking
         if (!this.game || typeof this.game.gameTime !== 'number') {
@@ -338,7 +339,7 @@ export class Enemy {
         // so the difficulty curve matches the power curve
         const playerLevel = this.game.player?.level || 1;
         const weaponCount = this.game.player?.weapons?.size || 1;
-        const playerPowerFactor = 1 + (playerLevel - 1) * 0.04 + (weaponCount - 1) * 0.08;
+        const playerPowerFactor = 1 + (playerLevel - 1) * 0.03 + (weaponCount - 1) * 0.06;
 
         const finalMultiplier = baseMultiplier * exponentialScaling * waveScaling * playerPowerFactor;
 
@@ -396,6 +397,14 @@ export class Enemy {
 
         // Elite-specific behaviors
         this.updateEliteBehaviors(dt);
+
+        // Recoil after a bite overrides the chase, easing out
+        if (this.recoilTime > 0) {
+            const k = this.recoilTime / Enemy.RECOIL_TIME;
+            this.velocity.x = this.recoilVX * k + this.velocity.x * 0.15;
+            this.velocity.y = this.recoilVY * k + this.velocity.y * 0.15;
+            this.recoilTime -= dt;
+        }
 
         // Apply movement with coordinate validation
         // FIXED: Validate movement delta before applying
@@ -576,10 +585,18 @@ export class Enemy {
         const bloodMoon  = this.game.systems.dynamicEvents?.bloodMoonDamageMult ?? 1;
         const auraBoost  = this.auraBuffed ? 1.30 : 1.0;
         const dmgMult    = bloodMoon * auraBoost;
-        player.takeDamage(Math.round(this.damage * dmgMult), { type: this.type, name: enemyDisplayName(this.type, this.variant) });
+        player.takeDamage(Math.round(this.damage * dmgMult), { type: this.type, name: enemyDisplayName(this.type, this.variant), x: this.x, y: this.y });
 
         // Reset cooldown
         this.attackCooldown = this.baseAttackCooldown;
+
+        // Recoil: the attacker bounces off after landing a bite, so a single
+        // chaser can't chain hits and the player sees exactly who hit them.
+        const rx = this.x - player.x, ry = this.y - player.y;
+        const rl = Math.hypot(rx, ry) || 1;
+        this.recoilVX = (rx / rl) * 240;
+        this.recoilVY = (ry / rl) * 240;
+        this.recoilTime = Enemy.RECOIL_TIME;
 
         // Visual effect
         this.game.systems.particle.createImpactEffect(this.x, this.y, '#FF4444');
@@ -708,16 +725,6 @@ export class Enemy {
                     decay: 0.9,
                     type: 'circle'
                 });
-            }
-        }
-
-        // Camera shake proportional to damage
-        if (this.game.camera) {
-            const shakeIntensity = Math.min(10, damage * 0.08);
-            if (isCritical) {
-                this.game.camera.shake(shakeIntensity * 1.5, 0.12, 'critical');
-            } else if (damage > 15) {
-                this.game.camera.shake(shakeIntensity, 0.08, 'subtle');
             }
         }
 
@@ -915,12 +922,6 @@ export class Enemy {
             ps.createEnhancedDeathEffect(this.x, this.y, this.color, comboLevel);
         }
 
-        // Escalating screen shake based on combo
-        const shakeIntensity = Math.min(5, 2 + comboLevel);
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(shakeIntensity, 0.1 + comboLevel * 0.05);
-        }
-
         // Hit-stop on elite kills for dramatic weight
         if (this.type === 'elite' && this.game.camera && typeof this.game.camera.hitStop === 'function') {
             this.game.camera.hitStop(3, 0.5);
@@ -957,7 +958,7 @@ export class Enemy {
                         const capPercent = 0.35 + Math.min(gameTimeMin / 5, 1.0) * 0.15; // 0.35→0.50
                         explosionDmg = Math.min(explosionDmg, Math.floor(player.maxHealth * capPercent));
                     }
-                    player.takeDamage(Math.max(10, explosionDmg), { type: 'elite', name: 'Elite Explosion' });
+                    player.takeDamage(Math.max(10, explosionDmg), { type: 'elite', name: 'Elite Explosion', x: this.x, y: this.y });
                 }
             }
             // Red/orange explosion particles
@@ -977,7 +978,7 @@ export class Enemy {
                 }
             }
             if (this.game.camera && typeof this.game.camera.shake === 'function') {
-                this.game.camera.shake(8, 0.3);
+                this.game.camera.shakeAt(this.x, this.y, 0.35);
             }
         }
 
@@ -1317,6 +1318,7 @@ export class Enemy {
         this.velocity = { x: 0, y: 0 };
         this.direction = 0;
         this.attackCooldown = 0;
+        this.recoilTime = 0;
         this.flashTime = 0;
         this.freezeTimer = 0;
         this._frozenVisual = false;
@@ -1533,7 +1535,7 @@ export class Enemy {
         // Damage player if in range
         if (distance <= 80) {
             const damage = this.damage * 0.8; // 80% of normal damage
-            player.takeDamage(damage, { type: this.type, name: enemyDisplayName(this.type, this.variant) });
+            player.takeDamage(damage, { type: this.type, name: enemyDisplayName(this.type, this.variant), x: this.x, y: this.y });
 
             // Knockback effect
             const knockbackForce = 200;

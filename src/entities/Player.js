@@ -2,6 +2,17 @@ import { globalDamageNumberPool } from '../core/DamageNumberPool.js';
 import { globalTimerManager, managedSetTimeout } from '../core/TimerManager.js';
 
 export class Player {
+    /**
+     * XP needed to go from `level` to `level + 1`. Linear steps (like the
+     * genre's classics) so upgrades arrive every ~10-20s early and settle
+     * into a steady rhythm instead of a burst of eight in the first minute.
+     * Roughly Lv5 @1min, Lv10 @2.5-3min, Lv15 @5min for a player who gathers gems.
+     */
+    static xpForLevel(level) {
+        const l = Math.max(1, level);
+        return 180 + 150 * (l - 1) + 80 * Math.max(0, l - 15);
+    }
+
     constructor(game, x, y) {
         this.game = game;
         this.x = x;
@@ -11,7 +22,7 @@ export class Player {
         this.targetX = x;
         this.targetY = y;
         this.velocity = { x: 0, y: 0 };
-        this.maxSpeed = 100; // pixels per second
+        this.maxSpeed = 118; // pixels per second — a touch faster than a blood bat
         this.acceleration = 500;
         this.deceleration = 800;
         this.dash = {
@@ -29,7 +40,7 @@ export class Player {
         this.health = this.maxHealth;
         this.level = 1;
         this.experience = 0;
-        this.experienceToNext = 100;
+        this.experienceToNext = Player.xpForLevel(1);
         this.levelUpHealRatio = 0.35; // Level-ups should stabilize a run, not fully reset all danger
 
         // Player stats (upgradeable)
@@ -416,18 +427,22 @@ export class Player {
         return this.takeDamageEnhanced(amount, source);
     }
 
-    createDamageEffects(damage) {
+    createDamageEffects(damage, source = null) {
         // Show enhanced damage number
         this.addDamageNumber(-damage, '#FF4444');
 
         // Screen effects based on damage severity
         const damagePercent = damage / this.maxHealth;
-        const shakeIntensity = Math.min(12, 5 + damage * 0.5);
         const flashIntensity = Math.min(0.4, 0.1 + damagePercent * 0.3); // Reduced flash intensity
 
-        // Screen shake (with safety check)
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(shakeIntensity, 0.4);
+        // Getting hit is the one routine event that moves the camera: a jolt
+        // away from the attacker plus trauma scaled by the share of HP lost.
+        const cam = this.game && this.game.camera;
+        if (cam && typeof cam.addTrauma === 'function') {
+            cam.addTrauma(0.22 + Math.min(0.4, damagePercent * 1.6), 0.5);
+            if (source && Number.isFinite(source.x) && Number.isFinite(source.y)) {
+                cam.kick(this.x - source.x, this.y - source.y, 4 + damagePercent * 20);
+            }
         }
 
         // Reduced red screen flash to prevent overlay bug (with safety check)
@@ -504,10 +519,7 @@ export class Player {
         this.experience -= this.experienceToNext;
         this.level++;
 
-        // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
-        // Old: 1.15^level growth was too steep with reduced XP income
-        // New: 1.12^level growth for more reasonable progression
-        this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
+        this.experienceToNext = Player.xpForLevel(this.level);
 
         // Partial recovery on level up — strong enough to matter, not a full reset
         this.heal(Math.max(12, Math.floor(this.maxHealth * this.levelUpHealRatio)));
@@ -524,42 +536,11 @@ export class Player {
         this.levelUpEffect = true;
         this.levelUpEffectTime = 2.0; // Extended duration
 
-        // XP MAGNET EFFECT - Magnetize all XP gems on level up!
+        // Level-up pulls in nearby gems (the ring shows the reach). Not the
+        // whole map — that chained level-ups into bursts and made routing moot.
         if (this.game.systems.experience) {
-            this.game.systems.experience.magnetizeAllGems();
-
-            // Create visual effect for the magnet effect
-            if (this.game.systems.particle) {
-                // Magnetic wave effect
-                this.game.systems.particle.createMagnetWave(this.x, this.y, 300); // 300 pixel radius
-
-                // Show "+XP MAGNET!" text
-                managedSetTimeout(
-                    () => {
-                        this.game.systems.particle.createEnhancedDamageNumber(
-                            this.x,
-                            this.y - 60,
-                            '+XP MAGNET!',
-                            false,
-                            '#00FFFF',
-                            24,
-                            2.5
-                        );
-                    },
-                    200,
-                    this
-                );
-            }
-        }
-
-        // Single gold flash to prevent overlapping effects that cause red overlay bug
-        if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
-            this.game.camera.flash('#FFD700', 1.0);
-        }
-
-        // Dramatic screen shake
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(15, 0.6);
+            this.game.systems.experience.magnetizeGemsInRadius?.(300, 1.2);
+            this.game.systems.particle?.createMagnetWave?.(this.x, this.y, 300);
         }
 
         // Massive particle explosion
@@ -947,11 +928,6 @@ export class Player {
             const color = streak < 15 ? '#FFAA00' : streak < 30 ? '#FF6600' : '#FF0066';
             this.addDamageNumber(`${streak} KILL STREAK!`, color, 'STREAK');
 
-            // Enhanced camera shake for kill streaks
-            if (this.game.camera) {
-                this.game.camera.shakeKillStreak(streak);
-            }
-
             // Particle celebration
             if (this.game.systems.particle) {
                 this.game.systems.particle.createKillStreakEffect(this.x, this.y, streak);
@@ -995,7 +971,6 @@ export class Player {
         // Visual celebration
         if (this.game.camera) {
             this.game.camera.flash('#FFD700', 0.6 * intensity);
-            this.game.camera.shake(8 * intensity, 0.8);
         }
 
         // Massive particle explosion
@@ -1030,10 +1005,6 @@ export class Player {
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash('#FFD700', 0.4 * intensity);
         }
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(4 * intensity, 0.4);
-        }
-
         // Particle celebration
         if (this.game.systems.particle) {
             this.game.systems.particle.createComboExplosion(this.x, this.y, threshold, intensity);
@@ -1148,10 +1119,6 @@ export class Player {
         if (this.game && this.game.camera && typeof this.game.camera.flash === 'function') {
             this.game.camera.flash(color, 0.3 * intensity);
         }
-        if (this.game && this.game.camera && typeof this.game.camera.shake === 'function') {
-            this.game.camera.shake(3 * intensity, 0.2);
-        }
-
         if (this.game.systems.particle) {
             this.game.systems.particle.createPowerUpEffect(this.x, this.y, color, intensity);
         }
@@ -1253,9 +1220,6 @@ export class Player {
         if (this.game && this.game.camera) {
             if (typeof this.game.camera.flash === 'function') {
                 this.game.camera.flash('#00FF88', 0.6);
-            }
-            if (typeof this.game.camera.shake === 'function') {
-                this.game.camera.shake(4, 0.3); // Celebratory shake
             }
         }
 
@@ -1380,7 +1344,7 @@ export class Player {
         }
 
         // Enhanced damage feedback
-        this.createDamageEffects(damage);
+        this.createDamageEffects(damage, source);
 
         // Hit-stop on boss damage for weighty impact
         if (source && source.type === 'boss' && this.game.camera) {
@@ -1467,8 +1431,7 @@ export class Player {
                 oldLevel: this.level - 1
             });
 
-            // REBALANCED: Slightly reduced XP requirements to compensate for lower XP rewards
-            this.experienceToNext = Math.floor(100 * Math.pow(1.12, this.level - 1));
+            this.experienceToNext = Player.xpForLevel(this.level);
 
             // Level-ups still recover health, but no longer erase all danger.
             if (!this.game.systems?.challenge?.hasModifier('no_heals')) {

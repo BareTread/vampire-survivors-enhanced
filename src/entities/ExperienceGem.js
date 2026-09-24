@@ -412,20 +412,6 @@ export class ExperienceGem {
             this
         );
 
-        // Screen flash for lucky gems
-        if (this.game.camera) {
-            this.game.camera.flash('#FFD700', 0.5);
-        }
-
-        // Enhanced screen shake
-        if (this.game.camera) {
-            this.game.camera.shakeLuckyGem();
-        }
-
-        // Pickup camera shake for tactile feedback
-        if (this.game.camera) {
-            this.game.camera.shakePickupGem();
-        }
     }
 
     createRareCollectionEffect() {
@@ -449,16 +435,6 @@ export class ExperienceGem {
             100,
             this
         );
-
-        // Screen flash for rare gems
-        if (this.game.camera) {
-            this.game.camera.flash(this.color, 0.3);
-        }
-
-        // Brief screen shake
-        if (this.game.camera) {
-            this.game.camera.shake(3, 0.2);
-        }
     }
 
     createUncommonCollectionEffect() {
